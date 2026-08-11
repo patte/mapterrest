@@ -44,11 +44,11 @@ const WEIGHT_SIGMA = 0.25;
 const MIN_HITS = 3;
 
 /**
- * How big a jump in depth starts a new surface, in octaves. Wide enough that a face
+ * How deep a surface reaches either side of its peak, in octaves. Wide enough that a face
  * slanting away from the camera stays one thing, narrow enough to keep the ridge behind
  * it separate.
  */
-const SURFACE_GAP = 0.35;
+const SURFACE_BAND = 0.35;
 
 /**
  * Fallback for a frame that is nearly all sky: fractions of the viewport height to look
@@ -146,27 +146,38 @@ function grid(map: MapLibreMap, v: View): PivotSample[] {
   return samples;
 }
 
-type Surface = { members: PivotSample[]; weight: number };
+type Hit = PivotSample & { point: PivotPoint; depth: number };
+type Surface = { members: Hit[]; weight: number; share: number };
 
-/** The hits grouped into the surfaces they came from: runs of similar depth. Sky weighs nothing. */
-function surfaces(samples: PivotSample[]): Surface[] {
-  const hits = samples
-    .filter((s) => s.depth !== null)
-    .sort((a, b) => (a.depth as number) - (b.depth as number));
-  const found: Surface[] = [];
-  for (const s of hits) {
-    const open = found[found.length - 1];
-    const previous = open?.members[open.members.length - 1];
-    if (previous && Math.log2((s.depth as number) / (previous.depth as number)) <= SURFACE_GAP) {
-      open.members.push(s);
-    } else {
-      found.push({ members: [s], weight: 0 });
-    }
-  }
-  for (const surface of found) {
-    surface.weight = surface.members.reduce((sum, s) => sum + s.weight, 0);
-  }
-  return found;
+/**
+ * The surface the frame's weight piles onto: the peak of the weighted depth density, and
+ * everything within a band of it. Sky weighs nothing.
+ *
+ * Cutting the depths at the gaps instead is what a scene with gaps invites, and it fails
+ * on the scenes that have none. Tipped toward level the ground runs out to the horizon
+ * without a break, every neighbouring pair of samples falls inside any gap threshold, and
+ * single-linkage chains the mountain 3 km ahead to the range 60 km behind it as one
+ * "surface" whose centre of mass is in the distance. A peak cannot chain: thin density
+ * spread over many octaves never out-piles a concentration in one.
+ *
+ * It also prefers the near thing without being told to. Depth is measured in octaves, so
+ * a given patch of screen covers fewer of them the closer it is, and its samples land in
+ * the same band rather than smearing across several.
+ */
+function dominantSurface(samples: PivotSample[]): Surface | null {
+  const hits = samples.filter((s): s is Hit => s.depth !== null);
+  if (hits.length < MIN_HITS) return null;
+
+  const pileAt = (depth: number): number =>
+    hits.reduce((sum, s) => {
+      const octaves = Math.abs(Math.log2(s.depth / depth)) / SURFACE_BAND;
+      return sum + (octaves >= 1 ? 0 : s.weight * (1 - octaves));
+    }, 0);
+
+  const peak = hits.reduce((a, b) => (pileAt(b.depth) > pileAt(a.depth) ? b : a));
+  const members = hits.filter((s) => Math.abs(Math.log2(s.depth / peak.depth)) <= SURFACE_BAND);
+  const weight = members.reduce((sum, s) => sum + s.weight, 0);
+  return { members, weight, share: weight / hits.reduce((sum, s) => sum + s.weight, 0) };
 }
 
 /**
@@ -177,7 +188,7 @@ function surfaces(samples: PivotSample[]): Surface[] {
  * is a raycast hit, so it is always on the terrain.
  */
 function onSurface(map: MapLibreMap, v: View, surface: Surface): PivotPoint {
-  const members = surface.members as (PivotSample & { point: PivotPoint })[];
+  const { members } = surface;
   const mean = (of: (p: PivotPoint) => number): number =>
     members.reduce((sum, s) => sum + of(s.point) * s.weight, 0) / surface.weight;
   const centroid = { x: mean((p) => p.x), y: mean((p) => p.y), elevation: mean((p) => p.elevation) };
@@ -187,7 +198,7 @@ function onSurface(map: MapLibreMap, v: View, surface: Surface): PivotPoint {
     const hit = raycast(map, at.x, at.y);
     const depth = hit && dot(offsetTo(v, hit), v.frame.forward);
     const centroidDepth = dot(offsetTo(v, centroid), v.frame.forward);
-    if (hit && depth && Math.abs(Math.log2(depth / centroidDepth)) <= SURFACE_GAP) return hit;
+    if (hit && depth && Math.abs(Math.log2(depth / centroidDepth)) <= SURFACE_BAND) return hit;
   }
 
   const squared = (p: PivotPoint): number =>
@@ -206,17 +217,15 @@ export function choosePivot(map: MapLibreMap): Pivot | null {
   const v = currentView(map);
   const samples = grid(map, v);
 
-  const found = surfaces(samples);
-  const hits = found.reduce((sum, s) => sum + s.members.length, 0);
-  if (hits >= MIN_HITS) {
-    const chosen = found.reduce((a, b) => (b.weight > a.weight ? b : a));
-    for (const s of chosen.members) s.chosen = true;
-    const point = onSurface(map, v, chosen);
+  const surface = dominantSurface(samples);
+  if (surface) {
+    for (const s of surface.members) s.chosen = true;
+    const point = onSurface(map, v, surface);
     return {
       point,
       depth: dot(offsetTo(v, point), v.frame.forward),
       from: 'subject',
-      share: chosen.weight / found.reduce((sum, s) => sum + s.weight, 0),
+      share: surface.share,
       samples,
     };
   }

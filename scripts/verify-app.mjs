@@ -222,8 +222,10 @@ check(
   'the grid, not the anchor ladder, chooses it',
   `${grabbed.hits}/${grabbed.total} hits`,
 );
+// A band of the depth range rather than everything down to the horizon, so the share is a
+// minority of a frame that runs from the foreground to 40 km out — and has to be one.
 check(
-  grabbed.voted >= 3 && grabbed.share > 0.25,
+  grabbed.voted >= 3 && grabbed.share > 0.2 && grabbed.share < 0.9,
   'one surface carries the choice',
   `${grabbed.voted} pts, ${(grabbed.share * 100).toFixed(0)}% of the weight`,
 );
