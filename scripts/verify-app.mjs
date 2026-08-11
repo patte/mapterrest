@@ -21,10 +21,19 @@ const check = (ok, label, detail = '') => {
   if (!ok) failures.push(label);
 };
 
-/** A fresh page per case, so hash state and colour scheme never leak between them. */
+/**
+ * A fresh page per case, so hash state and colour scheme never leak between them, and
+ * every case runs at `detail=low`: none of them are testing the tuned LOD, and a pitched
+ * frame at full detail pulls hundreds of tiles through a software GL.
+ */
 async function open(opts = {}) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, ...opts });
-  await page.goto(URL_ + (opts.hash || ''), { waitUntil: 'domcontentloaded' });
+  const hash = opts.hash?.includes('detail=')
+    ? opts.hash
+    : opts.hash
+      ? `${opts.hash}&detail=low`
+      : '#detail=low';
+  await page.goto(URL_ + hash, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
   return page;
 }
@@ -41,6 +50,7 @@ const source = await page.evaluate(() => {
 });
 check(source.encoding === 'terrarium', 'DEM source is terrarium', JSON.stringify(source));
 check(source.minzoom === 0, 'relief reaches the horizon (minzoom 0)');
+check(source.tileSize === 512, 'detail=low declares the tiles at their real size');
 check(!!(await page.evaluate(() => window.map.getTerrain())), 'terrain is attached');
 check(
   (await page.evaluate(() =>
@@ -64,6 +74,14 @@ for (const p of PROBES) {
   const ok = m !== null && m >= p.expect[0] && m <= p.expect[1];
   check(ok, `${p.name} elevation`, `${m?.toFixed(1)} m, expected ${p.expect.join('–')}`);
 }
+
+// Flat, so asking for the tuned detail costs a handful of tiles rather than hundreds.
+const detailed = await open({ hash: '#map=12.6/46.005/7.7/-135/0&detail=high' });
+check(
+  (await detailed.evaluate(() => window.map.getStyle().sources['mapterhorn-dem'].tileSize)) === 256,
+  'detail=high understates tileSize to buy a zoom level',
+);
+await detailed.close();
 
 /* Attribution -------------------------------------------------------------- */
 

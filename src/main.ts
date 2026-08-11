@@ -12,12 +12,15 @@ import {
 import { enableShiftDragCamera } from './shiftDragCamera';
 import { onSchemeChange, prefersDark } from './theme';
 import {
+  DEFAULT_DETAIL,
   DEFAULT_EXAGGERATION,
   DEM_SOURCE,
+  DETAIL_LEVELS,
+  demSource,
   MAX_EXAGGERATION,
   MAX_ZOOM_LEVELS_ON_SCREEN,
-  TERRAIN_SOURCE,
   TILE_COUNT_MAX_MIN_RATIO,
+  type Detail,
 } from './terrain';
 import { has, MAP_HASH_KEY, readBoolean, readNumber, readString, write } from './urlState';
 
@@ -31,6 +34,7 @@ let basemapVisible = readBoolean('basemapVisible', true);
 let shadingKey = readString<ShadingKey>('shading', DEFAULT_SHADING, SHADING_KEYS);
 let shadingVisible = readBoolean('shadingVisible', true);
 let exaggeration = readNumber('exaggeration', DEFAULT_EXAGGERATION, 0, MAX_EXAGGERATION);
+const detail = readString<Detail>('detail', DEFAULT_DETAIL, DETAIL_LEVELS);
 
 const map = new MapLibreMap({
   container: 'map',
@@ -60,8 +64,10 @@ map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 map.on('style.load', () => {
   const basemap = BASEMAPS[basemapKey];
 
-  map.addSource(DEM_SOURCE, TERRAIN_SOURCE);
-  map.setSourceTileLodParams(MAX_ZOOM_LEVELS_ON_SCREEN, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
+  map.addSource(DEM_SOURCE, demSource(detail));
+  if (detail === 'high') {
+    map.setSourceTileLodParams(MAX_ZOOM_LEVELS_ON_SCREEN, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
+  }
   map.setTerrain({ source: DEM_SOURCE, exaggeration });
   map.setSky(basemap.sky);
 

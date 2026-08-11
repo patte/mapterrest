@@ -114,6 +114,15 @@ the far end:
 5.0 / 100 is what is set. 3.0 / 100 buys two more levels at the horizon and is not worth
 it: that view takes 161 s and 1.1 GB of heap to settle, against 23 s and 273 MB.
 
+`#detail=low` gives up both levers — the tiles are declared at their real 512 px and the
+LOD params are left alone — which takes the default view from 319 tiles and 118 MiB to 19
+and 7.4 MiB. It is for a metered connection and for the headless checks, which now all
+run that way; none of them are testing the tuned LOD, and a pitched frame at full detail
+through a software GL took twenty minutes where this takes one. It is read at load rather
+than offered as a control, because `tileSize` only counts on a source declared at
+`style.load` — swapping it live strands render-to-texture tiles and paints blank bands
+over the relief.
+
 Nothing else moves terrain LOD. `TerrainTileManager.deltaZoom` is documented for exactly
 this ("raster-dem tiles will load the actualZoom - deltaZoom zoom-level") and is a no-op
 in 6.3: 1 and 0 request byte-identical tile sets, and -1 throws
@@ -250,6 +259,8 @@ key and re-serialises the rest, so both writers coexist. `urlState.ts` mirrors M
 serialisation exactly — otherwise the hash flips between encoded and decoded forms as
 each side writes.
 
+`detail=low` joins them, read once at load; everything else is written back as it changes.
+
 Bearing runs −180 to 180 there. `Hash._isValidHash` rejects anything outside that and
 drops the whole `map` param with it, so a hand-written `225` silently loads the default
 camera instead.
@@ -274,5 +285,5 @@ Matter, DataViz Light is Positron; there is no `dataviz-*` style URL, those 404.
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm verify` | Headless end-to-end: terrain, elevations, attribution, hash round-trip, colour scheme, shift+drag orbit, mobile panel (needs `pnpm dev` running) |
+| `pnpm verify` | Headless end-to-end at `detail=low`: terrain, elevations, attribution, hash round-trip, colour scheme, shift+drag orbit, mobile panel (needs `pnpm dev` running) |
 | `pnpm probe:coverage` | What asking past Mapterhorn's depth costs, per place and zoom (needs `pnpm dev` running) |

@@ -21,7 +21,7 @@ export const DEM_SOURCE = 'mapterhorn-dem';
  * same to the decimetre. This sets the whole frame's level; the decay toward the horizon
  * is shaped separately, below.
  */
-export const TERRAIN_SOURCE: RasterDEMSourceSpecification = {
+const TERRAIN_SOURCE: RasterDEMSourceSpecification = {
   type: 'raster-dem',
   tiles: ['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],
   encoding: 'terrarium',
@@ -30,6 +30,25 @@ export const TERRAIN_SOURCE: RasterDEMSourceSpecification = {
   maxzoom: 17,
   attribution: '<a href="https://mapterhorn.com/attribution" target="_blank">© Mapterhorn</a>',
 };
+
+/**
+ * How much of the above to ask for. `high` is what the app is tuned for and what the
+ * numbers in the README describe. `low` gives up both levers — the tiles are declared at
+ * their real size and the LOD params are left at MapLibre's defaults — which takes the
+ * default view from 319 tiles and 118 MiB to 19 and 7.4 MiB.
+ *
+ * It is a load-time choice, `#detail=low`, not a control. tileSize only takes effect on
+ * a source declared at `style.load`; swapping it on a live map strands render-to-texture
+ * tiles and paints blank bands over the relief.
+ */
+export const DETAIL_LEVELS = ['high', 'low'] as const;
+export type Detail = (typeof DETAIL_LEVELS)[number];
+export const DEFAULT_DETAIL: Detail = 'high';
+
+export const demSource = (detail: Detail): RasterDEMSourceSpecification => ({
+  ...TERRAIN_SOURCE,
+  tileSize: detail === 'high' ? 256 : 512,
+});
 
 /**
  * Arguments for setSourceTileLodParams, which shapes how fast terrain zoom decays
