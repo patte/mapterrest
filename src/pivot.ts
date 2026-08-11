@@ -30,7 +30,7 @@ import { cameraFrame, dot, type Vec3 } from './cameraAnchor';
  * mass is 96 px below and right of the middle of the window.
  */
 
-const GRID_COLUMNS = 7;
+export const GRID_COLUMNS = 7;
 const GRID_ROWS = 5;
 /** Fractions of the viewport the grid spans, inset from the edges. */
 const GRID_X = [0.15, 0.85];

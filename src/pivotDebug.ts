@@ -1,5 +1,5 @@
 import { type MapLibreMap } from 'maplibre-gl';
-import { choosePivot, projectPoint, type Pivot, type PivotSample } from './pivot';
+import { choosePivot, GRID_COLUMNS, projectPoint, type Pivot, type PivotSample } from './pivot';
 
 /**
  * `#debugPivot=1`: draw what the shift+drag gesture would turn around, and the grid that
@@ -139,6 +139,28 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
     ]);
   };
 
+  /**
+   * The grid as a table, to paste out of the console. The overlay shows where the choice
+   * landed; this shows what it was choosing between.
+   */
+  const report = (p: Pivot): void => {
+    const tr = map._camera.transform;
+    const cell = (s: PivotSample): string =>
+      (s.depth === null
+        ? 'sky'
+        : `${(s.depth / 1000).toFixed(1)}k/${s.weight.toFixed(2)}${s.chosen ? '*' : ''}`
+      ).padStart(11);
+    const rows: string[] = [];
+    for (let i = 0; i < p.samples.length; i += GRID_COLUMNS) {
+      rows.push(p.samples.slice(i, i + GRID_COLUMNS).map(cell).join(''));
+    }
+    console.log(
+      `[pivot] ${tr.width}×${tr.height} z${tr.zoom.toFixed(2)} pitch ${tr.pitch.toFixed(1)} · ` +
+        `${p.from} ${(p.depth / 1000).toFixed(2)} km, ${Math.round(p.point.elevation)} m, ` +
+        `${Math.round(p.share * 100)}% of weight (* = chosen surface)\n${rows.join('\n')}`,
+    );
+  };
+
   /** Out of the render and event handlers the solve was triggered from: it reads pixels. */
   const solve = (): void => {
     if (held || pending) return;
@@ -147,6 +169,7 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
       if (held) return;
       pivot = choosePivot(map);
       draw();
+      if (pivot) report(pivot);
     });
   };
 
