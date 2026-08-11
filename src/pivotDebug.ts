@@ -171,12 +171,14 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
     // Depth, elevation and weight, kept short enough that 13 columns still paste as a
     // readable grid. Elevation is what says whether a pivot at the right distance is on
     // the peak or in the valley below it.
+    // Weight as two digits, 00 to 99: printed as a decimal, a full 1.00 is indistinguishable
+    // from 0.00 once the leading digit is trimmed to fit.
     const cell = (s: PivotSample): string =>
       (s.depth === null || !s.point
         ? '·'
-        : `${(s.depth / 1000).toFixed(1)}@${Math.round(s.point.elevation / 100)}/${s.weight
-            .toFixed(2)
-            .slice(1)}${s.chosen ? '*' : ''}`
+        : `${(s.depth / 1000).toFixed(1)}@${Math.round(s.point.elevation / 100)}/${String(
+            Math.round(s.weight * 99),
+          ).padStart(2, '0')}${s.chosen ? '*' : ''}`
       ).padStart(13);
     const rows: string[] = [];
     for (let i = 0; i < p.samples.length; i += GRID_COLUMNS) {
