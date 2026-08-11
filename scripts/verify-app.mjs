@@ -172,6 +172,11 @@ for (let i = 1; i <= 8; i++) {
   await orbit.mouse.move(400 + i * 9, 300 + i * 5);
   await orbit.waitForTimeout(20);
 }
+// The camera as the drag ends, to compare with where it settles: MapLibre pins the
+// centre's elevation to the terrain every frame, and a gesture that hands back a state
+// it disagrees with gets dragged a kilometre vertically the moment the mouse comes up.
+const midDrag = await orbit.evaluate(() => window.map._camera.transform.getCameraAltitude());
+
 await orbit.mouse.up();
 await orbit.keyboard.up('Shift');
 await orbit.waitForTimeout(1000);
@@ -182,6 +187,7 @@ const turned = await orbit.evaluate((g) => {
   return {
     bearing: tr.bearing,
     pitch: tr.pitch,
+    camAlt: tr.getCameraAltitude(),
     errPx: Math.hypot(p.x - g.anchor[0], p.y - g.anchor[1]),
   };
 }, grabbed);
@@ -198,6 +204,11 @@ check(
 );
 // The whole point of the raycast pivot: the ground it grabbed keeps its pixel.
 check(turned.errPx < 10, 'the grabbed terrain holds its place through the turn', `${turned.errPx.toFixed(1)} px`);
+check(
+  Math.abs(turned.camAlt - midDrag) < 2,
+  'letting go leaves the camera where the drag left it',
+  `${(turned.camAlt - midDrag).toFixed(1)} m`,
+);
 await orbit.close();
 
 /* Mobile panel ------------------------------------------------------------- */
