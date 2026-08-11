@@ -194,13 +194,17 @@ MapLibre's drag handlers never see the gesture and the map cannot pan while rota
 Camera and every control live in the location hash, so a reload restores the view:
 
 ```
-#map=12.6/46.005/7.7/225/78&basemap=carto-light&shading=heatmap&shadingVisible=0&exaggeration=3.7
+#map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&exaggeration=3.7
 ```
 
 MapLibre's named-hash mode (`hash: 'map'`) reads the existing params, sets only its own
 key and re-serialises the rest, so both writers coexist. `urlState.ts` mirrors MapLibre's
 serialisation exactly — otherwise the hash flips between encoded and decoded forms as
 each side writes.
+
+Bearing runs −180 to 180 there. `Hash._isValidHash` rejects anything outside that and
+drops the whole `map` param with it, so a hand-written `225` silently loads the default
+camera instead.
 
 ## Things worth knowing
 
