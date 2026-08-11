@@ -1,5 +1,5 @@
-import { MercatorCoordinate, Point, type MapLibreMap } from 'maplibre-gl';
-import { cameraFrame, dot, type Vec3 } from './cameraAnchor';
+import { MercatorCoordinate, type MapLibreMap } from 'maplibre-gl';
+import { cameraFrame, dot, rayCrossing, type Ray, type Vec3 } from './cameraAnchor';
 
 /**
  * Which point the shift+drag gesture turns around.
@@ -115,12 +115,46 @@ const offsetTo = (v: View, p: PivotPoint): Vec3 => [
   p.elevation - v.altitude,
 ];
 
-/** The ground under a pixel, or null if that pixel is sky. */
-function raycast(map: MapLibreMap, x: number, y: number): PivotPoint | null {
-  // z is the elevation in metres on what comes back, not a mercator z — toAltitude()
-  // would be nonsense.
-  const hit = map.terrain?.pointCoordinate(new Point(x, y));
-  return hit ? { x: hit.x, y: hit.y, elevation: hit.z } : null;
+/** The ray out through a viewport pixel: the view axis, tilted by how far off centre it is. */
+function rayThrough(v: View, x: number, y: number): Ray {
+  const across = (x - v.width / 2) / v.focal;
+  const up = -(y - v.height / 2) / v.focal;
+  const direction = v.frame.forward.map(
+    (f, k) => f + v.frame.right[k] * across + v.frame.up[k] * up,
+  ) as Vec3;
+  const length = Math.hypot(...direction);
+  return {
+    origin: v.camera,
+    altitude: v.altitude,
+    direction: direction.map((c) => c / length) as Vec3,
+  };
+}
+
+/**
+ * The ground under a pixel, or null if that pixel is sky.
+ *
+ * Marched against the DEM rather than read back from MapLibre's coords framebuffer.
+ * `terrain.pointCoordinate` is the obvious call and it is quietly wrong on a big frame:
+ * the tile a pixel belongs to is encoded in one byte, so past 255 rendered terrain tiles
+ * the index wraps and the answer is a real coordinate from the wrong tile. A 1900×1532
+ * window at pitch 85 draws 306 of them and every sample came back 200–350 km out, on a
+ * mountain 3 km away. Marching also reads the same DEM the camera anchor settles against,
+ * so the pivot and the settle no longer disagree by the metres that mesh and DEM do.
+ */
+function raycast(map: MapLibreMap, v: View, x: number, y: number): PivotPoint | null {
+  const ray = rayThrough(v, x, y);
+  const distance = rayCrossing(
+    map,
+    v.mercatorPerMetre,
+    ray,
+    map._camera.transform.tileZoom,
+  );
+  if (distance === null) return null;
+  return {
+    x: v.camera.x + ray.direction[0] * distance * v.mercatorPerMetre,
+    y: v.camera.y - ray.direction[1] * distance * v.mercatorPerMetre,
+    elevation: v.altitude + ray.direction[2] * distance,
+  };
 }
 
 function grid(map: MapLibreMap, v: View): PivotSample[] {
@@ -131,7 +165,7 @@ function grid(map: MapLibreMap, v: View): PivotSample[] {
       const x =
         v.width * (GRID_X[0] + ((GRID_X[1] - GRID_X[0]) * col) / (GRID_COLUMNS - 1));
       const y = v.height * (GRID_Y[0] + ((GRID_Y[1] - GRID_Y[0]) * row) / (GRID_ROWS - 1));
-      const point = raycast(map, x, y);
+      const point = raycast(map, v, x, y);
       const away = Math.hypot(x - v.width * WEIGHT_CENTRE[0], y - v.height * WEIGHT_CENTRE[1]);
       samples.push({
         x,
@@ -195,7 +229,7 @@ function onSurface(map: MapLibreMap, v: View, surface: Surface): PivotPoint {
 
   const at = projectFrom(v, centroid);
   if (at && at.x >= 0 && at.x < v.width && at.y >= 0 && at.y < v.height) {
-    const hit = raycast(map, at.x, at.y);
+    const hit = raycast(map, v, at.x, at.y);
     const depth = hit && dot(offsetTo(v, hit), v.frame.forward);
     const centroidDepth = dot(offsetTo(v, centroid), v.frame.forward);
     if (hit && depth && Math.abs(Math.log2(depth / centroidDepth)) <= SURFACE_BAND) return hit;
@@ -231,7 +265,7 @@ export function choosePivot(map: MapLibreMap): Pivot | null {
   }
 
   for (const fraction of ANCHOR_LADDER) {
-    const point = raycast(map, v.width / 2, v.height * fraction);
+    const point = raycast(map, v, v.width / 2, v.height * fraction);
     if (!point) continue;
     return {
       point,

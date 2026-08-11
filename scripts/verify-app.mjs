@@ -242,6 +242,34 @@ check(
   `${grabbed.roundTripPx?.toFixed(1)} px`,
 );
 
+// terrain.pointCoordinate encodes the tile a pixel came from in one byte, so past 255
+// rendered terrain tiles it decodes the wrong tile and answers with a real coordinate from
+// somewhere else — a 1900×1532 window at pitch 85 draws 306 and every sample came back
+// 200-350 km out. These checks run at detail=low, 18 tiles, and would never see it. So
+// assert the pivot does not ask that question at all: break the call, expect no change.
+const withoutCoords = await orbit.evaluate((g) => {
+  const map = window.map;
+  const real = map.terrain.pointCoordinate;
+  map.terrain.pointCoordinate = () => null;
+  try {
+    const pivot = window.choosePivot(map);
+    return (
+      pivot && {
+        from: pivot.from,
+        movedM: Math.abs(pivot.depth - g.depth),
+        hits: pivot.samples.filter((s) => s.point).length,
+      }
+    );
+  } finally {
+    map.terrain.pointCoordinate = real;
+  }
+}, grabbed);
+check(
+  withoutCoords?.from === 'subject' && withoutCoords.movedM < 1,
+  'the pivot is marched off the DEM, not read from the coords framebuffer',
+  `${withoutCoords?.hits} hits, ${withoutCoords?.movedM.toFixed(2)} m`,
+);
+
 // Off centre and away from the mountain: where the drag starts must not move the pivot.
 await orbit.keyboard.down('Shift');
 await orbit.mouse.move(620, 460);

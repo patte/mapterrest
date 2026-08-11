@@ -60,18 +60,35 @@ export type Pose = {
   pitch: number;
 };
 
-/** A point along the view axis: where it is on the ground, and how high the axis is there. */
-function axisAt(mercatorPerMetre: number, pose: Pose, distance: number) {
-  const frame = cameraFrame(pose.bearing, pose.pitch);
-  const cameraMercator = MercatorCoordinate.fromLngLat(pose.camera);
+/** Where a ray starts and which way it points, in metres east/north/up. */
+export type Ray = {
+  origin: MercatorCoordinate;
+  altitude: number;
+  /** Unit length, or distances along the ray stop meaning metres. */
+  direction: Vec3;
+};
+
+/** A point along a ray: where it is on the ground, and how high the ray is there. */
+function rayAt(mercatorPerMetre: number, ray: Ray, distance: number) {
   return {
-    distance,
-    elevation: pose.altitude + frame.forward[2] * distance,
-    centre: new MercatorCoordinate(
-      cameraMercator.x + frame.forward[0] * distance * mercatorPerMetre,
-      cameraMercator.y - frame.forward[1] * distance * mercatorPerMetre,
+    elevation: ray.altitude + ray.direction[2] * distance,
+    ground: new MercatorCoordinate(
+      ray.origin.x + ray.direction[0] * distance * mercatorPerMetre,
+      ray.origin.y - ray.direction[1] * distance * mercatorPerMetre,
     ).toLngLat(),
   };
+}
+
+const axisRay = (pose: Pose): Ray => ({
+  origin: MercatorCoordinate.fromLngLat(pose.camera),
+  altitude: pose.altitude,
+  direction: cameraFrame(pose.bearing, pose.pitch).forward,
+});
+
+/** A point along the view axis: where it is on the ground, and how high the axis is there. */
+function axisAt(mercatorPerMetre: number, pose: Pose, distance: number) {
+  const at = rayAt(mercatorPerMetre, axisRay(pose), distance);
+  return { distance, elevation: at.elevation, centre: at.ground };
 }
 
 /** How far along the axis a given horizontal plane is. */
@@ -86,25 +103,30 @@ const MARCH_FAR = 80000;
 const MARCH_STEPS = 48;
 
 /**
- * How far along the view axis the terrain first comes up to meet it, sampled the way the
- * elevation pin samples — a DEM read at the tile zoom, not the rendered mesh a raycast
+ * How far along a ray the terrain first comes up to meet it, sampled the way the elevation
+ * pin samples — a DEM read at the tile zoom, not the rendered mesh `pointCoordinate`
  * hits. The two disagree by metres on a slope, and metres of elevation is metres of
- * camera.
+ * camera. It is also the only raycast that keeps working on a big frame: MapLibre encodes
+ * which tile a pixel came from in one byte of the coords framebuffer, so past 255 rendered
+ * terrain tiles `pointCoordinate` decodes the wrong tile and answers with a real
+ * coordinate from somewhere else entirely.
  *
- * Marched rather than solved. Stepping the plane toward the terrain and re-solving
- * diverges wherever the ground is steeper than the axis, which in the Alps is most of it:
- * one pass moved the plane 100 m the wrong way and left the pin 268 m to take back.
- * Steps grow geometrically, since the DEM coarsens with distance too.
+ * Marched rather than solved. Stepping a plane toward the terrain and re-solving diverges
+ * wherever the ground is steeper than the ray, which in the Alps is most of it: one pass
+ * moved the plane 100 m the wrong way and left the pin 268 m to take back. Steps grow
+ * geometrically, since the DEM coarsens with distance too.
+ *
+ * Null where nothing is hit inside `MARCH_FAR` — sky, or a ray that leaves the DEM.
  */
-function axisCrossing(
+export function rayCrossing(
   map: MapLibreMap,
   mercatorPerMetre: number,
-  pose: Pose,
+  ray: Ray,
   zoom: number,
 ): number | null {
   const clearance = (distance: number): number | null => {
-    const at = axisAt(mercatorPerMetre, pose, distance);
-    const ground = map.terrain?.getElevationForLngLatZoom(at.centre, zoom);
+    const at = rayAt(mercatorPerMetre, ray, distance);
+    const ground = map.terrain?.getElevationForLngLatZoom(at.ground, zoom);
     return ground === undefined || !Number.isFinite(ground) ? null : at.elevation - ground;
   };
 
@@ -130,6 +152,13 @@ function axisCrossing(
   }
   return null;
 }
+
+const axisCrossing = (
+  map: MapLibreMap,
+  mercatorPerMetre: number,
+  pose: Pose,
+  zoom: number,
+): number | null => rayCrossing(map, mercatorPerMetre, axisRay(pose), zoom);
 
 /** The zoom that puts the centre this far down the axis. */
 const zoomFor = (map: MapLibreMap, mercatorPerMetre: number, distance: number): number => {

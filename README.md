@@ -211,13 +211,13 @@ well past the ridge in view — 11.8 km out over Zermatt where the ground under 
 pixel is 9.5 km out, and 7.3 km two-thirds of the way down the frame. Turning about the
 far point drags the whole frame around with it.
 
-So the handler raycasts. `map.terrain.pointCoordinate(p)` reads the coords framebuffer
-for the ground under a pixel — the same call MapLibre's own pan and zoom anchoring makes,
-and one its rotate handler never does, since `MouseRotateHandler` emits no anchor and the
-pivot machinery is skipped for the centre point. The hits are taken once at mousedown
-(they are GPU readbacks), the camera's offset from the pivot is frozen in the camera's own
-basis, and every frame rebuilds that offset at the new angles. Distance and angular
-position are both preserved, so the pivot keeps its pixel and its size.
+So the handler raycasts — the ground under a pixel, found by marching a ray against the
+DEM (see [below](#the-raycast-does-not-ask-the-gpu)). The hits are taken once at mousedown,
+the camera's offset from the pivot is frozen in the camera's own basis, and every frame
+rebuilds that offset at the new angles. Distance and angular position are both preserved,
+so the pivot keeps its pixel and its size. MapLibre's own rotate handler turns about the
+centre regardless: `MouseRotateHandler` emits no anchor, and the pivot machinery is
+skipped for the centre point.
 
 Mean displacement of nine fixed ground points, and how far the pivot itself slides:
 
@@ -276,6 +276,45 @@ misses. Either way the pivot is a raycast hit.
 Below three hits, on a frame that is nearly all sky, the old ladder of anchors takes over
 (0.65, 0.8, 0.5, 0.92 down the centre column, first hit wins), and with no terrain at all
 the gesture turns about the centre.
+
+### The raycast does not ask the GPU
+
+`map.terrain.pointCoordinate(p)` is the obvious way to get the ground under a pixel — it
+reads MapLibre's coords framebuffer, and it is what MapLibre's own pan and zoom anchoring
+calls. It is also **silently wrong on a large window**. Which tile a pixel came from is
+encoded in one byte of that framebuffer:
+
+```js
+const uniformValues = terrainCoordsUniformValues(255 - terrain.coordsIndex.length, ...)
+...
+const tileID = this.coordsIndex[255 - rgba[3]];   // 8 bits → 255 tiles, and no guard
+```
+
+Past 255 rendered terrain tiles the index wraps, pixels decode to the wrong tile, and the
+call returns a *real* coordinate from somewhere else on the planet. A 1900×1532 window at
+pitch 85 draws 306 of them, and every sample of the frame came back 200–350 km out on a
+mountain 3 km away — while the same view in a 1400×900 window (172 tiles) answered
+correctly. MapLibre documents the limit in a source comment and does nothing about it; no
+issue or PR in the repository mentions it. The tile count is ours to inflate, too: the LOD
+params below are what take the default view from 36 tiles to 319.
+
+So the grid marches rays against the DEM instead, with `rayCrossing` in
+[cameraAnchor.ts](src/cameraAnchor.ts) — the same geometric march and bisection the camera
+anchor uses to find where the view axis meets the terrain, pointed through an arbitrary
+pixel rather than straight ahead. Three things come out of it:
+
+| | `pointCoordinate` | marched against the DEM |
+| --- | --- | --- |
+| 306 tiles, pitch 85 | 200–350 km, garbage | 5.11 km, same as at 18 tiles |
+| 36 rays, 1900×1532 | 2 ms | **1.6 ms** |
+| answers from | the rendered mesh | the DEM the anchor settles against |
+
+The timings are from SwiftShader, where `readPixels` is a memory read; on a real GPU it is
+a pipeline sync and the gap is wider. The third row matters as much as the first: the
+pivot and the settle used to disagree by the metres that mesh and DEM differ by on a
+slope. `pnpm verify` runs at 18 tiles and could never catch the overflow, so it asserts the
+invariant instead — it stubs `pointCoordinate` to return null and checks the pivot does not
+move.
 
 The pivot never depends on where the mouse went down — shift+drag from anywhere and the
 mountain in view is what turns — which is how Google Maps 3D behaves, and Google is where
@@ -383,6 +422,12 @@ per tile wants a frame-time measurement first.
 
 **CARTO publishes its DataViz basemaps under their original names.** DataViz Dark is Dark
 Matter, DataViz Light is Positron; there is no `dataviz-*` style URL, those 404.
+
+**`terrain.pointCoordinate` corrupts past 255 rendered terrain tiles**, silently, returning
+a real coordinate from the wrong tile — see [above](#the-raycast-does-not-ask-the-gpu).
+`map.terrain.coordsIndex.length` is the count to check it against. Anything that reads that
+framebuffer is affected, including MapLibre's own pan and zoom anchoring, so a big window
+over dense terrain is worth suspecting whenever a screen-to-ground answer looks absurd.
 
 ## Scripts
 
