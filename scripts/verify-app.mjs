@@ -28,11 +28,12 @@ const check = (ok, label, detail = '') => {
  */
 async function open(opts = {}) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, ...opts });
-  const hash = opts.hash?.includes('detail=')
-    ? opts.hash
-    : opts.hash
-      ? `${opts.hash}&detail=low`
-      : '#detail=low';
+  const hash =
+    opts.hash?.includes('detail=') || opts.appDefaultDetail
+      ? (opts.hash ?? '')
+      : opts.hash
+        ? `${opts.hash}&detail=low`
+        : '#detail=low';
   await page.goto(URL_ + hash, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
   return page;
@@ -51,6 +52,11 @@ const source = await page.evaluate(() => {
 check(source.encoding === 'terrarium', 'DEM source is terrarium', JSON.stringify(source));
 check(source.minzoom === 0, 'relief reaches the horizon (minzoom 0)');
 check(source.tileSize === 512, 'detail=low declares the tiles at their real size');
+// calculateTileZoom is where setSourceTileLodParams lands; unset means default LOD.
+check(
+  await page.evaluate(() => window.map.getSource('mapterhorn-dem').calculateTileZoom === undefined),
+  'detail=low leaves the LOD params alone',
+);
 check(!!(await page.evaluate(() => window.map.getTerrain())), 'terrain is attached');
 check(
   (await page.evaluate(() =>
@@ -82,6 +88,21 @@ check(
   'detail=high understates tileSize to buy a zoom level',
 );
 await detailed.close();
+
+// No detail in the hash: the app's own default has to be medium — real tile size, LOD
+// params shaping the horizon.
+const dflt = await open({ hash: '#map=12.6/46.005/7.7/-135/0', appDefaultDetail: true });
+check(
+  (await dflt.evaluate(() => window.map.getStyle().sources['mapterhorn-dem'].tileSize)) === 512,
+  'default detail declares the tiles at their real size',
+);
+check(
+  await dflt.evaluate(
+    () => typeof window.map.getSource('mapterhorn-dem').calculateTileZoom === 'function',
+  ),
+  'default detail shapes the horizon with the LOD params',
+);
+await dflt.close();
 
 /* Attribution -------------------------------------------------------------- */
 

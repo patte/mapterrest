@@ -20,6 +20,7 @@ import {
   MAX_EXAGGERATION,
   MAX_ZOOM_LEVELS_ON_SCREEN,
   TILE_COUNT_MAX_MIN_RATIO,
+  usesLodParams,
   type Detail,
 } from './terrain';
 import { has, MAP_HASH_KEY, readBoolean, readNumber, readString, write } from './urlState';
@@ -65,7 +66,7 @@ map.on('style.load', () => {
   const basemap = BASEMAPS[basemapKey];
 
   map.addSource(DEM_SOURCE, demSource(detail));
-  if (detail === 'high') {
+  if (usesLodParams(detail)) {
     map.setSourceTileLodParams(MAX_ZOOM_LEVELS_ON_SCREEN, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
   }
   map.setTerrain({ source: DEM_SOURCE, exaggeration });

@@ -114,14 +114,16 @@ the far end:
 5.0 / 100 is what is set. 3.0 / 100 buys two more levels at the horizon and is not worth
 it: that view takes 161 s and 1.1 GB of heap to settle, against 23 s and 273 MB.
 
-`#detail=low` gives up both levers — the tiles are declared at their real 512 px and the
-LOD params are left alone — which takes the default view from 319 tiles and 118 MiB to 19
-and 7.4 MiB. It is for a metered connection and for the headless checks, which now all
-run that way; none of them are testing the tuned LOD, and a pitched frame at full detail
-through a software GL took twenty minutes where this takes one. It is read at load rather
-than offered as a control, because `tileSize` only counts on a source declared at
-`style.load` — swapping it live strands render-to-texture tiles and paints blank bands
-over the relief.
+`#detail=` picks how much of this to ask for. `high` pulls both levers as described
+above. The default, `medium`, keeps the LOD params but declares the tiles at their real
+512 px: one zoom level shallower everywhere, the horizon still held, at a quarter of the
+traffic. `low` gives up both levers; it is for a metered connection and for the headless
+checks, which all run that way — none of them are testing the tuned LOD, and a pitched
+frame at full detail through a software GL took twenty minutes where `low` takes one.
+Measured on the default view in a 1400×900 window: `high` 179 tiles / 68.5 MiB, `medium`
+47 / 19.6, `low` 28 / 11.4. The level is read at load rather than offered as a control,
+because `tileSize` only counts on a source declared at `style.load` — swapping it live
+strands render-to-texture tiles and paints blank bands over the relief.
 
 Nothing else moves terrain LOD. `TerrainTileManager.deltaZoom` is documented for exactly
 this ("raster-dem tiles will load the actualZoom - deltaZoom zoom-level") and is a no-op
@@ -289,7 +291,7 @@ Camera and every control live in the location hash, so a reload restores the vie
 #map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&exaggeration=3.7
 ```
 
-`detail=low` joins them, read once at load; everything else is written back as it changes.
+`detail=` joins them, read once at load; everything else is written back as it changes.
 
 MapLibre's named-hash mode (`hash: 'map'`) reads the existing params, sets only its own
 key and re-serialises the rest, so both writers coexist. `urlState.ts` mirrors MapLibre's

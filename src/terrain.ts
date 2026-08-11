@@ -32,23 +32,31 @@ const TERRAIN_SOURCE: RasterDEMSourceSpecification = {
 };
 
 /**
- * How much of the above to ask for. `high` is what the app is tuned for and what the
- * numbers in the README describe. `low` gives up both levers — the tiles are declared at
- * their real size and the LOD params are left at MapLibre's defaults — which takes the
- * default view from 319 tiles and 118 MiB to 19 and 7.4 MiB.
+ * How much of the above to ask for, measured at the default view in a 1400×900 window:
  *
- * It is a load-time choice, `#detail=low`, not a control. tileSize only takes effect on
+ * - `high` pulls both levers — tileSize understated to 256 and the LOD params below —
+ *   for 179 tiles and 68.5 MiB.
+ * - `medium`, the default, keeps the LOD params but declares the tiles at their real
+ *   512 px: one zoom level shallower everywhere, the horizon still held, at a quarter
+ *   of the traffic — 47 tiles and 19.6 MiB.
+ * - `low` gives up both levers: 28 tiles and 11.4 MiB, for metered connections and the
+ *   headless checks.
+ *
+ * It is a load-time choice, `#detail=high`, not a control. tileSize only takes effect on
  * a source declared at `style.load`; swapping it on a live map strands render-to-texture
  * tiles and paints blank bands over the relief.
  */
-export const DETAIL_LEVELS = ['high', 'low'] as const;
+export const DETAIL_LEVELS = ['high', 'medium', 'low'] as const;
 export type Detail = (typeof DETAIL_LEVELS)[number];
-export const DEFAULT_DETAIL: Detail = 'high';
+export const DEFAULT_DETAIL: Detail = 'medium';
 
 export const demSource = (detail: Detail): RasterDEMSourceSpecification => ({
   ...TERRAIN_SOURCE,
   tileSize: detail === 'high' ? 256 : 512,
 });
+
+/** Which levels shape the decay toward the horizon with setSourceTileLodParams. */
+export const usesLodParams = (detail: Detail): boolean => detail !== 'low';
 
 /**
  * Arguments for setSourceTileLodParams, which shapes how fast terrain zoom decays
