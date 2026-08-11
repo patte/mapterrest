@@ -20,7 +20,7 @@ look like when someone has already done it well".
 | [src/shading.ts](src/shading.ts) | Hillshade and elevation-heatmap layers |
 | [src/theme.ts](src/theme.ts) | `prefers-color-scheme` detection |
 | [src/urlState.ts](src/urlState.ts) | Control state in the location hash |
-| [src/shiftDragCamera.ts](src/shiftDragCamera.ts) | Shift+drag rotate/tilt gesture |
+| [src/shiftDragCamera.ts](src/shiftDragCamera.ts) | Shift+drag orbit around the terrain in the frame |
 | [src/main.ts](src/main.ts) | Map, terrain, shading, UI |
 
 ## Mapterhorn
@@ -189,6 +189,54 @@ option to change it, so [src/shiftDragCamera.ts](src/shiftDragCamera.ts) is a se
 handler. It listens on the document in the capture phase and stops propagation, so
 MapLibre's drag handlers never see the gesture and the map cannot pan while rotating.
 
+### The gesture turns around the terrain it grabbed
+
+MapLibre turns about `transform.center`, which sits on the horizontal plane at the
+centre's own elevation rather than on the terrain. Pitched into a valley that point is
+well past the ridge in view — 11.8 km out over Zermatt where the ground under the centre
+pixel is 9.5 km out, and 7.3 km two-thirds of the way down the frame. Turning about the
+far point drags the whole frame around with it.
+
+So the handler raycasts. `map.terrain.pointCoordinate(p)` reads the coords framebuffer
+for the ground under a pixel — the same call MapLibre's own pan and zoom anchoring makes,
+and one its rotate handler never does, since `MouseRotateHandler` emits no anchor and the
+pivot machinery is skipped for the centre point. The hit is taken once at mousedown (it
+is a GPU readback), the camera's offset from it is frozen in the camera's own basis, and
+every frame rebuilds that offset at the new angles. Distance and angular position are
+both preserved, so the pivot keeps its pixel and its size.
+
+Mean displacement of nine fixed ground points, and how far the pivot itself slides:
+
+| Gesture | About the centre | Orbit, pivot 0.65 down |
+| --- | --- | --- |
+| 10° turn | 164 px (pivot slides 56 px) | 58 px (0.6 px) |
+| 30° turn | 414 px (156 px) | 154 px (0.7 px) |
+| 5° tilt | 81 px (28 px) | 30 px |
+| 15° tilt | 282 px (84 px) | 88 px |
+
+The anchor is 0.65 of the way down the frame because a lower pivot is a nearer one; the
+list walks further down, then up, when the middle of the frame is sky. Rotate and tilt
+speeds are half MapLibre's own — 0.4 and 0.25 °/px — which the calmer pivot made room
+for. Moves are coalesced into one camera update per animation frame; a trackpad reports
+them faster than the map renders.
+
+Two things this leans on, both of which will outlive the numbers above:
+
+**The centre is pinned to the terrain every rendered frame.** `setElevation` at the
+centre, which slides the camera vertically with it. The orbit moves the centre a long
+way, so that correction is large, and it lands as a jump the moment the last frame stops
+overwriting it — 253 px after a 30° turn. `camera.elevationFreeze` holds it off for the
+gesture, exactly as MapLibre's own terrain gestures do, and
+`transform.recalculateZoomAndCenter(terrain)` hands the camera back on release: same
+camera, centre back on the terrain, zoom recomputed to match.
+
+**Past 82° of pitch the gesture hands back early.** Both `calculateCenterFromCameraLngLatAlt`
+and `recalculateZoomAndCenter` give up once |cos(pitch)| < 0.1 and pin the centre 10 km
+ahead, which pins the zoom — and with it the tile LOD — whatever the view was showing. A
+wide view tilted into that zone came back at zoom 12.25 from zoom 10. Tilting past the
+limit therefore releases the pivot and finishes the drag about the centre, as everything
+did before.
+
 ## URL state
 
 Camera and every control live in the location hash, so a reload restores the view:
@@ -226,5 +274,5 @@ Matter, DataViz Light is Positron; there is no `dataviz-*` style URL, those 404.
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm verify` | Headless end-to-end: terrain, elevations, attribution, hash round-trip, colour scheme, mobile panel (needs `pnpm dev` running) |
+| `pnpm verify` | Headless end-to-end: terrain, elevations, attribution, hash round-trip, colour scheme, shift+drag orbit, mobile panel (needs `pnpm dev` running) |
 | `pnpm probe:coverage` | What asking past Mapterhorn's depth costs, per place and zoom (needs `pnpm dev` running) |

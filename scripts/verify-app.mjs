@@ -130,6 +130,58 @@ check(
 );
 await chosen.close();
 
+/* Shift+drag orbits the terrain it grabbed ---------------------------------- */
+
+// A small window: the pitched default view is the expensive one to settle, and the
+// gesture only needs terrain under the anchor and a rendered frame to raycast.
+const orbit = await open({ viewport: { width: 800, height: 600 } });
+await orbit.waitForTimeout(10000);
+
+const grabbed = await orbit.evaluate(() => {
+  const tr = window.map._camera.transform;
+  const anchor = [tr.width / 2, tr.height * 0.65];
+  const hit = window.map.terrain.pointCoordinate({ x: anchor[0], y: anchor[1] });
+  if (!hit) return null;
+  const ll = hit.toLngLat();
+  return { anchor, lng: ll.lng, lat: ll.lat, bearing: tr.bearing, pitch: tr.pitch };
+});
+check(!!grabbed, 'terrain answers a raycast under the gesture anchor');
+
+await orbit.keyboard.down('Shift');
+await orbit.mouse.move(400, 300);
+await orbit.mouse.down();
+for (let i = 1; i <= 8; i++) {
+  await orbit.mouse.move(400 + i * 9, 300 + i * 5);
+  await orbit.waitForTimeout(20);
+}
+await orbit.mouse.up();
+await orbit.keyboard.up('Shift');
+await orbit.waitForTimeout(1000);
+
+const turned = await orbit.evaluate((g) => {
+  const tr = window.map._camera.transform;
+  const p = window.map.project([g.lng, g.lat]);
+  return {
+    bearing: tr.bearing,
+    pitch: tr.pitch,
+    errPx: Math.hypot(p.x - g.anchor[0], p.y - g.anchor[1]),
+  };
+}, grabbed);
+
+check(
+  Math.abs(turned.bearing - (grabbed.bearing + 72 * 0.4)) < 0.5,
+  'a 72 px drag turns by the rotate speed',
+  `${turned.bearing.toFixed(2)}°`,
+);
+check(
+  Math.abs(turned.pitch - (grabbed.pitch - 40 * 0.25)) < 0.5,
+  'a 40 px drag tilts by the pitch speed',
+  `${turned.pitch.toFixed(2)}°`,
+);
+// The whole point of the raycast pivot: the ground it grabbed keeps its pixel.
+check(turned.errPx < 10, 'the grabbed terrain holds its place through the turn', `${turned.errPx.toFixed(1)} px`);
+await orbit.close();
+
 /* Mobile panel ------------------------------------------------------------- */
 
 const phone = await open({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
