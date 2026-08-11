@@ -145,12 +145,16 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
    */
   const report = (p: Pivot): void => {
     const tr = map._camera.transform;
-    // Depth and weight, kept short enough that 13 columns still paste as a readable grid.
+    // Depth, elevation and weight, kept short enough that 13 columns still paste as a
+    // readable grid. Elevation is what says whether a pivot at the right distance is on
+    // the peak or in the valley below it.
     const cell = (s: PivotSample): string =>
-      (s.depth === null
+      (s.depth === null || !s.point
         ? '·'
-        : `${(s.depth / 1000).toFixed(1)}/${s.weight.toFixed(2).slice(1)}${s.chosen ? '*' : ''}`
-      ).padStart(9);
+        : `${(s.depth / 1000).toFixed(1)}@${Math.round(s.point.elevation / 100)}/${s.weight
+            .toFixed(2)
+            .slice(1)}${s.chosen ? '*' : ''}`
+      ).padStart(13);
     const rows: string[] = [];
     for (let i = 0; i < p.samples.length; i += GRID_COLUMNS) {
       rows.push(p.samples.slice(i, i + GRID_COLUMNS).map(cell).join(''));
