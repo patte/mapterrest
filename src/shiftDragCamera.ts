@@ -54,6 +54,17 @@ const MAX_CENTRE_DISTANCE = 10000;
  */
 const MAX_GESTURE_PITCH = 85;
 
+/**
+ * How far above the ground under it the camera is kept. Turning about a pivot in front
+ * swings the camera through whatever is behind, and at z15.6 on a valley side that is
+ * 700 m inside the mountain — the near plane ends up under the surface and the frame
+ * fills with the inside of the terrain. MapLibre lifts a buried camera itself, in
+ * `_elevateCameraIfInsideTerrain`, but by rewriting pitch and zoom, which the next frame
+ * of the gesture overwrites. Lifting it here instead costs the pivot its exact hold —
+ * the alternative is flying through rock.
+ */
+const MIN_GROUND_CLEARANCE = 20;
+
 const DEG = Math.PI / 180;
 
 /** East, north, up in metres. */
@@ -85,6 +96,12 @@ type Orbit = {
   planeElevation: number;
 };
 
+/** The ground under a pixel, or null if that pixel is sky. */
+const raycast = (map: MapLibreMap, x: number, y: number): MercatorCoordinate | null =>
+  // z is the elevation in metres on what comes back, not a mercator z — toAltitude()
+  // would be nonsense.
+  map.terrain?.pointCoordinate(new Point(x, y)) ?? null;
+
 /**
  * The terrain point the gesture turns around, found by raycasting the frame.
  *
@@ -97,12 +114,6 @@ type Orbit = {
  *
  * The readback is a GPU stall, so it happens once per gesture rather than once per frame.
  */
-/** The ground under a pixel, or null if that pixel is sky. */
-const raycast = (map: MapLibreMap, x: number, y: number): MercatorCoordinate | null =>
-  // z is the elevation in metres on what comes back, not a mercator z — toAltitude()
-  // would be nonsense.
-  map.terrain?.pointCoordinate(new Point(x, y)) ?? null;
-
 function grabPivot(map: MapLibreMap): Orbit | null {
   const tr = map._camera.transform;
   for (const fraction of PIVOT_ANCHORS) {
@@ -254,7 +265,13 @@ function orbit(map: MapLibreMap, o: Orbit, bearing: number, pitch: number): void
     o.pivot.y - axis(1) * o.mercatorPerMetre,
   ).toLngLat();
 
-  const pose: Pose = { camera, altitude: o.pivot.elevation + axis(2), bearing, pitch };
+  const ground = map.terrain?.getElevationForLngLatZoom(camera, map._camera.transform.tileZoom);
+  const altitude = Math.max(
+    o.pivot.elevation + axis(2),
+    ground === undefined ? -Infinity : ground + MIN_GROUND_CLEARANCE,
+  );
+
+  const pose: Pose = { camera, altitude, bearing, pitch };
   applyPose(map, o, pose, distanceToPlane(pose, o.planeElevation));
 }
 

@@ -268,6 +268,13 @@ axis, which in the Alps is most of it: one pass moved the plane 100 m the wrong 
 left the pin 268 m to take back. A release now moves the camera **0.2 m**, against 13.6
 for the raycast and 1345 for nothing at all.
 
+**The camera is kept 20 m above the ground under it.** Turning about a pivot in front
+swings it through whatever is behind, and at z15.6 on a valley side that was 700 m inside
+the mountain, near plane under the surface, frame full of the inside of the terrain.
+MapLibre lifts a buried camera itself but does it by rewriting pitch and zoom, which the
+next frame of the gesture overwrites. Lifting it here costs the pivot its exact hold while
+the camera is riding the limit; the alternative is flying through rock.
+
 **The gesture stops tilting at 85°.** A camera at level has no honest centre — the axis
 meets the ground nowhere — and no state exists that the pin agrees with, so it drags the
 camera down a kilometre to meet the terrain 10 km ahead. MapLibre throws on the matrices
