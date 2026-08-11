@@ -1,19 +1,26 @@
 import { type MapLibreMap } from 'maplibre-gl';
-import { choosePivot, GRID_COLUMNS, projectPoint, type Pivot, type PivotSample } from './pivot';
+import {
+  attentionTriangle,
+  choosePivot,
+  GRID_COLUMNS,
+  projectPoint,
+  type Pivot,
+  type PivotSample,
+} from './pivot';
 
 /**
  * `#debugPivot=1`: draw what the shift+drag gesture would turn around, and the grid that
- * chose it. A tuning affordance for the weight centre and σ in [pivot.ts](pivot.ts) —
- * Google shows nothing.
+ * chose it. A tuning affordance for the attention shape in [pivot.ts](pivot.ts) — Google
+ * shows nothing.
  *
  * Each hit is drawn at its own world position, sized by the weight it carried and
  * coloured by how its depth compares to the pivot's; the ones ringed in white are the
- * surface that won, and the crosshair is the point on it the gesture turns about. During
- * a gesture the hits swing with the camera while the crosshair stays put, which is the
- * property being tested.
+ * surface that won, and the crosshair is the point on it the gesture turns about. The
+ * dashed triangle is where attention sits. During a gesture the hits swing with the camera
+ * while the crosshair stays put, which is the property being tested.
  *
- * Solving means ~35 single-pixel readbacks, so it happens when the camera comes to rest,
- * not per frame. Drawing is plain arithmetic and runs every frame.
+ * A solve marches 117 rays, so it happens when the camera comes to rest rather than per
+ * frame. Drawing is plain arithmetic and runs every frame.
  */
 
 /** Nearer than the pivot, at it, beyond it. Saturated, because most of this map is snow. */
@@ -112,6 +119,22 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, tr.width, tr.height);
     if (!pivot) return;
+
+    // The attention triangle, since its shape is now the thing worth tuning by eye.
+    if (!held) {
+      const corners = attentionTriangle(tr.width, tr.height);
+      ctx.beginPath();
+      corners.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
 
     for (const s of pivot.samples) drawSample(s, pivot.depth);
 

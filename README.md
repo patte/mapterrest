@@ -265,8 +265,9 @@ thing falls out of the geometry rather than being dialled in: a far point's term
 at its weight — a pivot at no distance means the camera never translates, so nothing moves
 much — while a near point's grows without bound. That last part needs a cap, one sample
 being allowed to be badly held but not infinitely badly held; without it a strip of ground
-250 m under the camera takes the pivot off a mountain at 4.5 km. Anything from 1.5 to 6
-frame-widths passes every view measured, and it is set to 3.
+250 m under the camera takes the pivot off a mountain at 4.5 km. It is set to 1, where a
+sample saturates once the pivot is twice its own depth — tight, because the attention
+shape below hands full weight to the near ground along the bottom of the frame.
 
 Scoring surfaces by the weight they own instead — the share of the screen they cover —
 reads well and breaks on the near, deep subject, because depth measured in octaves means
@@ -283,6 +284,34 @@ gaps from chaining. Tipped toward level the ground runs to the horizon unbroken:
 gap threshold, so cutting the depths where the gaps are chains the mountain 3 km ahead to
 the range 25 km behind it as one 36-point "surface" whose centre of mass is 6.3 km out in
 the valley — and two samples either side of the threshold decide it.
+
+### Attention is a triangle, not a disc
+
+Every ray's weight comes from where attention sits in the frame: a triangle from the
+middle down to the bottom corners, inset from the edges, full weight inside and falling
+off outside.
+
+A disc says attention is a cone about the view axis, and on a tilted camera that is wrong
+in a specific way. Screen position and world distance are coupled — along the bottom of
+the frame a step sideways is metres, along the top it is kilometres — so a round mask
+covers a wildly lopsided patch of ground. What a viewer means by *what I am looking at* is
+a patch of ground in front of them, and the perspective image of that patch is a triangle:
+pinched where the ground recedes toward the horizon, broad where it is close.
+
+It decides the pivot wherever a subject recedes from the camera. At
+`#map=14.63/45.98623/7.60814/-74.6/68` the mountain is a ridge running away, 2.5 km at the
+bottom of the frame and 4.9 km at its apex — and the apex is exactly what a centred disc
+weighs most, so the pivot went to the far end of the subject rather than its near mass.
+The triangle brings it to 3.0 km, onto the face.
+
+Two things it does not need. No pitch term: level with the ground the triangle is what the
+projection gives, and looking straight down the whole frame sits at one depth, where no
+weighting can change the answer. And no world-space model, though that was the obvious
+generalisation — attention as a ball around wherever the view axis lands answers 4.0–4.4 km
+at the view above, because the axis strikes the far apex and the ball follows it out there.
+The triangle works precisely because it fixes attention at a depression angle below the
+horizon rather than at whatever the axis hits, and a fixed depression angle is a fixed
+screen row.
 
 **The pivot is a point on that surface**, so the subject turns even when the frame is not
 centred on it: at the view above, the face's centre of mass is 96 px below and right of

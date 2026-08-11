@@ -43,9 +43,33 @@ const GRID_ROWS = 9;
 const GRID_X = [0.15, 0.85];
 const GRID_Y = [0.15, 0.9];
 
-/** Where attention sits, and how fast the weight falls off from it. */
-const WEIGHT_CENTRE = [0.5, 0.5];
-const WEIGHT_SIGMA = 0.25;
+/**
+ * Where attention sits: a triangle from the middle of the frame down to the bottom
+ * corners, inset from the edges. Full weight inside it, falling off outside.
+ *
+ * A disc on the screen says attention is a cone about the view axis, and on a tilted
+ * camera that is wrong in a particular way. Screen position and world distance are
+ * coupled: along the bottom of the frame a step sideways is metres, along the top it is
+ * kilometres, so a round mask covers a wildly lopsided patch of ground. What a viewer
+ * means by what they are looking at is a patch of ground *in front of them*, and the
+ * perspective image of that patch is this triangle — pinched where the ground recedes
+ * toward the horizon, broad where it is close.
+ *
+ * Which makes the shape pitch-dependent in principle. It does not need a pitch term: level
+ * with the ground the triangle is what the projection gives, and looking straight down the
+ * whole frame sits at one depth, where no weighting can change the answer anyway.
+ *
+ * It matters most where a subject recedes. At `#map=14.63/45.98623/7.60814/-74.6/68` the
+ * mountain is a ridge running away from the camera, 2.5 km at the bottom of the frame and
+ * 4.9 km at its apex — and the apex is what a centred disc weighs most, so the pivot went
+ * to the far end of the subject rather than the near mass of it. The triangle brings it to
+ * 3.1 km.
+ */
+const ATTENTION_APEX_Y = 0.5;
+const ATTENTION_BASE_Y = 0.9;
+const ATTENTION_INSET = 0.16;
+/** How far outside the triangle the weight survives, as a fraction of the shorter side. */
+const ATTENTION_FALLOFF = 0.12;
 
 /** Below this the grid has found too little terrain to have an opinion. */
 const MIN_HITS = 3;
@@ -62,10 +86,13 @@ const SURFACE_BAND = 0.35;
  * radian of turn. Uncapped, a scrap of ground running under the camera outvotes a mountain
  * filling the frame: its term in the cost below grows without bound as the pivot moves
  * away from it, so a strip at 250 m took the pivot off a mountain at 4.5 km. A sample can
- * be badly held; it cannot be infinitely badly held. Anything from 1.5 to 6 holds every
- * view measured so far.
+ * be badly held; it cannot be infinitely badly held.
+ *
+ * At 1 it saturates once the pivot is twice a sample's own depth. It has to be this tight
+ * now that attention is a triangle reaching down the frame: the near ground along the
+ * bottom carries full weight there, where a centred disc had discounted it to nothing.
  */
-const MOTION_CAP = 3;
+const MOTION_CAP = 1;
 
 /**
  * Fallback for a frame that is nearly all sky: fractions of the viewport height to look
@@ -174,8 +201,39 @@ function raycast(map: MapLibreMap, v: View, x: number, y: number): PivotPoint | 
   };
 }
 
+/** The attention triangle's corners in viewport pixels, apex first. */
+export const attentionTriangle = (
+  width: number,
+  height: number,
+): [number, number][] => [
+  [width / 2, height * ATTENTION_APEX_Y],
+  [width * ATTENTION_INSET, height * ATTENTION_BASE_Y],
+  [width * (1 - ATTENTION_INSET), height * ATTENTION_BASE_Y],
+];
+
+/** How far a pixel lies outside the attention triangle, in pixels. Zero within it. */
+function outsideAttention(v: View, x: number, y: number): number {
+  const corners = attentionTriangle(v.width, v.height);
+  const side = ([ax, ay]: [number, number], [bx, by]: [number, number]): number =>
+    (bx - ax) * (y - ay) - (by - ay) * (x - ax);
+  const sides = corners.map((c, i) => side(c, corners[(i + 1) % 3]));
+  if (sides.every((s) => s >= 0) || sides.every((s) => s <= 0)) return 0;
+
+  return Math.min(
+    ...corners.map((a, i) => {
+      const b = corners[(i + 1) % 3];
+      const along = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2;
+      const t = Math.max(
+        0,
+        Math.min(1, ((x - a[0]) * (b[0] - a[0]) + (y - a[1]) * (b[1] - a[1])) / along),
+      );
+      return Math.hypot(x - (a[0] + t * (b[0] - a[0])), y - (a[1] + t * (b[1] - a[1])));
+    }),
+  );
+}
+
 function grid(map: MapLibreMap, v: View): PivotSample[] {
-  const sigma = WEIGHT_SIGMA * Math.min(v.width, v.height);
+  const falloff = ATTENTION_FALLOFF * Math.min(v.width, v.height);
   const samples: PivotSample[] = [];
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLUMNS; col++) {
@@ -183,13 +241,12 @@ function grid(map: MapLibreMap, v: View): PivotSample[] {
         v.width * (GRID_X[0] + ((GRID_X[1] - GRID_X[0]) * col) / (GRID_COLUMNS - 1));
       const y = v.height * (GRID_Y[0] + ((GRID_Y[1] - GRID_Y[0]) * row) / (GRID_ROWS - 1));
       const point = raycast(map, v, x, y);
-      const away = Math.hypot(x - v.width * WEIGHT_CENTRE[0], y - v.height * WEIGHT_CENTRE[1]);
       samples.push({
         x,
         y,
         point,
         depth: point ? dot(offsetTo(v, point), v.frame.forward) : null,
-        weight: Math.exp(-0.5 * (away / sigma) ** 2),
+        weight: Math.exp(-0.5 * (outsideAttention(v, x, y) / falloff) ** 2),
         chosen: false,
       });
     }
