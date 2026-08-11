@@ -239,36 +239,44 @@ moves 24 m — the tilt itself, not a correction.
 
 MapLibre stores a camera as a centre, an elevation and a zoom — where the view axis meets
 the ground, and how far away that is. Close in on a mountain, that is a bad way to hold
-one, and everything below is the gesture working around it.
+one, and everything below is the app working around it.
 
-**The centre's elevation is pinned to the terrain every rendered frame.** A bare
-`setElevation`, which slides the camera vertically with it. The orbit moves the centre a
-long way, so the correction is large, and it lands as a jump the moment the last frame
-stops overwriting it: 253 px after a 30° turn, over a kilometre of altitude after a tilt
-at 46.086, 7.712. `camera.elevationFreeze` holds it off for the gesture, as MapLibre's
-own terrain gestures do.
+**The ground pin is off, and [cameraAnchor.ts](src/cameraAnchor.ts) anchors instead.**
+With `centerClampedToGround` (MapLibre's default) the centre's elevation is re-clamped to
+the DEM every rendered frame and every terrain tile, and the camera moves by whatever the
+difference has become. In the mountains it is never zero: deeper tiles rewrite the ground
+mid-gesture — a wheel zoom at pitch 78 teleported the centre 2.4 km and ran the zoom
+backwards — and the recalculation MapLibre runs when a gesture ends re-derives zoom from
+a near-degenerate gap, which jumped a pan release from z12.8 to z13.4 and pulled the
+centre back 2.2 km. With the pin off and the camera settled once per finished movement,
+the same wheel run holds the centre to a metre and release moves nothing at all.
+
+**Settling adopts a point the camera already looks through.** The centre goes where the
+view axis meets the terrain — a point on the axis, so adopting it moves no pixel, and at
+the terrain's own elevation, so nothing is left to correct later. Finding it is a march:
+sampling the ground along the axis in geometric steps and bisecting the first crossing,
+read with `getElevationForLngLatZoom` at the tile zoom the settle is about to set.
+Raycasting the centre pixel is quicker but answers from the rendered mesh, and mesh and
+DEM disagree by metres on a slope — metres of elevation being metres of camera, that was
+a 13.6 m drop felt on letting go. Solving for the crossing instead of marching to it
+diverges wherever the ground is steeper than the axis, which in the Alps is most of it:
+one pass moved the plane 100 m the wrong way and left 268 m to take back.
+
+**Except while the first view loads.** The hash carries no elevation, so the restored
+camera sits on elevation 0 — in the Alps, inside a mountain. Until the user first moves,
+each arriving terrain tile re-anchors the centre to the ground the way the pin used to,
+so the saved zoom keeps meaning what it meant when the hash was written; a reload
+reproduces the camera to within a few metres of DEM refinement.
 
 **The plane the centre rides on is the gesture's, not MapLibre's.** Left to
 `calculateCameraOptionsFromCameraLngLatAltRotation`, the distance to the centre is the
 camera's height over that plane divided by cos(pitch) — and at the view above, the camera
 flies 22 m over a wall the 1.4× exaggeration has pushed to 5199 m. The distance collapses
-and the zoom expressing it snaps from z14 to **z18.7**, tile LOD and all.
-[shiftDragCamera.ts](src/shiftDragCamera.ts) names the plane instead and holds the
-gesture's own, so zoom stays put through a turn and slides evenly through a tilt —
-14.1 → 12.25 tilting up to level, 14.1 → 15.24 tilting down, no step anywhere.
-
-**Letting go hands the camera back on terms the pin agrees with.** The centre goes where
-the view axis meets the terrain — a point on the axis, so adopting it moves no pixel, and
-at the terrain's own elevation, so the pin has nothing left to correct. Finding it is a
-march: sampling the ground along the axis in geometric steps and bisecting the first
-crossing, read with `getElevationForLngLatZoom` at the tile zoom the release is about to
-set, which is the lookup the pin itself uses. Raycasting the centre pixel is quicker but
-answers from the rendered mesh, and mesh and DEM disagree by metres on a slope — metres
-of elevation being metres of camera, that was the drop felt on letting go. Solving for
-the crossing instead of marching to it diverges wherever the ground is steeper than the
-axis, which in the Alps is most of it: one pass moved the plane 100 m the wrong way and
-left the pin 268 m to take back. A release now moves the camera **0.2 m**, against 13.6
-for the raycast and 1345 for nothing at all.
+and the zoom expressing it snaps from z14 to **z18.7**, tile LOD and all. The shift+drag
+orbit names the plane instead and holds the gesture's own, so zoom stays put through a
+turn and slides evenly through a tilt — 14.1 → 12.25 tilting up to level, 14.1 → 15.24
+tilting down, no step anywhere. During the gesture `camera.elevationFreeze` holds off
+MapLibre's remaining elevation writers, as its own terrain gestures do.
 
 **The camera is kept 20 m above the ground under it.** Turning about a pivot in front
 swings it through whatever is behind, and at z15.6 on a valley side that was 700 m inside
@@ -278,10 +286,9 @@ next frame of the gesture overwrites. Lifting it here costs the pivot its exact 
 the camera is riding the limit; the alternative is flying through rock.
 
 **The gesture stops tilting at 85°.** A camera at level has no honest centre — the axis
-meets the ground nowhere — and no state exists that the pin agrees with, so it drags the
-camera down a kilometre to meet the terrain 10 km ahead. MapLibre throws on the matrices
-there too. The last few degrees are left to the built-in gestures; a drag that starts
-above 85 can still tilt back down.
+meets the ground nowhere, so the settle caps the centre 10 km ahead and lifts its plane
+to the axis, and MapLibre throws on the matrices at exactly 90. The last few degrees are
+left to the built-in gestures; a drag that starts above 85 can still tilt back down.
 
 ## URL state
 

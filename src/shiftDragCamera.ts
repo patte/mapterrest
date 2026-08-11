@@ -1,4 +1,13 @@
 import { MercatorCoordinate, Point, type MapLibreMap } from 'maplibre-gl';
+import {
+  applyPose,
+  cameraFrame,
+  distanceToPlane,
+  dot,
+  type CameraAnchor,
+  type Pose,
+  type Vec3,
+} from './cameraAnchor';
 
 /**
  * Google-Maps-style camera control: hold Shift and drag to rotate (horizontal)
@@ -37,14 +46,6 @@ const PITCH_SPEED = 0.25;
 const PIVOT_ANCHORS = [0.65, 0.8, 0.5, 0.92];
 
 /**
- * How far ahead the centre is allowed to sit. The centre is where the view axis meets
- * the gesture's elevation plane, which runs to infinity as the camera comes level; past
- * this the distance stops growing and the plane rises to meet it instead. MapLibre's own
- * maths gives up in the same place, at |cos(pitch)| < 0.1, and pins 10 km ahead.
- */
-const MAX_CENTRE_DISTANCE = 10000;
-
-/**
  * As far as the gesture will tilt, whatever the map's own maxPitch allows. A camera this
  * near level has no honest centre: MapLibre's model puts it where the axis meets the
  * ground, which for a level camera is nowhere, and the elevation it then pins the centre
@@ -64,26 +65,6 @@ const MAX_GESTURE_PITCH = 85;
  * the alternative is flying through rock.
  */
 const MIN_GROUND_CLEARANCE = 20;
-
-const DEG = Math.PI / 180;
-
-/** East, north, up in metres. */
-type Vec3 = [number, number, number];
-
-/** The camera's basis vectors, in metres east/north/up. Pitch is measured from straight down. */
-function cameraFrame(bearing: number, pitch: number): { right: Vec3; up: Vec3; forward: Vec3 } {
-  const sb = Math.sin(bearing * DEG);
-  const cb = Math.cos(bearing * DEG);
-  const sp = Math.sin(pitch * DEG);
-  const cp = Math.cos(pitch * DEG);
-  return {
-    right: [cb, -sb, 0],
-    up: [sb * cp, cb * cp, sp],
-    forward: [sp * sb, sp * cb, -cp],
-  };
-}
-
-const dot = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 /** Everything the gesture needs to rebuild the camera, frozen at mousedown. */
 type Orbit = {
@@ -143,113 +124,6 @@ function grabPivot(map: MapLibreMap): Orbit | null {
   return null;
 }
 
-type Pose = {
-  camera: { lng: number; lat: number };
-  altitude: number;
-  bearing: number;
-  pitch: number;
-};
-
-/** A point along the view axis: where it is on the ground, and how high the axis is there. */
-function axisAt(o: Orbit, pose: Pose, distance: number) {
-  const frame = cameraFrame(pose.bearing, pose.pitch);
-  const cameraMercator = MercatorCoordinate.fromLngLat(pose.camera);
-  return {
-    distance,
-    elevation: pose.altitude + frame.forward[2] * distance,
-    centre: new MercatorCoordinate(
-      cameraMercator.x + frame.forward[0] * distance * o.mercatorPerMetre,
-      cameraMercator.y - frame.forward[1] * distance * o.mercatorPerMetre,
-    ).toLngLat(),
-  };
-}
-
-/** How far along the axis a given horizontal plane is. */
-function distanceToPlane(pose: Pose, plane: number): number {
-  const down = -cameraFrame(pose.bearing, pose.pitch).forward[2];
-  const above = pose.altitude - plane;
-  return down > 0 && above > 0 ? Math.min(above / down, MAX_CENTRE_DISTANCE) : MAX_CENTRE_DISTANCE;
-}
-
-const MARCH_NEAR = 25;
-const MARCH_FAR = 80000;
-const MARCH_STEPS = 48;
-
-/**
- * How far along the view axis the terrain first comes up to meet it, sampled the way the
- * elevation pin samples — a DEM read at the tile zoom, not the rendered mesh a raycast
- * hits. The two disagree by metres on a slope, and metres of elevation is metres of
- * camera, which is the drop felt on letting go.
- *
- * Marched rather than solved. Stepping the plane toward the terrain and re-solving
- * diverges wherever the ground is steeper than the axis, which in the Alps is most of it:
- * one pass moved the plane 100 m the wrong way and left the pin 268 m to take back.
- * Steps grow geometrically, since the DEM coarsens with distance too.
- */
-function axisCrossing(map: MapLibreMap, o: Orbit, pose: Pose, zoom: number): number | null {
-  const clearance = (distance: number): number | null => {
-    const at = axisAt(o, pose, distance);
-    const ground = map.terrain?.getElevationForLngLatZoom(at.centre, zoom);
-    return ground === undefined || !Number.isFinite(ground) ? null : at.elevation - ground;
-  };
-
-  const growth = (MARCH_FAR / MARCH_NEAR) ** (1 / MARCH_STEPS);
-  let near = 0;
-  for (let i = 0, d = MARCH_NEAR; i <= MARCH_STEPS; i++, d *= growth) {
-    const gap = clearance(d);
-    if (gap === null) return null;
-    if (gap <= 0) {
-      // Bisect: a metre of slack here is a metre the camera would move.
-      let lo = near;
-      let hi = d;
-      for (let j = 0; j < 12; j++) {
-        const mid = (lo + hi) / 2;
-        const gapAt = clearance(mid);
-        if (gapAt === null) break;
-        if (gapAt <= 0) hi = mid;
-        else lo = mid;
-      }
-      return hi;
-    }
-    near = d;
-  }
-  return null;
-}
-
-/**
- * Put the camera where the gesture wants it, written the way MapLibre stores a camera: a
- * centre on the view axis, the elevation of the plane that centre sits on, and a zoom
- * that is really the distance to it.
- *
- * `calculateCameraOptionsFromCameraLngLatAltRotation` will do this too, but only against
- * the plane the centre is on at the time, and in the mountains that plane is often a
- * hair below the camera — at 46.086, 7.712 the camera flies 22 m over a wall the 1.4×
- * exaggeration has pushed up to 5199 m. The distance to the plane is that gap over
- * cos(pitch), so it collapses, and the zoom expressing it jumps to z18 on a z14 view,
- * taking the tile LOD with it. Naming the plane keeps the distance well behaved: the
- * gesture holds its own, so zoom stays put through a turn and slides evenly through a
- * tilt.
- */
-/** The zoom that puts the centre this far down the axis. */
-const zoomFor = (map: MapLibreMap, o: Orbit, distance: number): number => {
-  const tr = map._camera.transform;
-  return Math.log2(tr.cameraToCenterDistance / (distance * o.mercatorPerMetre) / tr.tileSize);
-};
-
-function applyPose(map: MapLibreMap, o: Orbit, pose: Pose, distance: number): void {
-  const { centre, elevation } = axisAt(o, pose, distance);
-  map.jumpTo({
-    center: centre,
-    elevation,
-    zoom: zoomFor(map, o, distance),
-    bearing: pose.bearing,
-    pitch: pose.pitch,
-    // roll is passed explicitly: jumpTo tests `'roll' in options`, so leaving it off
-    // would set a roll of NaN.
-    roll: 0,
-  });
-}
-
 /**
  * Rotate the camera rigidly about the pivot. Rebuilding the frozen offset in the new
  * basis keeps both the distance to the pivot and its angular position, so the pivot
@@ -272,12 +146,12 @@ function orbit(map: MapLibreMap, o: Orbit, bearing: number, pitch: number): void
   );
 
   const pose: Pose = { camera, altitude, bearing, pitch };
-  applyPose(map, o, pose, distanceToPlane(pose, o.planeElevation));
+  applyPose(map, o.mercatorPerMetre, pose, distanceToPlane(pose, o.planeElevation));
 }
 
 const clamp = (n: number, min: number, max: number): number => Math.min(Math.max(n, min), max);
 
-export function enableShiftDragCamera(map: MapLibreMap): () => void {
+export function enableShiftDragCamera(map: MapLibreMap, anchor: CameraAnchor): () => void {
   const container = map.getCanvasContainer();
   const camera = map._camera;
   map.boxZoom.disable();
@@ -291,40 +165,6 @@ export function enableShiftDragCamera(map: MapLibreMap): () => void {
   let dx = 0;
   let dy = 0;
   let frame = 0;
-
-  /**
-   * Hand the camera back in the terms MapLibre keeps it in: the centre on the terrain the
-   * view axis actually meets. Every rendered frame it pins the centre's elevation to the
-   * terrain under it, moving the camera by whatever the difference has become — over a
-   * kilometre after a tilt in the Alps — so the gesture ends by making that difference
-   * nothing: the centre goes where the axis meets the terrain, which is a point on the
-   * axis, so adopting it moves no pixel, and its elevation is the one the pin will read.
-   */
-  const release = (): void => {
-    if (!pivot) return;
-    const orbited = pivot;
-    pivot = null;
-    camera.elevationFreeze = false;
-
-    const tr = camera.transform;
-    const pose: Pose = {
-      camera: tr.getCameraLngLat(),
-      altitude: tr.getCameraAltitude(),
-      bearing: tr.bearing,
-      pitch: tr.pitch,
-    };
-
-    const fallback = distanceToPlane(pose, orbited.planeElevation);
-    let distance = axisCrossing(map, orbited, pose, tr.tileZoom) ?? fallback;
-    // The pin will sample at whatever tile zoom the new distance implies. Where that is
-    // not the one the march used, it is reading a different DEM level, and the camera
-    // keeps the difference — a few metres of it. Marching again at that level closes it.
-    const settled = Math.max(0, Math.floor(zoomFor(map, orbited, distance)));
-    if (settled !== tr.tileZoom) {
-      distance = axisCrossing(map, orbited, pose, settled) ?? distance;
-    }
-    applyPose(map, orbited, pose, distance);
-  };
 
   /**
    * Angles come from the total drag rather than the last increment, so nothing
@@ -360,7 +200,12 @@ export function enableShiftDragCamera(map: MapLibreMap): () => void {
       cancelAnimationFrame(frame);
       apply();
     }
-    release();
+    pivot = null;
+    camera.elevationFreeze = false;
+    // Resuming settles the camera in the terms MapLibre keeps it in — the centre on the
+    // terrain the view axis actually meets — so nothing is left for a later frame to
+    // correct.
+    anchor.resume();
     container.style.cursor = '';
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', stop);
@@ -380,11 +225,12 @@ export function enableShiftDragCamera(map: MapLibreMap): () => void {
     dx = 0;
     dy = 0;
     pivot = grabPivot(map);
-    // Every rendered frame MapLibre drops the centre onto the terrain
-    // (`setElevation` at the centre), which slides the camera vertically with it. The
-    // orbit moves the centre a long way, so that correction is large and lands as a
-    // jump the moment the last frame stops overwriting it. Freeze it for the gesture,
-    // as MapLibre's own terrain gestures do.
+    // The gesture's own jumpTo fires moveend every frame; the anchor settling against
+    // those would fight the orbit.
+    anchor.suspend();
+    // Hold off MapLibre's remaining elevation writers (terrain tile loads, easings) for
+    // the gesture, as its own terrain gestures do — the orbit names the elevation plane
+    // itself on every frame.
     if (pivot) camera.elevationFreeze = true;
     container.style.cursor = 'move';
     window.addEventListener('mousemove', onMouseMove);

@@ -9,6 +9,7 @@ import {
   shadingLayer,
   type ShadingKey,
 } from './shading';
+import { enableCameraAnchor } from './cameraAnchor';
 import { enableShiftDragCamera } from './shiftDragCamera';
 import { onSchemeChange, prefersDark } from './theme';
 import {
@@ -48,13 +49,18 @@ const map = new MapLibreMap({
   bearing: 225,
   // MapLibre allows up to 180; 90 is the camera lying flat on the horizon.
   maxPitch: 90,
+  // The pin this disables re-clamps the centre's elevation to the DEM every frame and
+  // every terrain tile, moving the camera by the difference — measured as kilometre
+  // teleports mid-wheel and on release at high pitch. cameraAnchor.ts anchors instead.
+  centerClampedToGround: false,
   // Named so the camera occupies one hash param and leaves room for the controls.
   hash: MAP_HASH_KEY,
 });
 
 if (import.meta.env.DEV) Object.assign(window, { map });
 
-enableShiftDragCamera(map);
+const anchor = enableCameraAnchor(map);
+enableShiftDragCamera(map, anchor);
 map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 
 /**
