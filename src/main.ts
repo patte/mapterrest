@@ -15,7 +15,9 @@ import {
   DEFAULT_EXAGGERATION,
   DEM_SOURCE,
   MAX_EXAGGERATION,
+  MAX_ZOOM_LEVELS_ON_SCREEN,
   TERRAIN_SOURCE,
+  TILE_COUNT_MAX_MIN_RATIO,
 } from './terrain';
 import { has, MAP_HASH_KEY, readBoolean, readNumber, readString, write } from './urlState';
 
@@ -59,6 +61,7 @@ map.on('style.load', () => {
   const basemap = BASEMAPS[basemapKey];
 
   map.addSource(DEM_SOURCE, TERRAIN_SOURCE);
+  map.setSourceTileLodParams(MAX_ZOOM_LEVELS_ON_SCREEN, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
   map.setTerrain({ source: DEM_SOURCE, exaggeration });
   map.setSky(basemap.sky);
 

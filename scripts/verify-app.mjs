@@ -50,10 +50,12 @@ check(
 );
 
 for (const p of PROBES) {
-  await page.evaluate(([lng, lat]) => window.map.jumpTo({ center: [lng, lat], zoom: 14 }), [
-    p.lng,
-    p.lat,
-  ]);
+  // Flat: a probe wants one tile over the point, and the LOD params that pull hundreds
+  // of tiles toward a horizon do nothing at pitch 0.
+  await page.evaluate(
+    ([lng, lat]) => window.map.jumpTo({ center: [lng, lat], zoom: 14, pitch: 0 }),
+    [p.lng, p.lat],
+  );
   await page.waitForTimeout(3500);
   const m = await page.evaluate(
     ([lng, lat]) => window.map.queryTerrainElevation({ lng, lat }),

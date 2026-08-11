@@ -94,6 +94,26 @@ over Mont Blanc at z12.6, pitch 78:
 Elevations are unaffected — the same four probes read within 4 m either way, since this
 shifts which tile is chosen, not how its pixels are decoded.
 
+That lifts the whole frame by a level. The *decay toward the horizon* is a separate
+control, `setSourceTileLodParams(maxZoomLevelsOnScreen, tileCountMaxMinRatio)`, which
+only bites once the horizon is on screen — which here is most of the time.
+
+The two arguments have to move together. Allowing fewer zoom levels on screen pulls the
+horizon up, but on its own it drags the whole range down with it: the tile budget is the
+binding constraint and MapLibre sheds zoom uniformly to stay inside it, so the foreground
+falls from z14 to z12. Raising the budget alongside keeps the foreground and lifts only
+the far end:
+
+| `maxZoomLevelsOnScreen` / `tileCountMaxMinRatio` | Tiles | Transfer | Horizon | Foreground |
+| --- | --- | --- | --- | --- |
+| default | 36 | 12.7 MiB | z6 | z14 |
+| 4.0 / 3.0 (the doc's example) | 62 | 26.4 MiB | z8 | z12 |
+| **5.0 / 100** | 319 | 118 MiB | z9 | z14 |
+| 3.0 / 100 | 714 | 249 MiB | z11 | z14 |
+
+5.0 / 100 is what is set. 3.0 / 100 buys two more levels at the horizon and is not worth
+it: that view takes 161 s and 1.1 GB of heap to settle, against 23 s and 273 MB.
+
 Nothing else moves terrain LOD. `TerrainTileManager.deltaZoom` is documented for exactly
 this ("raster-dem tiles will load the actualZoom - deltaZoom zoom-level") and is a no-op
 in 6.3: 1 and 0 request byte-identical tile sets, and -1 throws
