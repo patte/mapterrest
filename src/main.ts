@@ -10,6 +10,8 @@ import {
   type ShadingKey,
 } from './shading';
 import { enableCameraAnchor } from './cameraAnchor';
+import { choosePivot, projectPoint } from './pivot';
+import { enablePivotDebug } from './pivotDebug';
 import { enableShiftDragCamera } from './shiftDragCamera';
 import { onSchemeChange, prefersDark } from './theme';
 import {
@@ -57,10 +59,13 @@ const map = new MapLibreMap({
   hash: MAP_HASH_KEY,
 });
 
-if (import.meta.env.DEV) Object.assign(window, { map });
+if (import.meta.env.DEV) Object.assign(window, { map, choosePivot, projectPoint });
 
 const anchor = enableCameraAnchor(map);
-enableShiftDragCamera(map, anchor);
+// `#debugPivot=1` draws the pivot and the grid behind it, whether or not a gesture is
+// running, so the choice can be inspected before committing to a drag.
+const pivotDebug = readBoolean('debugPivot', false) ? enablePivotDebug(map) : null;
+enableShiftDragCamera(map, anchor, (pivot) => pivotDebug?.hold(pivot));
 map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 
 /**

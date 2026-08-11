@@ -169,28 +169,60 @@ check(
 );
 await chosen.close();
 
-/* Shift+drag orbits the terrain it grabbed ---------------------------------- */
+/* Shift+drag orbits the subject of the frame -------------------------------- */
 
 // A small window: the pitched default view is the expensive one to settle, and the
-// gesture only needs terrain under the anchor and a rendered frame to raycast.
+// gesture only needs terrain in the frame and a rendered frame to raycast.
 const orbit = await open({ viewport: { width: 800, height: 600 } });
 await orbit.waitForTimeout(10000);
 
 const grabbed = await orbit.evaluate(() => {
-  const tr = window.map._camera.transform;
-  const anchor = [tr.width / 2, tr.height * 0.65];
-  const hit = window.map.terrain.pointCoordinate({ x: anchor[0], y: anchor[1] });
-  if (!hit) return null;
-  const ll = hit.toLngLat();
-  return { anchor, lng: ll.lng, lat: ll.lat, bearing: tr.bearing, pitch: tr.pitch };
-});
-check(!!grabbed, 'terrain answers a raycast under the gesture anchor');
+  const map = window.map;
+  const tr = map._camera.transform;
+  const pivot = window.choosePivot(map);
+  if (!pivot) return null;
+  const at = window.projectPoint(map, pivot.point);
 
+  // Oracle for projectPoint, which the pivot's screen position is measured with: a point
+  // raycast from a pixel has to project back onto that pixel.
+  const probe = { x: tr.width * 0.35, y: tr.height * 0.7 };
+  const hit = map.terrain.pointCoordinate(probe);
+  const back = hit && window.projectPoint(map, { x: hit.x, y: hit.y, elevation: hit.z });
+
+  return {
+    from: pivot.from,
+    depth: pivot.depth,
+    point: pivot.point,
+    hits: pivot.samples.filter((s) => s.point).length,
+    total: pivot.samples.length,
+    at,
+    offCentre: Math.hypot(at.x - tr.width / 2, at.y - tr.height / 2),
+    roundTripPx: back ? Math.hypot(back.x - probe.x, back.y - probe.y) : null,
+    bearing: tr.bearing,
+    pitch: tr.pitch,
+  };
+});
+check(!!grabbed, 'the frame grid finds a pivot');
+check(
+  grabbed.from === 'subject' && grabbed.hits >= 3,
+  'the grid, not the anchor ladder, chooses it',
+  `${grabbed.hits}/${grabbed.total} hits`,
+);
+// The pivot is the camera plus forward × depth, so it is the middle of the frame by
+// construction — and projecting it back is the check that the camera basis agrees.
+check(grabbed.offCentre < 1, 'the pivot sits on the view axis', `${grabbed.offCentre.toFixed(2)} px`);
+check(
+  grabbed.roundTripPx !== null && grabbed.roundTripPx < 5,
+  'a raycast point projects back onto the pixel it came from',
+  `${grabbed.roundTripPx?.toFixed(1)} px`,
+);
+
+// Off centre and away from the mountain: where the drag starts must not move the pivot.
 await orbit.keyboard.down('Shift');
-await orbit.mouse.move(400, 300);
+await orbit.mouse.move(620, 460);
 await orbit.mouse.down();
 for (let i = 1; i <= 8; i++) {
-  await orbit.mouse.move(400 + i * 9, 300 + i * 5);
+  await orbit.mouse.move(620 + i * 9, 460 + i * 5);
   await orbit.waitForTimeout(20);
 }
 // The camera as the drag ends, to compare with where it settles: MapLibre pins the
@@ -204,12 +236,12 @@ await orbit.waitForTimeout(1000);
 
 const turned = await orbit.evaluate((g) => {
   const tr = window.map._camera.transform;
-  const p = window.map.project([g.lng, g.lat]);
+  const p = window.projectPoint(window.map, g.point);
   return {
     bearing: tr.bearing,
     pitch: tr.pitch,
     camAlt: tr.getCameraAltitude(),
-    errPx: Math.hypot(p.x - g.anchor[0], p.y - g.anchor[1]),
+    errPx: p ? Math.hypot(p.x - g.at.x, p.y - g.at.y) : Infinity,
   };
 }, grabbed);
 
@@ -223,14 +255,39 @@ check(
   'a 40 px drag tilts by the pitch speed',
   `${turned.pitch.toFixed(2)}°`,
 );
-// The whole point of the raycast pivot: the ground it grabbed keeps its pixel.
-check(turned.errPx < 10, 'the grabbed terrain holds its place through the turn', `${turned.errPx.toFixed(1)} px`);
+// The whole point of the pivot: it keeps its pixel, however far from it the drag began.
+check(turned.errPx < 10, 'the pivot holds its place through the turn', `${turned.errPx.toFixed(1)} px`);
 check(
   Math.abs(turned.camAlt - midDrag) < 2,
   'letting go leaves the camera where the drag left it',
   `${(turned.camAlt - midDrag).toFixed(1)} m`,
 );
 await orbit.close();
+
+/* The pivot debug overlay -------------------------------------------------- */
+
+const debug = await open({ viewport: { width: 800, height: 600 }, hash: '#debugPivot=1' });
+await debug.waitForTimeout(10000);
+const overlay = await debug.evaluate(() => {
+  const canvas = document.querySelector('.maplibregl-canvas-container canvas:last-child');
+  if (!canvas || canvas === document.querySelector('.maplibregl-canvas')) return null;
+  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  let drawn = 0;
+  for (let i = 3; i < data.length; i += 4) if (data[i] > 0) drawn++;
+  return { drawn, pointerEvents: getComputedStyle(canvas).pointerEvents };
+});
+check(!!overlay, '#debugPivot=1 adds an overlay canvas');
+check(overlay?.drawn > 0, 'the overlay draws the pivot and its grid', `${overlay?.drawn} px`);
+check(overlay?.pointerEvents === 'none', 'the overlay does not swallow the gesture');
+const plain = await open({ viewport: { width: 400, height: 300 } });
+check(
+  await plain.evaluate(
+    () => document.querySelectorAll('.maplibregl-canvas-container canvas').length === 1,
+  ),
+  'without the param there is no overlay',
+);
+await plain.close();
+await debug.close();
 
 /* Mobile panel ------------------------------------------------------------- */
 

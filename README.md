@@ -21,6 +21,9 @@ look like when someone has already done it well".
 | [src/theme.ts](src/theme.ts) | `prefers-color-scheme` detection |
 | [src/urlState.ts](src/urlState.ts) | Control state in the location hash |
 | [src/shiftDragCamera.ts](src/shiftDragCamera.ts) | Shift+drag orbit around the terrain in the frame |
+| [src/pivot.ts](src/pivot.ts) | Which point that orbit turns around |
+| [src/pivotDebug.ts](src/pivotDebug.ts) | `#debugPivot=1` overlay for inspecting the choice |
+| [src/cameraAnchor.ts](src/cameraAnchor.ts) | Where the camera is anchored, with MapLibre's ground pin off |
 | [src/main.ts](src/main.ts) | Map, terrain, shading, UI |
 
 ## Mapterhorn
@@ -200,7 +203,7 @@ option to change it, so [src/shiftDragCamera.ts](src/shiftDragCamera.ts) is a se
 handler. It listens on the document in the capture phase and stops propagation, so
 MapLibre's drag handlers never see the gesture and the map cannot pan while rotating.
 
-### The gesture turns around the terrain it grabbed
+### The gesture turns around the terrain in the frame
 
 MapLibre turns about `transform.center`, which sits on the horizontal plane at the
 centre's own elevation rather than on the terrain. Pitched into a valley that point is
@@ -211,29 +214,62 @@ far point drags the whole frame around with it.
 So the handler raycasts. `map.terrain.pointCoordinate(p)` reads the coords framebuffer
 for the ground under a pixel — the same call MapLibre's own pan and zoom anchoring makes,
 and one its rotate handler never does, since `MouseRotateHandler` emits no anchor and the
-pivot machinery is skipped for the centre point. The hit is taken once at mousedown (it
-is a GPU readback), the camera's offset from it is frozen in the camera's own basis, and
-every frame rebuilds that offset at the new angles. Distance and angular position are
-both preserved, so the pivot keeps its pixel and its size.
+pivot machinery is skipped for the centre point. The hits are taken once at mousedown
+(they are GPU readbacks), the camera's offset from the pivot is frozen in the camera's own
+basis, and every frame rebuilds that offset at the new angles. Distance and angular
+position are both preserved, so the pivot keeps its pixel and its size.
 
 Mean displacement of nine fixed ground points, and how far the pivot itself slides:
 
-| Gesture | About the centre | Orbit, pivot 0.65 down |
+| Gesture | About the centre | Orbit about the terrain |
 | --- | --- | --- |
 | 10° turn | 164 px (pivot slides 56 px) | 58 px (0.6 px) |
 | 30° turn | 414 px (156 px) | 154 px (0.7 px) |
 | 5° tilt | 81 px (28 px) | 30 px |
 | 15° tilt | 282 px (84 px) | 88 px |
 
-The anchor is 0.65 of the way down the frame because a lower pivot is a nearer one; the
-list walks further down, then up, when the middle of the frame is sky. Rotate and tilt
-speeds are half MapLibre's own — 0.4 and 0.25 °/px — which the calmer pivot made room
-for. Moves are coalesced into one camera update per animation frame; a trackpad reports
-them faster than the map renders.
+### Which point, though
 
-This holds at any distance. Standing 100 m off a wall at z14.1 and tilting 15°, the
-grabbed ground stays within 5 px of its anchor the whole way and the camera altitude
-moves 24 m — the tilt itself, not a correction.
+Raycasting a fixed fraction of the frame holds *that pixel* exactly and grabs whatever
+happens to be under it. Head-on at the Matterhorn from the Italian side, filling the view,
+0.65 of the way down the frame is the glacier at the mountain's base — 3.7 km out at
+4634 m — while the summit projects to y = 41 of 900. A 25° tilt swung the camera 5820 →
+7280 m about that base and took the summit clean out of the frame: the turning circle
+"way out". Pitched down at the same mountain, the same fraction lands on the slope in
+view, which is why it felt right there.
+
+So the pivot is chosen by what the frame is *of*, not by where a pixel is. At mousedown
+[pivot.ts](src/pivot.ts) raycasts a 7×5 grid across the middle of the viewport, takes each
+hit's distance along the view axis, weights it by a gaussian on its distance from the
+frame centre (σ = ¼ of the shorter side), and puts the pivot on the axis at the weighted
+**median** of those depths. Median, not mean: a distant valley seen through a col must not
+drag the pivot out past the subject, and whichever surface owns the most weighted pixels
+wins outright.
+
+Head-on, that moves the pivot off the glacier and onto the face — 4.22 km out at 4947 m,
+30 of 35 samples hitting — and the same 25° tilt now leaves the summit 29 px from where it
+started. Pitched down, where the fixed anchor already felt right, the pivot moves 13 %
+further out and nothing perceptible changes. Below three hits, on a frame that is nearly
+all sky, the old ladder of anchors takes over (0.65, 0.8, 0.5, 0.92 down the centre
+column, first hit wins), and with no terrain at all the gesture turns about the centre.
+
+Two things fall out of choosing by content. The pivot never depends on where the mouse
+went down — shift+drag from anywhere and the mountain in view is what turns — which is
+how Google Maps 3D behaves, and Google is where the complaint came from. And since the
+pivot is the camera plus forward × depth, it is the middle of the frame by construction:
+it holds that pixel to 0.03 px through a 25° tilt.
+
+Rotate and tilt speeds are half MapLibre's own — 0.4 and 0.25 °/px — which the calmer
+pivot made room for. Moves are coalesced into one camera update per animation frame; a
+trackpad reports them faster than the map renders.
+
+**`#debugPivot=1` draws the choice.** A crosshair on the pivot, and every grid sample at
+its own world position, sized by the weight it carried and coloured by its depth against
+the pivot's — warm nearer, blue further, amber at it, saturating at half and double.
+The surface that owns the pivot reads as the amber cluster. It solves when the camera
+comes to rest, so the pivot is inspectable before committing to a drag, and holds the
+gesture's own pivot while one is running: the crosshair sits still while the samples swing
+around it. Tuning affordance, not a feature — Google shows nothing.
 
 ### What a camera costs to write down
 
@@ -298,7 +334,8 @@ Camera and every control live in the location hash, so a reload restores the vie
 #map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&exaggeration=3.7
 ```
 
-`detail=` joins them, read once at load; everything else is written back as it changes.
+`detail=` and `debugPivot=` join them, read once at load; everything else is written back
+as it changes.
 
 MapLibre's named-hash mode (`hash: 'map'`) reads the existing params, sets only its own
 key and re-serialises the rest, so both writers coexist. `urlState.ts` mirrors MapLibre's
@@ -329,5 +366,5 @@ Matter, DataViz Light is Positron; there is no `dataviz-*` style URL, those 404.
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm verify` | Headless end-to-end at `detail=low`: terrain, elevations, attribution, hash round-trip, colour scheme, shift+drag orbit, mobile panel (needs `pnpm dev` running) |
+| `pnpm verify` | Headless end-to-end at `detail=low`: terrain, elevations, attribution, hash round-trip, colour scheme, shift+drag orbit and its pivot, mobile panel (needs `pnpm dev` running) |
 | `pnpm probe:coverage` | What asking past Mapterhorn's depth costs, per place and zoom (needs `pnpm dev` running) |

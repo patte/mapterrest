@@ -1,4 +1,4 @@
-import { MercatorCoordinate, Point, type MapLibreMap } from 'maplibre-gl';
+import { MercatorCoordinate, type MapLibreMap } from 'maplibre-gl';
 import {
   applyPose,
   cameraFrame,
@@ -8,6 +8,7 @@ import {
   type Pose,
   type Vec3,
 } from './cameraAnchor';
+import { choosePivot, type Pivot, type PivotPoint } from './pivot';
 
 /**
  * Google-Maps-style camera control: hold Shift and drag to rotate (horizontal)
@@ -21,8 +22,8 @@ import {
  *
  * Shift+drag is MapLibre's box-zoom gesture by default; that is given up for this.
  *
- * The camera orbits the terrain the gesture grabbed rather than the map centre. See
- * `grabPivot` for why that matters in the mountains.
+ * The camera orbits the terrain in view rather than the map centre — see
+ * [pivot.ts](pivot.ts) for which point that is and why it matters in the mountains.
  *
  * Some of what that needs is off MapLibre's public surface: the transform moved to
  * `map._camera` in 6.x, and the elevation freeze lives there with it. Both are typed, so
@@ -36,14 +37,6 @@ import {
  */
 const ROTATE_SPEED = 0.4;
 const PITCH_SPEED = 0.25;
-
-/**
- * Fractions of the viewport height to look for a pivot at, first hit wins. Below the
- * centre is nearer, and a nearer pivot is a tighter turn — over Zermatt at pitch 78 the
- * centre pixel sits on terrain 9.5 km out and 0.65 of the way down on terrain 7.3 km
- * out. The later entries only come into play when the middle of the frame is sky.
- */
-const PIVOT_ANCHORS = [0.65, 0.8, 0.5, 0.92];
 
 /**
  * As far as the gesture will tilt, whatever the map's own maxPitch allows. A camera this
@@ -68,8 +61,7 @@ const MIN_GROUND_CLEARANCE = 20;
 
 /** Everything the gesture needs to rebuild the camera, frozen at mousedown. */
 type Orbit = {
-  /** Mercator x/y of the pivot, and its elevation in metres. */
-  pivot: { x: number; y: number; elevation: number };
+  pivot: PivotPoint;
   mercatorPerMetre: number;
   /** The camera's offset from the pivot, in the camera's own basis. */
   offset: { right: number; up: number; forward: number };
@@ -77,51 +69,39 @@ type Orbit = {
   planeElevation: number;
 };
 
-/** The ground under a pixel, or null if that pixel is sky. */
-const raycast = (map: MapLibreMap, x: number, y: number): MercatorCoordinate | null =>
-  // z is the elevation in metres on what comes back, not a mercator z — toAltitude()
-  // would be nonsense.
-  map.terrain?.pointCoordinate(new Point(x, y)) ?? null;
-
 /**
- * The terrain point the gesture turns around, found by raycasting the frame.
+ * Freeze the camera's position relative to the pivot, in the camera's own basis. Turning
+ * is then a matter of rebuilding that offset in a new basis.
  *
  * MapLibre keeps `transform.center` on the horizontal plane at the centre's elevation,
  * not on the terrain, so at high pitch it lies well beyond the ridge the frame is
  * actually showing — 11.8 km out over Zermatt against 9.5 km for the visible ground.
- * Turning about the far point drags the whole frame with it. `pointCoordinate` reads
- * MapLibre's coords framebuffer for the ground under a pixel, which is the near point,
- * and orbiting that holds it still to under a pixel through a 30° swing.
- *
- * The readback is a GPU stall, so it happens once per gesture rather than once per frame.
+ * Turning about the far point drags the whole frame with it; turning about the point
+ * `choosePivot` returns holds it still to under a pixel through a 30° swing.
  */
-function grabPivot(map: MapLibreMap): Orbit | null {
+function orbitAbout(map: MapLibreMap, point: PivotPoint): Orbit {
   const tr = map._camera.transform;
-  for (const fraction of PIVOT_ANCHORS) {
-    const hit = raycast(map, tr.width / 2, tr.height * fraction);
-    if (!hit) continue;
-
-    const mercatorPerMetre = new MercatorCoordinate(hit.x, hit.y).meterInMercatorCoordinateUnits();
-    const camera = tr.getCameraLngLat();
-    const cameraMercator = MercatorCoordinate.fromLngLat(camera);
-    const offset: Vec3 = [
-      (cameraMercator.x - hit.x) / mercatorPerMetre,
-      -(cameraMercator.y - hit.y) / mercatorPerMetre,
-      tr.getCameraAltitude() - hit.z,
-    ];
-    const frame = cameraFrame(tr.bearing, tr.pitch);
-    return {
-      pivot: { x: hit.x, y: hit.y, elevation: hit.z },
-      mercatorPerMetre,
-      offset: {
-        right: dot(offset, frame.right),
-        up: dot(offset, frame.up),
-        forward: dot(offset, frame.forward),
-      },
-      planeElevation: tr.elevation,
-    };
-  }
-  return null;
+  const mercatorPerMetre = new MercatorCoordinate(
+    point.x,
+    point.y,
+  ).meterInMercatorCoordinateUnits();
+  const cameraMercator = MercatorCoordinate.fromLngLat(tr.getCameraLngLat());
+  const offset: Vec3 = [
+    (cameraMercator.x - point.x) / mercatorPerMetre,
+    -(cameraMercator.y - point.y) / mercatorPerMetre,
+    tr.getCameraAltitude() - point.elevation,
+  ];
+  const frame = cameraFrame(tr.bearing, tr.pitch);
+  return {
+    pivot: point,
+    mercatorPerMetre,
+    offset: {
+      right: dot(offset, frame.right),
+      up: dot(offset, frame.up),
+      forward: dot(offset, frame.forward),
+    },
+    planeElevation: tr.elevation,
+  };
 }
 
 /**
@@ -151,7 +131,14 @@ function orbit(map: MapLibreMap, o: Orbit, bearing: number, pitch: number): void
 
 const clamp = (n: number, min: number, max: number): number => Math.min(Math.max(n, min), max);
 
-export function enableShiftDragCamera(map: MapLibreMap, anchor: CameraAnchor): () => void {
+/**
+ * @param onPivot called with the pivot the gesture holds, and null when it lets go.
+ */
+export function enableShiftDragCamera(
+  map: MapLibreMap,
+  anchor: CameraAnchor,
+  onPivot?: (pivot: Pivot | null) => void,
+): () => void {
   const container = map.getCanvasContainer();
   const camera = map._camera;
   map.boxZoom.disable();
@@ -201,6 +188,7 @@ export function enableShiftDragCamera(map: MapLibreMap, anchor: CameraAnchor): (
       apply();
     }
     pivot = null;
+    onPivot?.(null);
     camera.elevationFreeze = false;
     // Resuming settles the camera in the terms MapLibre keeps it in — the centre on the
     // terrain the view axis actually meets — so nothing is left for a later frame to
@@ -224,7 +212,9 @@ export function enableShiftDragCamera(map: MapLibreMap, anchor: CameraAnchor): (
     startPitch = map.getPitch();
     dx = 0;
     dy = 0;
-    pivot = grabPivot(map);
+    const chosen = choosePivot(map);
+    pivot = chosen && orbitAbout(map, chosen.point);
+    onPivot?.(chosen);
     // The gesture's own jumpTo fires moveend every frame; the anchor settling against
     // those would fight the orbit.
     anchor.suspend();
