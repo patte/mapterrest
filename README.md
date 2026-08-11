@@ -142,6 +142,14 @@ The heatmap is MapLibre's `color-relief` layer, a ramp over absolute elevation i
 so its colours mean the same thing everywhere. Both shading layers are inserted before
 the style's first symbol layer, or place names end up behind the relief.
 
+The hillshade light is anchored to the map. MapLibre anchors it to the viewport by
+default, which welds the sun to the screen: rotating the camera re-lights every slope,
+and a bearing that runs the light along the ridges flattens them into smears that read
+as lost detail. Sampling 49 fixed ground points across a 99° turn, viewport anchoring
+shifts their shading 2.3× as much as map anchoring does (mean 101.1 vs 43.5, the
+remainder being the pitch change). Anchored to the map an azimuth is a real compass
+bearing, which is also what a sun position would need.
+
 The basemap follows `prefers-color-scheme` and keeps following it — switch the OS between
 light and dark and the map changes under you — until a basemap is picked by hand, after
 which the choice is the user's and lives in the hash.

@@ -52,6 +52,13 @@ export function shadingLayer(
     type: 'hillshade',
     source,
     paint: {
+      // MapLibre anchors the light to the viewport by default, which welds the sun to
+      // the screen: rotating the camera re-lights every slope, and a bearing that runs
+      // the light along the ridges flattens them into smears that read as lost detail.
+      // Anchored to the map the light sits over the terrain at the cartographic 335°,
+      // so rotating only changes the viewpoint — and an azimuth here means a real
+      // compass bearing, which is what a sun position would have to be.
+      'hillshade-illumination-anchor': 'map',
       'hillshade-exaggeration': basemap.hillshade.exaggeration,
       'hillshade-shadow-color': basemap.hillshade.shadow,
       'hillshade-highlight-color': basemap.hillshade.highlight,

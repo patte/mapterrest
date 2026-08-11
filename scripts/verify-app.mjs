@@ -42,6 +42,12 @@ const source = await page.evaluate(() => {
 check(source.encoding === 'terrarium', 'DEM source is terrarium', JSON.stringify(source));
 check(source.minzoom === 0, 'relief reaches the horizon (minzoom 0)');
 check(!!(await page.evaluate(() => window.map.getTerrain())), 'terrain is attached');
+check(
+  (await page.evaluate(() =>
+    window.map.style.getLayer('terrain-shading').paint.get('hillshade-illumination-anchor'),
+  )) === 'map',
+  'hillshade light is anchored to the map, not the viewport',
+);
 
 for (const p of PROBES) {
   await page.evaluate(([lng, lat]) => window.map.jumpTo({ center: [lng, lat], zoom: 14 }), [
