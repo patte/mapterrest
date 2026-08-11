@@ -13,17 +13,17 @@ import { cameraFrame, dot, rayCrossing, type Ray, type Vec3 } from './cameraAnch
  *
  * So the pivot is chosen by what the frame is *of*, not by where a pixel is: raycast a
  * grid, weight each hit toward the centre of attention, group the hits into the surfaces
- * they came from, and pivot on the surface holding the most weight. A mountain filling
- * the view owns it and holds still wherever the drag starts; move forward until the
- * terrain around it dominates and the turn moves out to that. Google Maps 3D behaves this
- * way — shift+dragging far from the mountain still turns about the mountain — and click
- * independence falls out for free, since the mouse position never enters.
+ * they came from, and pivot on the one a turn would hold the frame stillest around — see
+ * `stillestSurface`. A mountain filling the view holds still wherever the drag starts;
+ * move forward until the terrain around it dominates and the turn moves out to that.
+ * Google Maps 3D behaves this way — shift+dragging far from the mountain still turns about
+ * the mountain — and click independence falls out for free, since the mouse position never
+ * enters.
  *
  * Surfaces rather than a statistic over all the depths. Head-on at the Matterhorn the
- * grid sees four of them — the face at 2.2–2.7 km with 59 % of the weight, a ridge at
- * 9–12 km, the horizon at 39–46 km — and a median over that lot is a step function: the
- * face slipping from 51 % to 49 % of the weight teleports the pivot from the mountain out
- * to the ridge. A surface losing a few percent still wins.
+ * grid sees four of them — the face at 2.2–2.7 km, a ridge at 9–12 km, the horizon at
+ * 39–46 km — and a median over that lot is a step function: the face slipping from 51 % to
+ * 49 % of the weight teleports the pivot from the mountain out to the ridge.
  *
  * The pivot is a point on that surface, not a depth on the view axis, so a subject the
  * frame is not centred on is still what turns — at the view above the face's centre of
@@ -44,11 +44,21 @@ const WEIGHT_SIGMA = 0.25;
 const MIN_HITS = 3;
 
 /**
- * How deep a surface reaches either side of its peak, in octaves. Wide enough that a face
- * slanting away from the camera stays one thing, narrow enough to keep the ridge behind
- * it separate.
+ * How deep a surface reaches either side of its centre, in octaves. Wide enough that a
+ * face slanting away from the camera stays one thing, narrow enough to keep the ridge
+ * behind it separate.
  */
 const SURFACE_BAND = 0.35;
+
+/**
+ * The most apparent motion one sample is allowed to complain about, in frame-widths per
+ * radian of turn. Uncapped, a scrap of ground running under the camera outvotes a mountain
+ * filling the frame: its term in the cost below grows without bound as the pivot moves
+ * away from it, so a strip at 250 m took the pivot off a mountain at 4.5 km. A sample can
+ * be badly held; it cannot be infinitely badly held. Anything from 1.5 to 6 holds every
+ * view measured so far.
+ */
+const MOTION_CAP = 3;
 
 /**
  * Fallback for a frame that is nearly all sky: fractions of the viewport height to look
@@ -184,34 +194,52 @@ type Hit = PivotSample & { point: PivotPoint; depth: number };
 type Surface = { members: Hit[]; weight: number; share: number };
 
 /**
- * The surface the frame's weight piles onto: the peak of the weighted depth density, and
- * everything within a band of it. Sky weighs nothing.
+ * The surface a turn would hold the frame stillest around.
  *
- * Cutting the depths at the gaps instead is what a scene with gaps invites, and it fails
- * on the scenes that have none. Tipped toward level the ground runs out to the horizon
- * without a break, every neighbouring pair of samples falls inside any gap threshold, and
- * single-linkage chains the mountain 3 km ahead to the range 60 km behind it as one
- * "surface" whose centre of mass is in the distance. A peak cannot chain: thin density
- * spread over many octaves never out-piles a concentration in one.
+ * Turning by θ about a pivot D away swings the camera through an arc of about D·θ, and a
+ * point at depth d then slides across the screen by roughly `focal · θ · |D/d − 1|` —
+ * nothing at d = D, and more the further its depth is from the pivot's. Summed over the
+ * frame that is what a choice of pivot costs:
  *
- * It also prefers the near thing without being told to. Depth is measured in octaves, so
- * a given patch of screen covers fewer of them the closer it is, and its samples land in
- * the same band rather than smearing across several.
+ *     cost(D) = Σ weight · |D/d − 1|
+ *
+ * so the surface to pivot on is the one that minimises it. The preference for the near
+ * thing falls out of the geometry rather than being dialled in: a far point's term
+ * saturates at its weight (a pivot at no distance means the camera never translates, so
+ * nothing moves much) while a near point's grows without bound, which is why the cap
+ * above exists at all.
+ *
+ * Scoring surfaces by the weight they own instead — the share of the screen they cover —
+ * reads well and breaks on the near, deep subject. Depth measured in octaves means the
+ * closer a thing is, the more of them it spans: at z16.14 the Matterhorn's samples spread
+ * over 0.17 octaves and it won, and half a zoom level closer the same mountain spread over
+ * 0.65, split across two bands, and lost to the plain 4 km behind it holding 47 %.
+ *
+ * The band still says what a surface *is*; it no longer says which one wins. Sky weighs
+ * nothing.
  */
-function dominantSurface(samples: PivotSample[]): Surface | null {
+function stillestSurface(samples: PivotSample[]): Surface | null {
   const hits = samples.filter((s): s is Hit => s.depth !== null);
   if (hits.length < MIN_HITS) return null;
+  const total = hits.reduce((sum, s) => sum + s.weight, 0);
 
-  const pileAt = (depth: number): number =>
-    hits.reduce((sum, s) => {
-      const octaves = Math.abs(Math.log2(s.depth / depth)) / SURFACE_BAND;
-      return sum + (octaves >= 1 ? 0 : s.weight * (1 - octaves));
-    }, 0);
+  const around = (depth: number): Surface => {
+    const members = hits.filter((s) => Math.abs(Math.log2(s.depth / depth)) <= SURFACE_BAND);
+    const weight = members.reduce((sum, s) => sum + s.weight, 0);
+    return { members, weight, share: weight / total };
+  };
+  const centreOf = (surface: Surface): number =>
+    surface.members.reduce((sum, s) => sum + s.depth * s.weight, 0) / surface.weight;
+  const cost = (depth: number): number =>
+    hits.reduce(
+      (sum, s) => sum + s.weight * Math.min(Math.abs(depth / s.depth - 1), MOTION_CAP),
+      0,
+    );
 
-  const peak = hits.reduce((a, b) => (pileAt(b.depth) > pileAt(a.depth) ? b : a));
-  const members = hits.filter((s) => Math.abs(Math.log2(s.depth / peak.depth)) <= SURFACE_BAND);
-  const weight = members.reduce((sum, s) => sum + s.weight, 0);
-  return { members, weight, share: weight / hits.reduce((sum, s) => sum + s.weight, 0) };
+  // Every hit stands for the surface around it; the frame is small enough to score them all.
+  return hits
+    .map((s) => around(s.depth))
+    .reduce((a, b) => (cost(centreOf(b)) < cost(centreOf(a)) ? b : a));
 }
 
 /**
@@ -251,7 +279,7 @@ export function choosePivot(map: MapLibreMap): Pivot | null {
   const v = currentView(map);
   const samples = grid(map, v);
 
-  const surface = dominantSurface(samples);
+  const surface = stillestSurface(samples);
   if (surface) {
     for (const s of surface.members) s.chosen = true;
     const point = onSurface(map, v, surface);

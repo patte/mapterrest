@@ -243,29 +243,42 @@ view, which is why it felt right there.
 So the pivot is chosen by what the frame is *of*, not by where a pixel is. At mousedown
 [pivot.ts](src/pivot.ts) raycasts a 7×5 grid across the middle of the viewport, takes each
 hit's distance along the view axis, and weights it by a gaussian on its distance from the
-frame centre (σ = ¼ of the shorter side). The **surface** the pivot goes to is then the
-peak of the weighted depth density: every hit scored by the weight lying within 0.35
-octaves of it, the heaviest scoring hit taken as the peak, and the surface is what sits
-inside that band.
+frame centre (σ = ¼ of the shorter side). A **surface** is then a band of depth, ±0.35
+octaves wide, and the pivot goes to the surface a turn would hold the frame stillest
+around.
 
-A peak rather than a statistic over all the depths, because the depths are not one
-population. Head-on at the Matterhorn the grid sees the face at 2.2–2.7 km with 59 % of
-the weight, a ridge at 9–12 km with 14 %, the horizon at 39–46 km with 19 %. A weighted
-median over that lot is a step function — the face slipping from 51 % to 49 % teleports
-the pivot from the mountain out to the ridge, with nothing in between — and across five
-window sizes at the same camera the face held 58–72 %, which is not a comfortable margin
-to hang one on.
+Stillest, measured. Turning by θ about a pivot D away swings the camera through an arc of
+about D·θ, and a point at depth d then slides across the screen by roughly
+`focal · θ · |D/d − 1|` — nothing at all at d = D, and more the further its depth is from
+the pivot's. Summed over the frame that is what a choice of pivot costs:
 
-A peak rather than cutting the depths at their gaps, too, which is what a scene with gaps
-invites and what scenes without them punish. Tipped toward level the ground runs to the
-horizon unbroken: at `#map=14.55/45.97982/7.65853/177.4/85` every neighbouring pair of
-samples sits inside any gap threshold, so single-linkage chains the mountain 3 km ahead to
-the range 25 km behind it as one 36-point "surface", and its centre of mass is 6.3 km out
-in the valley. Two samples either side of the threshold decide it. The peak returns
-3.06 km whether those samples are there or not: thin density spread over many octaves
-never out-piles a concentration in one. Measuring depth in octaves also prefers the near
-thing without being told to, since a given patch of screen covers fewer of them the closer
-it is.
+```
+cost(D) = Σ weight · |D/d − 1|
+```
+
+and the surface to turn about is the one that minimises it. The preference for the near
+thing falls out of the geometry rather than being dialled in: a far point's term saturates
+at its weight — a pivot at no distance means the camera never translates, so nothing moves
+much — while a near point's grows without bound. That last part needs a cap, one sample
+being allowed to be badly held but not infinitely badly held; without it a strip of ground
+250 m under the camera takes the pivot off a mountain at 4.5 km. Anything from 1.5 to 6
+frame-widths passes every view measured, and it is set to 3.
+
+Scoring surfaces by the weight they own instead — the share of the screen they cover —
+reads well and breaks on the near, deep subject, because depth measured in octaves means
+the closer a thing is the more of them it spans. At
+`#map=16.14/45.977387/7.659333/-93.8/70` the Matterhorn's samples spread over 0.17 octaves
+and it won; half a zoom level closer, at `16.25`, the same mountain spread over 0.65, split
+across two bands, and lost to the plain 4 km behind it holding 47 % of the weight. Widening
+the band to hold it merges the two at the first view instead. Stillness gets both:
+1.58 km and 1.73 km.
+
+The band still says what a surface *is*, though, and that is what stops a scene without
+gaps from chaining. Tipped toward level the ground runs to the horizon unbroken: at
+`#map=14.55/45.97982/7.65853/177.4/85` every neighbouring pair of samples sits inside any
+gap threshold, so cutting the depths where the gaps are chains the mountain 3 km ahead to
+the range 25 km behind it as one 36-point "surface" whose centre of mass is 6.3 km out in
+the valley — and two samples either side of the threshold decide it.
 
 **The pivot is a point on that surface**, so the subject turns even when the frame is not
 centred on it: at the view above, the face's centre of mass is 96 px below and right of
