@@ -30,8 +30,15 @@ import { cameraFrame, dot, rayCrossing, type Ray, type Vec3 } from './cameraAnch
  * mass is 96 px below and right of the middle of the window.
  */
 
-export const GRID_COLUMNS = 7;
-const GRID_ROWS = 5;
+/**
+ * Enough rays that a subject narrower than the spacing between them cannot slip through.
+ * Over a 1900 px frame 7 columns leave 222 px between samples, which a peak at 15 km is
+ * comfortably narrower than; 13 leave 111 px. The count is affordable because the rays are
+ * marched against the DEM rather than read back from the GPU — 117 of them cost about as
+ * much as 36 readbacks did.
+ */
+export const GRID_COLUMNS = 13;
+const GRID_ROWS = 9;
 /** Fractions of the viewport the grid spans, inset from the edges. */
 const GRID_X = [0.15, 0.85];
 const GRID_Y = [0.15, 0.9];

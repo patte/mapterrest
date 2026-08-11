@@ -241,11 +241,15 @@ out.) A 25° tilt swung the camera 5820 →
 view, which is why it felt right there.
 
 So the pivot is chosen by what the frame is *of*, not by where a pixel is. At mousedown
-[pivot.ts](src/pivot.ts) raycasts a 7×5 grid across the middle of the viewport, takes each
-hit's distance along the view axis, and weights it by a gaussian on its distance from the
-frame centre (σ = ¼ of the shorter side). A **surface** is then a band of depth, ±0.35
-octaves wide, and the pivot goes to the surface a turn would hold the frame stillest
-around.
+[pivot.ts](src/pivot.ts) raycasts a 13×9 grid across the middle of the viewport, takes each
+hit's distance along the view axis, and weights it by where attention sits (below). A
+**surface** is then a band of depth, ±0.35 octaves wide, and the pivot goes to the surface
+a turn would hold the frame stillest around.
+
+The grid is 13 wide because a subject narrower than the spacing between rays falls through
+it: 7 columns leave 222 px between samples on a 1900 px frame, 13 leave 111 px. 117 rays
+cost 4.1 ms, affordable only because they are marched against the DEM rather than read
+back from the GPU — 36 readbacks used to cost 2 ms on their own.
 
 Stillest, measured. Turning by θ about a pivot D away swings the camera through an arc of
 about D·θ, and a point at depth d then slides across the screen by roughly

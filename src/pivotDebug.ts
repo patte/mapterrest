@@ -145,11 +145,12 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
    */
   const report = (p: Pivot): void => {
     const tr = map._camera.transform;
+    // Depth and weight, kept short enough that 13 columns still paste as a readable grid.
     const cell = (s: PivotSample): string =>
       (s.depth === null
-        ? 'sky'
-        : `${(s.depth / 1000).toFixed(1)}k/${s.weight.toFixed(2)}${s.chosen ? '*' : ''}`
-      ).padStart(11);
+        ? '·'
+        : `${(s.depth / 1000).toFixed(1)}/${s.weight.toFixed(2).slice(1)}${s.chosen ? '*' : ''}`
+      ).padStart(9);
     const rows: string[] = [];
     for (let i = 0; i < p.samples.length; i += GRID_COLUMNS) {
       rows.push(p.samples.slice(i, i + GRID_COLUMNS).map(cell).join(''));
