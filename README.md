@@ -165,7 +165,7 @@ select, so the choice survives being switched off:
 | --- | --- |
 | basemap | style, and whether it draws at all |
 | shading | hillshade or elevation heatmap, and whether it draws at all |
-| terrain exaggeration | 0–10× |
+| terrain exaggeration | 0–10×, true heights by default |
 
 With the basemap off, background layers stay on: MapLibre hangs vertical skirts off every
 terrain tile edge to cover LOD seams, and over a see-through drape those skirts smear
@@ -233,7 +233,9 @@ Mean displacement of nine fixed ground points, and how far the pivot itself slid
 Raycasting a fixed fraction of the frame holds *that pixel* exactly and grabs whatever
 happens to be under it. Head-on at the Matterhorn from the Italian side, filling the view,
 0.65 of the way down the frame is the glacier at the mountain's base — 3.7 km out at
-4634 m — while the summit projects to y = 41 of 900. A 25° tilt swung the camera 5820 →
+4634 m — while the summit projects to y = 41 of 900. (Every elevation through this section
+is exaggerated metres, measured at 1.4×, which was the default when the pivot was worked
+out.) A 25° tilt swung the camera 5820 →
 7280 m about that base and took the summit clean out of the frame: the turning circle
 "way out". Pitched down at the same mountain, the same fraction lands on the slope in
 view, which is why it felt right there.
@@ -368,7 +370,7 @@ reproduces the camera to within a few metres of DEM refinement.
 **The plane the centre rides on is the gesture's, not MapLibre's.** Left to
 `calculateCameraOptionsFromCameraLngLatAltRotation`, the distance to the centre is the
 camera's height over that plane divided by cos(pitch) — and at the view above, the camera
-flies 22 m over a wall the 1.4× exaggeration has pushed to 5199 m. The distance collapses
+flies 22 m over a wall that a 1.4× exaggeration has pushed to 5199 m. The distance collapses
 and the zoom expressing it snaps from z14 to **z18.7**, tile LOD and all. The shift+drag
 orbit names the plane instead and holds the gesture's own, so zoom stays put through a
 turn and slides evenly through a tilt — 14.1 → 12.25 tilting up to level, 14.1 → 15.24

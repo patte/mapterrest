@@ -173,7 +173,7 @@ const zoomFor = (map: MapLibreMap, mercatorPerMetre: number, distance: number): 
  *
  * `calculateCameraOptionsFromCameraLngLatAltRotation` will do this too, but only against
  * the plane the centre is on at the time, and in the mountains that plane is often a
- * hair below the camera — at 46.086, 7.712 the camera flies 22 m over a wall the 1.4×
+ * hair below the camera — at 46.086, 7.712 the camera flies 22 m over a wall that a 1.4×
  * exaggeration has pushed up to 5199 m. The distance to the plane is that gap over
  * cos(pitch), so it collapses, and the zoom expressing it jumps to z18 on a z14 view,
  * taking the tile LOD with it. Naming the plane keeps the distance well behaved.

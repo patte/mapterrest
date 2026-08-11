@@ -76,5 +76,6 @@ export const usesLodParams = (detail: Detail): boolean => detail !== 'low';
 export const MAX_ZOOM_LEVELS_ON_SCREEN = 5.0;
 export const TILE_COUNT_MAX_MIN_RATIO = 100;
 
-export const DEFAULT_EXAGGERATION = 1.4;
+/** True heights. The slider goes to 10 for anyone who wants the relief pushed. */
+export const DEFAULT_EXAGGERATION = 1;
 export const MAX_EXAGGERATION = 10;
