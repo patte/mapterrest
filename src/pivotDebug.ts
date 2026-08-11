@@ -6,11 +6,11 @@ import { choosePivot, projectPoint, type Pivot, type PivotSample } from './pivot
  * chose it. A tuning affordance for the weight centre and σ in [pivot.ts](pivot.ts) —
  * Google shows nothing.
  *
- * The pivot itself sits *on the view axis*, so its marker is at the middle of the frame
- * whenever the grid chose it — the informative part is the grid: each hit is drawn at its
- * own world position, coloured by how its depth compares to the pivot's, so the surface
- * that owns the pivot shows up as the pale cluster. During a gesture those hits swing
- * with the camera while the pivot marker stays put, which is the property being tested.
+ * Each hit is drawn at its own world position, sized by the weight it carried and
+ * coloured by how its depth compares to the pivot's; the ones ringed in white are the
+ * surface that won, and the crosshair is the point on it the gesture turns about. During
+ * a gesture the hits swing with the camera while the crosshair stays put, which is the
+ * property being tested.
  *
  * Solving means ~35 single-pixel readbacks, so it happens when the camera comes to rest,
  * not per frame. Drawing is plain arithmetic and runs every frame.
@@ -76,9 +76,18 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
     }
     const at = projectPoint(map, s.point);
     if (!at) return;
-    // Weight is the say this sample had in the median, read as size and solidity.
-    ctx.globalAlpha = 0.55 + 0.45 * s.weight;
-    dot(at.x, at.y, 2.5 + 4.5 * s.weight, rampColor(s.depth, pivotDepth));
+    // Weight is the say this sample had, read as size and solidity; the ring marks the
+    // ones that belong to the surface it went to.
+    const radius = 2.5 + 4.5 * s.weight;
+    ctx.globalAlpha = s.chosen ? 1 : 0.4 + 0.3 * s.weight;
+    dot(at.x, at.y, radius, rampColor(s.depth, pivotDepth));
+    if (s.chosen) {
+      ctx.beginPath();
+      ctx.arc(at.x, at.y, radius + 3, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
     ctx.globalAlpha = 1;
   };
 
@@ -122,9 +131,11 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
     dot(at.x, at.y, 5, held ? '#ffd166' : '#fff');
 
     const hits = pivot.samples.filter((s) => s.point).length;
+    const voted = pivot.samples.filter((s) => s.chosen).length;
     drawLabel(at.x + 18, at.y + 12, [
       `${pivot.from}${held ? ' · held' : ''} · ${formatDistance(pivot.depth)} ahead`,
       `${Math.round(pivot.point.elevation)} m · ${hits}/${pivot.samples.length} hits`,
+      `surface ${voted} pts · ${Math.round(pivot.share * 100)}% of weight`,
     ]);
   };
 

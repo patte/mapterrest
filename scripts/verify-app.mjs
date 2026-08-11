@@ -183,6 +183,16 @@ const grabbed = await orbit.evaluate(() => {
   if (!pivot) return null;
   const at = window.projectPoint(map, pivot.point);
 
+  // On the terrain, not hanging in front of or inside it: the pixel the pivot projects to
+  // must raycast back to the pivot's own depth.
+  const under = map.terrain.pointCoordinate(at);
+  const lat = under && under.toLngLat().lat;
+  // Mercator units per metre at that latitude, the same scale MercatorCoordinate uses.
+  const perMetre = under && 1 / (6378137 * 2 * Math.PI * Math.cos((lat * Math.PI) / 180));
+  const underDepth = under
+    ? Math.hypot(under.x - pivot.point.x, under.y - pivot.point.y) / perMetre
+    : null;
+
   // Oracle for projectPoint, which the pivot's screen position is measured with: a point
   // raycast from a pixel has to project back onto that pixel.
   const probe = { x: tr.width * 0.35, y: tr.height * 0.7 };
@@ -192,11 +202,15 @@ const grabbed = await orbit.evaluate(() => {
   return {
     from: pivot.from,
     depth: pivot.depth,
+    share: pivot.share,
     point: pivot.point,
     hits: pivot.samples.filter((s) => s.point).length,
+    voted: pivot.samples.filter((s) => s.chosen).length,
     total: pivot.samples.length,
     at,
     offCentre: Math.hypot(at.x - tr.width / 2, at.y - tr.height / 2),
+    surfaceGapM: underDepth,
+    surfaceDropM: under ? Math.abs(under.z - pivot.point.elevation) : null,
     roundTripPx: back ? Math.hypot(back.x - probe.x, back.y - probe.y) : null,
     bearing: tr.bearing,
     pitch: tr.pitch,
@@ -208,9 +222,18 @@ check(
   'the grid, not the anchor ladder, chooses it',
   `${grabbed.hits}/${grabbed.total} hits`,
 );
-// The pivot is the camera plus forward × depth, so it is the middle of the frame by
-// construction — and projecting it back is the check that the camera basis agrees.
-check(grabbed.offCentre < 1, 'the pivot sits on the view axis', `${grabbed.offCentre.toFixed(2)} px`);
+check(
+  grabbed.voted >= 3 && grabbed.share > 0.25,
+  'one surface carries the choice',
+  `${grabbed.voted} pts, ${(grabbed.share * 100).toFixed(0)}% of the weight`,
+);
+// The point of choosing a surface rather than a depth: the pivot is on the terrain, which
+// means the pixel it projects to looks back at the pivot itself.
+check(
+  grabbed.surfaceGapM !== null && grabbed.surfaceGapM < 30 && grabbed.surfaceDropM < 30,
+  'the pivot sits on the terrain surface',
+  `${grabbed.surfaceGapM?.toFixed(1)} m across, ${grabbed.surfaceDropM?.toFixed(1)} m up`,
+);
 check(
   grabbed.roundTripPx !== null && grabbed.roundTripPx < 5,
   'a raycast point projects back onto the pixel it came from',

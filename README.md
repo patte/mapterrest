@@ -240,24 +240,34 @@ view, which is why it felt right there.
 
 So the pivot is chosen by what the frame is *of*, not by where a pixel is. At mousedown
 [pivot.ts](src/pivot.ts) raycasts a 7×5 grid across the middle of the viewport, takes each
-hit's distance along the view axis, weights it by a gaussian on its distance from the
-frame centre (σ = ¼ of the shorter side), and puts the pivot on the axis at the weighted
-**median** of those depths. Median, not mean: a distant valley seen through a col must not
-drag the pivot out past the subject, and whichever surface owns the most weighted pixels
-wins outright.
+hit's distance along the view axis, and weights it by a gaussian on its distance from the
+frame centre (σ = ¼ of the shorter side). The hits are then grouped into the **surfaces**
+they came from — sorted by depth, a jump wider than 0.35 octaves starting a new one — and
+the surface holding the most weight wins.
 
-Head-on, that moves the pivot off the glacier and onto the face — 4.22 km out at 4947 m,
-30 of 35 samples hitting — and the same 25° tilt now leaves the summit 29 px from where it
-started. Pitched down, where the fixed anchor already felt right, the pivot moves 13 %
-further out and nothing perceptible changes. Below three hits, on a frame that is nearly
-all sky, the old ladder of anchors takes over (0.65, 0.8, 0.5, 0.92 down the centre
-column, first hit wins), and with no terrain at all the gesture turns about the centre.
+Surfaces rather than a statistic over all the depths, because the depths are not one
+population. Head-on at the Matterhorn the grid sees four: the face at 2.2–2.7 km with
+59 % of the weight, a ridge at 9–12 km with 14 %, the horizon at 39–46 km with 19 %. A
+weighted median over that lot is a step function — the face slipping from 51 % to 49 %
+teleports the pivot from the mountain out to the ridge, with nothing in between — where a
+surface losing a few percent still wins. Across five window sizes at the same camera the
+face held 58–72 %, which is not a comfortable margin to hang a step function on.
 
-Two things fall out of choosing by content. The pivot never depends on where the mouse
-went down — shift+drag from anywhere and the mountain in view is what turns — which is
-how Google Maps 3D behaves, and Google is where the complaint came from. And since the
-pivot is the camera plus forward × depth, it is the middle of the frame by construction:
-it holds that pixel to 0.03 px through a 25° tilt.
+**The pivot is a point on that surface**, so the subject turns even when the frame is not
+centred on it: at the view above, the face's centre of mass is 96 px below and right of
+the middle of the window, and that is where the pivot goes. Getting a point that is
+genuinely on the terrain takes one more step — the centre of mass of a curved surface is
+not on it, and across a ridge it lands inside the mountain — so the centroid is projected
+back to a pixel and re-cast from there, with the nearest sample standing in if that pixel
+misses. Either way the pivot is a raycast hit.
+
+Below three hits, on a frame that is nearly all sky, the old ladder of anchors takes over
+(0.65, 0.8, 0.5, 0.92 down the centre column, first hit wins), and with no terrain at all
+the gesture turns about the centre.
+
+The pivot never depends on where the mouse went down — shift+drag from anywhere and the
+mountain in view is what turns — which is how Google Maps 3D behaves, and Google is where
+the complaint came from. It holds its pixel to 0.1 px through a 48° turn.
 
 Rotate and tilt speeds are half MapLibre's own — 0.4 and 0.25 °/px — which the calmer
 pivot made room for. Moves are coalesced into one camera update per animation frame; a
@@ -266,7 +276,7 @@ trackpad reports them faster than the map renders.
 **`#debugPivot=1` draws the choice.** A crosshair on the pivot, and every grid sample at
 its own world position, sized by the weight it carried and coloured by its depth against
 the pivot's — warm nearer, blue further, amber at it, saturating at half and double.
-The surface that owns the pivot reads as the amber cluster. It solves when the camera
+The samples ringed in white are the surface that won. It solves when the camera
 comes to rest, so the pivot is inspectable before committing to a drag, and holds the
 gesture's own pivot while one is running: the crosshair sits still while the samples swing
 around it. Tuning affordance, not a feature — Google shows nothing.
