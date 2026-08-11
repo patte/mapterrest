@@ -35,7 +35,7 @@ endpoint needs no key and answers `access-control-allow-origin: *` with a week o
   type: 'raster-dem',
   tiles: ['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],
   encoding: 'terrarium',
-  tileSize: 512,
+  tileSize: 256, // the tiles are 512 px — see LOD below for why this says otherwise
 }
 ```
 
@@ -76,6 +76,35 @@ simply the z12 tile stretched, which is what the data supports.
 `minzoom` is 0. A single small tile carries the horizon ring, so relief runs to the edge
 of the projection at any pitch, with none of the per-cell rationing the COG prototype
 needs.
+
+## LOD: `tileSize` is the only lever
+
+Terrain LOD falls off with distance, and out of the box it falls off early — the far
+ridges of a pitched view arrive at z9 while the foreground is at z13.
+
+`tileSize` is what `coveringTiles` does its zoom maths against. The tiles really are
+512 px; declaring **256** asks for one zoom level deeper across the whole frame. Measured
+over Mont Blanc at z12.6, pitch 78:
+
+| | Tiles | Transfer | Zoom spread |
+| --- | --- | --- | --- |
+| `tileSize: 512` | 19 | 7.4 MiB | z6:1 z9:4 z10:4 z11:2 z12:4 z13:4 |
+| `tileSize: 256` | 36 | 12.7 MiB | z6:1 z7:1 z9:4 z10:4 z11:6 z12:4 z13:8 z14:8 |
+
+Elevations are unaffected — the same four probes read within 4 m either way, since this
+shifts which tile is chosen, not how its pixels are decoded.
+
+Nothing else moves terrain LOD. `TerrainTileManager.deltaZoom` is documented for exactly
+this ("raster-dem tiles will load the actualZoom - deltaZoom zoom-level") and is a no-op
+in 6.3: 1 and 0 request byte-identical tile sets, and -1 throws
+`targetZ > this.overscaledZ`. `qualityFactor` and the render-to-texture tile size are
+fixed once `setTerrain()` has run, and mutating them afterwards changes nothing.
+
+A rebuilt source is not the same as a declared one. Swapping `tileSize` on a live map —
+`setTerrain(null)`, `removeSource`, `addSource`, `setTerrain` — leaves stale
+render-to-texture tiles that show up as a blank patch with vertical banding. Declared at
+`style.load` the same setting renders clean; five cameras from pitch 85 to z15.5, and
+Everest behind a screen of 404s, produce no blank pixels at all.
 
 ## Accuracy
 

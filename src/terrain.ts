@@ -14,12 +14,19 @@ export const DEM_SOURCE = 'mapterhorn-dem';
  *
  * minzoom 0 means the horizon ring is a single small tile rather than something to
  * ration, so relief runs to the edge of the projection at any pitch.
+ *
+ * tileSize is what coveringTiles does its zoom maths against, and the tiles really are
+ * 512 px. Declaring 256 asks for one zoom level deeper across the whole frame — 19 tiles
+ * over Mont Blanc becomes 36, the far ridges go from z11 to z13, and elevations read the
+ * same to the decimetre. Terrain LOD has no other lever: TerrainTileManager.deltaZoom is
+ * documented for exactly this and is a no-op in 6.3, and qualityFactor is fixed once
+ * setTerrain has run.
  */
 export const TERRAIN_SOURCE: RasterDEMSourceSpecification = {
   type: 'raster-dem',
   tiles: ['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],
   encoding: 'terrarium',
-  tileSize: 512,
+  tileSize: 256,
   minzoom: 0,
   maxzoom: 17,
   attribution: '<a href="https://mapterhorn.com/attribution" target="_blank">© Mapterhorn</a>',
