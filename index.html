@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Alpenglow · Mapterhorn terrain in MapLibre</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --panel-bg: rgba(255, 255, 255, 0.92);
+        --panel-fg: #111;
+        --panel-muted: #555;
+        --panel-border: #ccc;
+        --control-bg: #fff;
+        --edge: 12px;
+      }
+      body[data-theme='dark'] {
+        color-scheme: dark;
+        --panel-bg: rgba(20, 26, 33, 0.92);
+        --panel-fg: #e8edf2;
+        --panel-muted: #9aa8b6;
+        --panel-border: #3a4653;
+        --control-bg: #222b35;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      #map {
+        position: absolute;
+        inset: 0;
+      }
+
+      #panel {
+        position: absolute;
+        top: calc(var(--edge) + env(safe-area-inset-top));
+        left: calc(var(--edge) + env(safe-area-inset-left));
+        z-index: 1;
+        background: var(--panel-bg);
+        color: var(--panel-fg);
+        backdrop-filter: blur(8px);
+        border-radius: 10px;
+        padding: 12px 14px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+        font-size: 13px;
+        line-height: 1.5;
+        width: 240px;
+      }
+      #panel label {
+        display: block;
+        color: var(--panel-muted);
+      }
+      #panel label + label,
+      #panel .field + .field {
+        margin-top: 10px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 3px;
+      }
+      /* Unchecked hides the thing the row selects, leaving the select as the choice for
+         when it comes back. */
+      .row input[type='checkbox'] {
+        flex: none;
+        margin: 0;
+        cursor: pointer;
+      }
+      select {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        font: inherit;
+        font-size: 12px;
+        padding: 4px 6px;
+        border: 1px solid var(--panel-border);
+        border-radius: 6px;
+        background: var(--control-bg);
+        color: var(--panel-fg);
+      }
+      input[type='range'] {
+        width: 100%;
+        margin: 2px 0 0;
+      }
+      #hint {
+        margin: 12px 0 0;
+        color: var(--panel-muted);
+        font-size: 12px;
+      }
+      /* Shift+drag is a mouse gesture; on touch the hint is noise. */
+      @media (hover: none) {
+        #hint {
+          display: none;
+        }
+      }
+      kbd {
+        font: inherit;
+        font-size: 11px;
+        border: 1px solid var(--panel-border);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        padding: 1px 5px;
+        background: var(--control-bg);
+      }
+
+      #panel-toggle {
+        display: none;
+        position: absolute;
+        top: calc(var(--edge) + env(safe-area-inset-top));
+        left: calc(var(--edge) + env(safe-area-inset-left));
+        z-index: 2;
+        width: 40px;
+        height: 40px;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-radius: 10px;
+        background: var(--panel-bg);
+        color: var(--panel-fg);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+        cursor: pointer;
+      }
+      #panel-toggle svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      /* Narrow screens: the panel folds behind the button and spans the width it has. */
+      @media (max-width: 640px) {
+        #panel-toggle {
+          display: flex;
+        }
+        #panel {
+          top: calc(var(--edge) + 40px + 8px + env(safe-area-inset-top));
+          right: calc(var(--edge) + env(safe-area-inset-right));
+          width: auto;
+          max-width: 320px;
+        }
+        body:not(.panel-open) #panel {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <button id="panel-toggle" type="button" aria-controls="panel" aria-expanded="false">
+      <span class="sr-only" hidden>controls</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h10M18 17h2" stroke-linecap="round" />
+        <circle cx="16" cy="7" r="2" />
+        <circle cx="10" cy="12" r="2" />
+        <circle cx="16" cy="17" r="2" />
+      </svg>
+    </button>
+
+    <div id="panel">
+      <div class="field">
+        <label for="basemap">basemap</label>
+        <div class="row">
+          <input id="basemap-visible" type="checkbox" title="show basemap" />
+          <select id="basemap"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="shading">shading</label>
+        <div class="row">
+          <input id="shading-visible" type="checkbox" title="show shading" />
+          <select id="shading"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="exaggeration">terrain exaggeration <span id="exaggeration-value">1.4×</span></label>
+        <input id="exaggeration" type="range" min="0" max="10" step="0.1" value="1.4" />
+      </div>
+      <p id="hint"><kbd>Shift</kbd> + drag to rotate and tilt</p>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

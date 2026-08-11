@@ -1,0 +1,26 @@
+{
+  "name": "alpenglow",
+  "version": "1.0.0",
+  "description": "Mapterhorn terrain tiles in MapLibre 3D",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "probe:coverage": "node scripts/probe-coverage.mjs",
+    "verify": "node scripts/verify-app.mjs"
+  },
+  "license": "ISC",
+  "packageManager": "pnpm@10.17.1",
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "playwright": "^1.62.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
+  },
+  "dependencies": {
+    "maplibre-gl": "^6.2.0"
+  }
+}
