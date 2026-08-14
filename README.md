@@ -17,7 +17,7 @@ look like when someone has already done it well".
 | --- | --- |
 | [src/terrain.ts](src/terrain.ts) | The Mapterhorn source spec |
 | [src/basemaps.ts](src/basemaps.ts) | Basemap styles with matching sky and hillshade palettes |
-| [src/shading.ts](src/shading.ts) | Hillshade and elevation-heatmap layers |
+| [src/shading.ts](src/shading.ts) | Hillshade, heatmap and heightmap layers |
 | [src/exposure.ts](src/exposure.ts) | The elevation range in view, for the ramps to spread over |
 | [src/theme.ts](src/theme.ts) | `prefers-color-scheme` detection |
 | [src/urlState.ts](src/urlState.ts) | Control state in the location hash |
@@ -165,7 +165,7 @@ select, so the choice survives being switched off:
 | Control | Effect |
 | --- | --- |
 | basemap | style, and whether it draws at all |
-| shading | hillshade or elevation heatmap, and whether it draws at all |
+| shading | hillshade, elevation heatmap or grey heightmap, and whether it draws at all |
 | terrain exaggeration | 0–10×, true heights by default |
 
 With the basemap off, background layers stay on: MapLibre hangs vertical skirts off every
@@ -173,9 +173,12 @@ terrain tile edge to cover LOD seams, and over a see-through drape those skirts 
 edge pixels into grey curtains. A backdrop layer replaces the style's near-black or
 paper-white ground with a mid tone the relief reads against.
 
-The heatmap is MapLibre's `color-relief` layer, a ramp over absolute elevation in metres,
-so its colours mean the same thing everywhere. Both shading layers are inserted before
-the style's first symbol layer, or place names end up behind the relief.
+The heatmap and the heightmap are both MapLibre's `color-relief` layer, a ramp over
+absolute elevation in metres: the heatmap runs a hypsometric palette over it, the
+heightmap runs Heightmapper's black-to-white. Hillshade is a different reading of the
+same DEM — it takes the gradient between neighbouring samples and lights it, and never
+looks at an absolute height. Every shading layer is inserted before the style's first
+symbol layer, or place names end up behind the relief.
 
 The hillshade light is anchored to the map. MapLibre anchors it to the viewport by
 default, which welds the sun to the screen: rotating the camera re-lights every slope,

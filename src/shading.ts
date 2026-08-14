@@ -20,12 +20,36 @@ const HEATMAP_RAMP: (number | string)[] = [
   6000, '#ffffff',
 ];
 
-export type ShadingKey = 'hillshade' | 'heatmap';
+/**
+ * Heightmapper's greyscale, black at the foot of the ramp and white at its head with
+ * nothing between the two but the elevation itself. Unlike the heat ramp it makes no
+ * claim about what a given height is — grey is only ever higher or lower than other grey.
+ */
+const HEIGHTMAP_RAMP: (number | string)[] = [0, '#000000', 6000, '#ffffff'];
+
+export type ShadingKey = 'hillshade' | 'heatmap' | 'heightmap';
 
 export const SHADINGS: Record<ShadingKey, string> = {
   hillshade: 'hillshade',
   heatmap: 'elevation heatmap',
+  heightmap: 'grey heightmap',
 };
+
+/**
+ * The modes that paint elevation through a ramp, as against hillshade, which reads the
+ * DEM's gradient and never sees an absolute height at all.
+ */
+export type RampKey = Exclude<ShadingKey, 'hillshade'>;
+
+const RAMPS: Record<RampKey, (number | string)[]> = {
+  heatmap: HEATMAP_RAMP,
+  heightmap: HEIGHTMAP_RAMP,
+};
+
+/** The heat ramp tints the ground under it; grey is the whole picture, so it covers it. */
+const RAMP_OPACITY: Record<RampKey, number> = { heatmap: 0.85, heightmap: 1 };
+
+export const isRamp = (key: ShadingKey): key is RampKey => key !== 'hillshade';
 
 export const DEFAULT_SHADING: ShadingKey = 'hillshade';
 
@@ -36,14 +60,14 @@ export function shadingLayer(
   source: string,
   basemap: Basemap,
 ): LayerSpecification {
-  if (key === 'heatmap') {
+  if (isRamp(key)) {
     return {
       id: SHADING_LAYER,
       type: 'color-relief',
       source,
       paint: {
-        'color-relief-color': ['interpolate', ['linear'], ['elevation'], ...HEATMAP_RAMP],
-        'color-relief-opacity': 0.85,
+        'color-relief-color': ['interpolate', ['linear'], ['elevation'], ...RAMPS[key]],
+        'color-relief-opacity': RAMP_OPACITY[key],
       },
     };
   }
