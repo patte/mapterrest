@@ -11,6 +11,7 @@ import {
 } from './shading';
 import { enableCameraAnchor } from './cameraAnchor';
 import { choosePivot, projectPoint } from './pivot';
+import { enablePerfDebug } from './perfDebug';
 import { enablePivotDebug } from './pivotDebug';
 import { enableShiftDragCamera } from './shiftDragCamera';
 import { onSchemeChange, prefersDark } from './theme';
@@ -39,6 +40,12 @@ let shadingKey = readString<ShadingKey>('shading', DEFAULT_SHADING, SHADING_KEYS
 let shadingVisible = readBoolean('shadingVisible', true);
 let exaggeration = readNumber('exaggeration', DEFAULT_EXAGGERATION, 0, MAX_EXAGGERATION);
 const detail = readString<Detail>('detail', DEFAULT_DETAIL, DETAIL_LEVELS);
+/**
+ * `#pivot=0` hands the camera back to MapLibre entirely — its own ground pin, no anchor,
+ * no shift+drag orbit — so anything the map does can be told apart from what this stack
+ * does to it. Load-time, because the pin is a construction option.
+ */
+const pivotEnabled = readBoolean('pivot', true);
 
 const map = new MapLibreMap({
   container: 'map',
@@ -51,21 +58,26 @@ const map = new MapLibreMap({
   bearing: 225,
   // MapLibre allows up to 180; 90 is the camera lying flat on the horizon.
   maxPitch: 90,
-  // The pin this disables re-clamps the centre's elevation to the DEM every frame and
-  // every terrain tile, moving the camera by the difference — measured as kilometre
-  // teleports mid-wheel and on release at high pitch. cameraAnchor.ts anchors instead.
-  centerClampedToGround: false,
+  // The pin re-clamps the centre's elevation to the DEM every frame and every terrain
+  // tile, moving the camera by the difference — measured as kilometre teleports mid-wheel
+  // and on release at high pitch. cameraAnchor.ts anchors instead, so it is off with it.
+  centerClampedToGround: !pivotEnabled,
   // Named so the camera occupies one hash param and leaves room for the controls.
   hash: MAP_HASH_KEY,
 });
 
 if (import.meta.env.DEV) Object.assign(window, { map, choosePivot, projectPoint });
 
-const anchor = enableCameraAnchor(map);
-// `#debugPivot=1` draws the pivot and the grid behind it, whether or not a gesture is
-// running, so the choice can be inspected before committing to a drag.
-const pivotDebug = readBoolean('debugPivot', false) ? enablePivotDebug(map) : null;
-enableShiftDragCamera(map, anchor, (pivot) => pivotDebug?.hold(pivot));
+// Independent of the pivot: what a frame costs is a question about the map itself.
+if (readBoolean('debugPerf', false)) enablePerfDebug(map);
+
+if (pivotEnabled) {
+  const anchor = enableCameraAnchor(map);
+  // `#debugPivot=1` draws the pivot and the grid behind it, whether or not a gesture is
+  // running, so the choice can be inspected before committing to a drag.
+  const pivotDebug = readBoolean('debugPivot', false) ? enablePivotDebug(map) : null;
+  enableShiftDragCamera(map, anchor, (pivot) => pivotDebug?.hold(pivot));
+}
 map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 
 /**
