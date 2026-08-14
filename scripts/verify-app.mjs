@@ -317,6 +317,32 @@ check(
 );
 await orbit.close();
 
+/* Zooming out ---------------------------------------------------------------*/
+
+// The anchor marches the view axis to find the terrain the centre should sit on. A march
+// that stops short reports no terrain for a view that is nothing but terrain, and settle
+// then puts the centre on a plane 10 km under the camera — so the map holds a zoom for a
+// height it is nowhere near and asks the LOD for that detail across a continent. At
+// pitch 0 the camera passes 80 km up at z10.5, which is why this checks from there down.
+const high = await open({ hash: '#map=13/50.195639/11.502985' });
+const ground = await high.evaluate(() =>
+  window.map.terrain.getElevationForLngLatZoom(window.map.getCenter(), 12),
+);
+for (const zoom of [11, 10, 9]) {
+  const settled = await high.evaluate(async (z) => {
+    window.map.jumpTo({ zoom: z });
+    await new Promise((done) => setTimeout(done, 3000));
+    const tr = window.map._camera.transform;
+    return { zoom: tr.zoom, plane: tr.elevation, altitude: tr.getCameraAltitude() };
+  }, zoom);
+  check(
+    Math.abs(settled.plane - ground) < 500 && Math.abs(settled.zoom - zoom) < 0.5,
+    `zooming out to z${zoom} leaves the centre on the ground`,
+    `plane ${settled.plane.toFixed(0)} m against ${ground.toFixed(0)} m, reads z${settled.zoom.toFixed(2)}`,
+  );
+}
+await high.close();
+
 /* The pivot debug overlay -------------------------------------------------- */
 
 const debug = await open({ viewport: { width: 800, height: 600 }, hash: '#debugPivot=1' });

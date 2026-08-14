@@ -103,6 +103,24 @@ const MARCH_FAR = 80000;
 const MARCH_STEPS = 48;
 
 /**
+ * How steeply a ray has to descend before the distance it takes to fall to sea level is a
+ * usable bound. MapLibre gives up on the same quantity at the same threshold.
+ */
+const MIN_DESCENT = 0.1;
+
+/**
+ * How far to march this ray. Terrain sits above sea level, so a descending ray has
+ * nothing left to find once it has fallen that far, and 80 km covers any camera in the
+ * mountains — but at pitch 0 the camera passes 80 km up at z10.5, and a march that gives
+ * up there reports no terrain at all for a view that is nothing but terrain. Rays too
+ * flat to descend keep the fixed reach: theirs runs to the horizon and beyond.
+ */
+function marchFar(ray: Ray): number {
+  const down = -ray.direction[2];
+  return down > MIN_DESCENT ? Math.max(MARCH_FAR, ray.altitude / down) : MARCH_FAR;
+}
+
+/**
  * How far along a ray the terrain first comes up to meet it, sampled the way the elevation
  * pin samples — a DEM read at the tile zoom, not the rendered mesh `pointCoordinate`
  * hits. The two disagree by metres on a slope, and metres of elevation is metres of
@@ -116,7 +134,7 @@ const MARCH_STEPS = 48;
  * moved the plane 100 m the wrong way and left the pin 268 m to take back. Steps grow
  * geometrically, since the DEM coarsens with distance too.
  *
- * Null where nothing is hit inside `MARCH_FAR` — sky, or a ray that leaves the DEM.
+ * Null where nothing is hit inside the ray's reach — sky, or a ray that leaves the DEM.
  */
 export function rayCrossing(
   map: MapLibreMap,
@@ -130,7 +148,7 @@ export function rayCrossing(
     return ground === undefined || !Number.isFinite(ground) ? null : at.elevation - ground;
   };
 
-  const growth = (MARCH_FAR / MARCH_NEAR) ** (1 / MARCH_STEPS);
+  const growth = (marchFar(ray) / MARCH_NEAR) ** (1 / MARCH_STEPS);
   let near = 0;
   for (let i = 0, d = MARCH_NEAR; i <= MARCH_STEPS; i++, d *= growth) {
     const gap = clearance(d);
