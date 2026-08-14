@@ -1,5 +1,8 @@
-import { MapLibreMap, NavigationControl } from 'maplibre-gl';
+import { MapLibreMap, NavigationControl, setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+// maplibre resolves its worker next to its own import.meta.url, which after
+// bundling points at our chunk rather than the package. Let vite emit it.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, type BasemapKey } from './basemaps';
 import {
   DEFAULT_SHADING,
@@ -31,6 +34,8 @@ import {
   type Detail,
 } from './terrain';
 import { has, MAP_HASH_KEY, readBoolean, readNumber, readString, write } from './urlState';
+
+setWorkerUrl(maplibreWorkerUrl);
 
 const BACKDROP_LAYER = 'terrain-backdrop';
 
