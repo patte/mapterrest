@@ -217,22 +217,31 @@ The walk costs the frame's edge rather than its area: a node wholly in view answ
 its stored extremes and a node wholly outside answers not at all. A node whose extremes
 already sit inside the range found so far is skipped outright — no child can widen what
 its parent could not — which is what keeps the pitched views cheap. Zermatt at pitch 78
-reads 410–4471 m in 0.14 ms, against 2.4 ms for the same walk without that cut.
+reads 209–4772 m in 0.7 ms; the same walk without that skip measured 2.4 ms over a smaller
+set of tiles.
 
-The near-field floor survives from before the cut and is now a matter of taste rather than
-of correctness: dropping everything below `tileZoom - 1` exposes Zermatt for the valley at
-410–4471 m, where admitting the horizon gives the true 209–4772 m.
+Everything in frame counts and nothing else does, so there is no distance to argue about
+and no constant to tune. That is a change of policy as well as of precision: the ramp now
+answers for the horizon when the horizon is in shot. Looking southwest from Utrecht at
+pitch 78 the frame runs to lat 50.2 and the ramp carries the Ardennes at 291 m, where a
+cut on distance would have held the country at 85 m. Pitch down, or turn, and it is a flat
+country again.
 
-At world zoom the floor is a no-op, because every tile shares a zoom — Everest comes back
-as 5604 m, which is what a z0 tile flattens it to and therefore what the ramp should end
-at. So auto-exposure needs no threshold to disable it: at that scale it simply becomes the
-global ramp.
+The honest limit is resolution rather than reach. A cell is 16 px of whatever tile holds
+it, so it is 200 m across in the foreground and 24 km at the horizon, where terrain LOD
+hands out z5 tiles — and a cell that size cannot be cut closer than tens of kilometres
+from the frame's edge.
 
-The range still steps as tiles cross the floor and as cells cross the frustum, so a ramp
-repainted straight from it would make the map breathe. The endpoints ease over a quarter
-second instead. Only a range that has actually moved is reported: repainting an unchanged
-one dirties the style, which draws a frame, which fires `sourcedata`, which measures again
-— and a still map never reaches `loaded()`.
+At world zoom the whole question is moot, because every tile is in frame — Everest comes
+back as 5604 m, which is what a z0 tile flattens it to and therefore what the ramp should
+end at. So auto-exposure needs no threshold to disable it: at that scale it simply becomes
+the global ramp.
+
+The range steps as cells cross the frustum and as a loading tile replaces a coarser one
+that answered differently, so a ramp repainted straight from it would make the map
+breathe. The endpoints ease over a quarter second instead. Only a range that has actually
+moved is reported: repainting an unchanged one dirties the style, which draws a frame,
+which fires `sourcedata`, which measures again — and a still map never reaches `loaded()`.
 
 The hillshade light is anchored to the map. MapLibre anchors it to the viewport by
 default, which welds the sun to the screen: rotating the camera re-lights every slope,

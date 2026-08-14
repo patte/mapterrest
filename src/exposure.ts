@@ -4,21 +4,6 @@ import type { MapLibreMap, MapSourceDataEvent } from 'maplibre-gl';
 export type Range = { lo: number; hi: number };
 
 /**
- * How far below the frame's own zoom a DEM tile still counts as near field.
- *
- * The tiles behind the shading run to the horizon, and a horizon tile is both coarse and
- * enormous. Taken raw, the Zermatt valley at pitch 78 spans −6 to 4772 m and the
- * Netherlands −299 to 990 m — a country with 10 m of relief would land inside one percent
- * of the ramp, which is the flat grey the exposure exists to cure. Terrain LOD hands the
- * coarse tiles to distant ground, so a floor on zoom is a cut on distance: at 1 those two
- * views read 1104–4622 m and −9 to 85 m.
- *
- * Measured against `tileZoom` rather than the deepest tile present, because the deepest
- * tile moves as tiles finish loading and would walk the exposure while a view settles.
- */
-const NEAR_FIELD = 1;
-
-/**
  * Pixels on a side of the finest cell in a tile's elevation pyramid, and so the
  * resolution the visible range is answered at.
  */
@@ -166,17 +151,20 @@ function collect(
 }
 
 /**
- * The elevation range the frame holds, or null while no tile near enough to count has
- * loaded — the caller keeps what it had rather than exposing against the horizon.
+ * The elevation range the frame holds, or null while nothing with a DEM is in frame — the
+ * caller keeps what it had rather than exposing against an empty answer.
  *
- * Read off the DEM itself rather than sampled, so at world zoom Everest comes back as
- * 5604 m, which is what a z0 tile flattens it to and therefore what the ramp should end
- * at. A tile's own `dem.min`/`dem.max` answer for the whole tile though, and a coarse
- * tile reaches far past the frame: over Rybinsk at z5.45 the four z4 tiles drawn are a
- * tenth on screen each and carry Elbrus and the Karagiye Depression 1200 km south of the
- * bottom edge, for a range of −131 to 4839 m over ground that runs 0 to 340 m. So each
- * tile is cut to the frustum first, against the same boxes and the same test that chose
- * the tile for drawing.
+ * Every elevation on screen counts and nothing else does, so the ramp spans what can be
+ * seen and the endpoints need no distance to be argued about. Read off the DEM rather
+ * than sampled, so at world zoom Everest comes back as 5604 m, which is what a z0 tile
+ * flattens it to and therefore what the ramp should end at.
+ *
+ * A tile's own `dem.min`/`dem.max` answer for the whole tile though, and a coarse tile
+ * reaches far past the frame: over Rybinsk at z5.45 the four z4 tiles drawn are a tenth
+ * on screen each and carry Elbrus and the Karagiye Depression 1200 km south of the bottom
+ * edge, for a range of −131 to 4839 m over ground that runs 0 to 340 m. So each tile is
+ * cut to the frustum first, against the same boxes and the same test that chose the tile
+ * for drawing.
  */
 export function visibleRange(map: MapLibreMap, source: string): Range | null {
   const tiles = map.style.tileManagers[source];
@@ -185,13 +173,12 @@ export function visibleRange(map: MapLibreMap, source: string): Range | null {
   const frustum = transform.getCameraFrustum() as Frustum;
   const plane = transform.getClippingPlane() as Plane;
   const volumes = transform.getCoveringTilesDetailsProvider();
-  const floor = transform.tileZoom - NEAR_FIELD;
 
   const into: Range = { lo: Infinity, hi: -Infinity };
   const cut: { box: Box; dem: Dem }[] = [];
   for (const id of tiles.getRenderableIds()) {
     const tile = tiles.getTileByID(id);
-    if (!tile?.dem || tile.tileID.overscaledZ < floor) continue;
+    if (!tile?.dem) continue;
 
     // Terrain gives the box the tile's own elevation span; without it the box is flat at
     // the camera's plane and a mountain leaves the frustum before its ground does.
@@ -224,10 +211,11 @@ export function visibleRange(map: MapLibreMap, source: string): Range | null {
 /**
  * Follows the view, reporting an eased range.
  *
- * The measurement is a step function — tiles cross the near-field floor whole — so the
- * raw range jumps as the camera moves, and a ramp repainted from it makes the whole map
- * breathe. Easing spends those steps over a quarter second. The scan itself costs about
- * 0.3 ms, so the cadence is about smoothness rather than budget.
+ * The measurement is a step function — pyramid cells cross the frustum whole, and a tile
+ * that finishes loading replaces a coarser one that answered differently — so the raw
+ * range jumps as the camera moves, and a ramp repainted from it makes the whole map
+ * breathe. Easing spends those steps over a quarter second. The scan itself costs a
+ * fraction of a millisecond, so the cadence is about smoothness rather than budget.
  */
 export function trackExposure(
   map: MapLibreMap,

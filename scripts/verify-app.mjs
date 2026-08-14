@@ -107,7 +107,8 @@ await dflt.close();
 /* Visible elevation range -------------------------------------------------- */
 
 // The range is what the exposure spreads over the ramp, so what it must not do is answer
-// for the horizon: pitched over the Netherlands the raw DEM tiles reach the Ardennes.
+// for ground outside the frame: a DEM tile's own extremes cover the whole tile, and a
+// coarse tile runs hundreds of kilometres past the edge of the view.
 const ranges = await open({ hash: '#map=12.6/46.005/7.7/-135/0' });
 // The range is null until a tile near enough to count has loaded, so wait on that rather
 // than on a duration — a second GL context in a software renderer takes its time.
@@ -124,14 +125,35 @@ check(
   JSON.stringify(zermatt),
 );
 
-await ranges.evaluate(() => window.map.jumpTo({ center: [5.11, 52.09], zoom: 11, pitch: 78 }));
+// Bearing is set rather than inherited, because it decides what the check is about: at
+// −135 the frame runs southwest to lat 50.2 and the Ardennes really are on the skyline, so
+// the range is allowed to carry them. What it may not carry is the whole-tile reach that
+// put −299 to 990 m on a country with 95 m of relief.
+await ranges.evaluate(() =>
+  window.map.jumpTo({ center: [5.11, 52.09], zoom: 11, pitch: 78, bearing: -135 }),
+);
 await ranges.waitForTimeout(9000);
 await settle();
 const flat = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
 check(
-  flat !== null && flat.lo > -50 && flat.hi < 300,
-  'the Netherlands at pitch exposes over the country, not the horizon',
+  flat !== null && flat.lo > -100 && flat.hi < 400,
+  'the Netherlands at pitch exposes over the frame, not over the tiles behind it',
   JSON.stringify(flat),
+);
+
+// The view that named the problem: at z5.45 the frame is drawn with z4 tiles a tenth on
+// screen each, whose own extremes are Elbrus and the Karagiye Depression 1200 km south of
+// the bottom edge — −131 to 4839 m over ground that runs 0 to 340 m.
+await ranges.evaluate(() =>
+  window.map.jumpTo({ center: [38.024, 57.914], zoom: 5.45, pitch: 0, bearing: 0 }),
+);
+await ranges.waitForTimeout(9000);
+await settle();
+const coarse = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
+check(
+  coarse !== null && coarse.lo > -30 && coarse.hi < 800,
+  'a coarse zoom exposes over the ground in frame, not the tiles that overhang it',
+  JSON.stringify(coarse),
 );
 
 await ranges.evaluate(() => window.map.jumpTo({ center: [10, 20], zoom: 1, pitch: 0 }));
