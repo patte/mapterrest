@@ -69,6 +69,18 @@
         margin: 0;
         cursor: pointer;
       }
+      /* A row whose checkbox is named by its own label rather than by the field's. */
+      .row > label {
+        cursor: pointer;
+      }
+      .row > input:disabled,
+      .row > input:disabled + label {
+        cursor: default;
+        opacity: 0.45;
+      }
+      #exposure-range {
+        font-variant-numeric: tabular-nums;
+      }
       select {
         display: block;
         width: 100%;
@@ -173,6 +185,10 @@
         <div class="row">
           <input id="shading-visible" type="checkbox" title="show shading" />
           <select id="shading"></select>
+        </div>
+        <div class="row">
+          <input id="auto-exposure" type="checkbox" />
+          <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
         </div>
       </div>
       <div class="field">

@@ -79,14 +79,21 @@ export function trackExposure(
   let frame = 0;
   let last = 0;
 
-  const step = (now: number): void => {
+  const gap = (a: Range, b: Range): number =>
+    Math.max(Math.abs(a.lo - b.lo), Math.abs(a.hi - b.hi));
+
+  // The clock is read here rather than taken from the frame timestamp, which is when the
+  // frame began and so can predate the `performance.now()` that scheduled it. That makes
+  // dt negative, and a negative dt inverts the ease: the range crawls away from its target
+  // and never arrives, repainting the ramp forever.
+  const step = (): void => {
     frame = 0;
     if (!current || !target) return;
+    const now = performance.now();
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
 
-    const travel = Math.max(Math.abs(target.lo - current.lo), Math.abs(target.hi - current.hi));
-    if (travel <= SETTLED) {
+    if (gap(current, target) <= SETTLED) {
       current = target;
     } else {
       const k = 1 - Math.exp(-dt / EASE_TAU);
@@ -115,7 +122,10 @@ export function trackExposure(
       onChange(current);
       return;
     }
-    schedule();
+    // Only a range that has actually moved is worth a frame. Reporting an unchanged one
+    // repaints the ramp, which dirties the style, which draws a frame, which fires
+    // sourcedata, which lands back here — and a still map never reaches `loaded()`.
+    if (gap(current, target) > SETTLED) schedule();
   };
 
   const onData = (e: MapSourceDataEvent): void => {

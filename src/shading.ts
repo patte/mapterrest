@@ -1,5 +1,6 @@
-import type { LayerSpecification } from 'maplibre-gl';
+import type { ExpressionSpecification, LayerSpecification } from 'maplibre-gl';
 import type { Basemap } from './basemaps';
+import type { Range } from './exposure';
 
 export const SHADING_LAYER = 'terrain-shading';
 
@@ -51,6 +52,36 @@ const RAMP_OPACITY: Record<RampKey, number> = { heatmap: 0.85, heightmap: 1 };
 
 export const isRamp = (key: ShadingKey): key is RampKey => key !== 'hillshade';
 
+/** The metres a ramp spans as written, which is what it spans unexposed. */
+export const rampDomain = (key: RampKey): Range => ({
+  lo: RAMPS[key][0] as number,
+  hi: RAMPS[key][RAMPS[key].length - 2] as number,
+});
+
+/**
+ * The ramp's own stops carried onto `range`, keeping their spacing.
+ *
+ * Auto-exposure is this and nothing more: the palette is untouched, only the metres it is
+ * pinned to. Heightmapper spreads the lowest visible elevation to black and the highest to
+ * white, which over the Netherlands is 10 m of relief across the whole ramp instead of the
+ * 1 % of it a fixed scale would give.
+ *
+ * The consequence is that a shade stops meaning a height — mid grey is 47 m in one view
+ * and 2450 m in another. Grey has nothing to lose by that; the heat ramp's sea blue and
+ * snow white do, so exposing the heatmap is a choice the panel leaves open rather than
+ * one it makes.
+ */
+export function rampColor(key: RampKey, range: Range): ExpressionSpecification {
+  const domain = rampDomain(key);
+  const width = domain.hi - domain.lo;
+  const stops = RAMPS[key].map((stop, i) =>
+    i % 2 === 0
+      ? range.lo + (((stop as number) - domain.lo) / width) * (range.hi - range.lo)
+      : stop,
+  );
+  return ['interpolate', ['linear'], ['elevation'], ...stops] as ExpressionSpecification;
+}
+
 export const DEFAULT_SHADING: ShadingKey = 'hillshade';
 
 export const SHADING_KEYS = Object.keys(SHADINGS) as ShadingKey[];
@@ -59,6 +90,7 @@ export function shadingLayer(
   key: ShadingKey,
   source: string,
   basemap: Basemap,
+  range: Range | null,
 ): LayerSpecification {
   if (isRamp(key)) {
     return {
@@ -66,7 +98,7 @@ export function shadingLayer(
       type: 'color-relief',
       source,
       paint: {
-        'color-relief-color': ['interpolate', ['linear'], ['elevation'], ...RAMPS[key]],
+        'color-relief-color': rampColor(key, range ?? rampDomain(key)),
         'color-relief-opacity': RAMP_OPACITY[key],
       },
     };

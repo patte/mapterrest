@@ -3,6 +3,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, type BasemapKey } from './basemaps';
 import {
   DEFAULT_SHADING,
+  isRamp,
+  rampColor,
   SHADINGS,
   SHADING_KEYS,
   SHADING_LAYER,
@@ -10,7 +12,7 @@ import {
   type ShadingKey,
 } from './shading';
 import { enableCameraAnchor } from './cameraAnchor';
-import { visibleRange } from './exposure';
+import { trackExposure, visibleRange, type Range } from './exposure';
 import { choosePivot, projectPoint } from './pivot';
 import { enablePerfDebug } from './perfDebug';
 import { enablePivotDebug } from './pivotDebug';
@@ -39,6 +41,7 @@ let basemapKey = readString<BasemapKey>('basemap', defaultBasemap(prefersDark())
 let basemapVisible = readBoolean('basemapVisible', true);
 let shadingKey = readString<ShadingKey>('shading', DEFAULT_SHADING, SHADING_KEYS);
 let shadingVisible = readBoolean('shadingVisible', true);
+let autoExposure = readBoolean('autoExposure', true);
 let exaggeration = readNumber('exaggeration', DEFAULT_EXAGGERATION, 0, MAX_EXAGGERATION);
 const detail = readString<Detail>('detail', DEFAULT_DETAIL, DETAIL_LEVELS);
 /**
@@ -102,6 +105,8 @@ map.on('style.load', () => {
     map.getStyle().layers[1]?.id,
   );
 
+  // Exposure first, so the ramp is built pinned to the view rather than repainted after.
+  applyExposure();
   applyShading();
   applyBasemapVisibility();
 });
@@ -159,7 +164,10 @@ function applyShading(): void {
   if (map.getLayer(SHADING_LAYER)) map.removeLayer(SHADING_LAYER);
   if (!shadingVisible) return;
   const firstSymbol = map.getStyle().layers.find((l) => l.type === 'symbol');
-  map.addLayer(shadingLayer(shadingKey, DEM_SOURCE, BASEMAPS[basemapKey]), firstSymbol?.id);
+  map.addLayer(
+    shadingLayer(shadingKey, DEM_SOURCE, BASEMAPS[basemapKey], exposure),
+    firstSymbol?.id,
+  );
 }
 
 const shadingPicker = document.getElementById('shading') as HTMLSelectElement;
@@ -168,6 +176,7 @@ for (const key of SHADING_KEYS) {
 }
 shadingPicker.addEventListener('change', () => {
   shadingKey = shadingPicker.value as ShadingKey;
+  applyExposure();
   applyShading();
   write('shading', shadingKey);
 });
@@ -176,8 +185,57 @@ const shadingBox = document.getElementById('shading-visible') as HTMLInputElemen
 shadingBox.checked = shadingVisible;
 shadingBox.addEventListener('change', () => {
   shadingVisible = shadingBox.checked;
+  applyExposure();
   applyShading();
   write('shadingVisible', shadingVisible);
+});
+
+/* Auto-exposure ------------------------------------------------------------- */
+
+const exposureBox = document.getElementById('auto-exposure') as HTMLInputElement;
+const exposureRange = document.getElementById('exposure-range')!;
+
+/** The range the ramp is currently pinned to, or null while it spans its own metres. */
+let exposure: Range | null = null;
+let stopTracking: (() => void) | null = null;
+
+/**
+ * Only the ramps have an exposure to set. Hillshade lights the DEM's gradient and never
+ * reads an absolute height, so there is nothing for the endpoints to do to it.
+ */
+function applyExposure(): void {
+  const wanted = autoExposure && shadingVisible && isRamp(shadingKey);
+  exposureBox.disabled = !isRamp(shadingKey);
+  exposureBox.title = isRamp(shadingKey)
+    ? 'spread the ramp over the elevations in view'
+    : 'hillshade reads slope, not height';
+
+  if (wanted && !stopTracking) {
+    stopTracking = trackExposure(map, DEM_SOURCE, (range) => {
+      exposure = range;
+      exposureRange.textContent = `${Math.round(range.lo)}–${Math.round(range.hi)} m`;
+      // Repainting the ramp is ~0.5 ms and leaves the layer in place; re-adding it would
+      // drop the tiles already drawn. The layer's own type has to be the test, not the
+      // mode it belongs to: tracking starts before the layer is swapped, and asking a
+      // hillshade layer for a colour ramp throws.
+      if (map.getLayer(SHADING_LAYER)?.type === 'color-relief' && isRamp(shadingKey)) {
+        map.setPaintProperty(SHADING_LAYER, 'color-relief-color', rampColor(shadingKey, range));
+      }
+    });
+  } else if (!wanted && stopTracking) {
+    stopTracking();
+    stopTracking = null;
+    exposure = null;
+    exposureRange.textContent = '';
+  }
+}
+
+exposureBox.checked = autoExposure;
+exposureBox.addEventListener('change', () => {
+  autoExposure = exposureBox.checked;
+  applyExposure();
+  applyShading();
+  write('autoExposure', autoExposure);
 });
 
 /* Exaggeration ------------------------------------------------------------- */

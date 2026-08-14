@@ -166,6 +166,7 @@ select, so the choice survives being switched off:
 | --- | --- |
 | basemap | style, and whether it draws at all |
 | shading | hillshade, elevation heatmap or grey heightmap, and whether it draws at all |
+| auto-exposure | pins the ramp to the elevations in view, with the range it found |
 | terrain exaggeration | 0–10×, true heights by default |
 
 With the basemap off, background layers stay on: MapLibre hangs vertical skirts off every
@@ -179,6 +180,39 @@ heightmap runs Heightmapper's black-to-white. Hillshade is a different reading o
 same DEM — it takes the gradient between neighbouring samples and lights it, and never
 looks at an absolute height. Every shading layer is inserted before the style's first
 symbol layer, or place names end up behind the relief.
+
+## Auto-exposure
+
+Heightmapper's idea: instead of a ramp fixed to absolute metres, spread the lowest visible
+elevation to the foot of the ramp and the highest to its head. Over the Netherlands a
+fixed 0–6000 m scale puts 95 m of relief into one and a half percent of the ramp and the
+country renders black; exposed to −10…85 m the polders, the dykes and the Utrechtse
+Heuvelrug all separate.
+
+The cost is that a shade stops meaning a height — mid grey is 47 m in one view and 2450 m
+in another. So it is a checkbox, on by default, and it reaches both ramps but not
+hillshade, which reads the DEM's gradient and never sees an absolute elevation for the
+endpoints to move.
+
+What counts as visible is the whole question. The DEM tiles behind the shading carry their
+own `dem.min`/`dem.max`, so the range is the exact extent of the data being drawn rather
+than a sample of it — but those tiles run to the horizon, and a horizon tile is coarse and
+enormous. Taken raw, the Zermatt valley at pitch 78 spans −6 to 4772 m and the Netherlands
+−299 to 990 m, which is the flat grey the exposure exists to cure. Terrain LOD hands the
+coarse tiles to distant ground, so dropping everything below `tileZoom - 1` is a cut on
+distance: those two views become 1104–4622 m and −9 to 85 m. The scan costs about 0.3 ms,
+against 11–19 ms for a raycast grid that also missed the summits it was sampling for.
+
+At world zoom the filter is a no-op, because every tile shares a zoom — Everest comes back
+as 5604 m, which is what a z0 tile flattens it to and therefore what the ramp should end
+at. So auto-exposure needs no threshold to disable it: at that scale it simply becomes the
+global ramp.
+
+Tiles cross the near-field floor whole, so the raw range steps as the camera moves and a
+ramp repainted straight from it makes the map breathe. The endpoints ease over a quarter
+second instead. Only a range that has actually moved is reported: repainting an unchanged
+one dirties the style, which draws a frame, which fires `sourcedata`, which measures again
+— and a still map never reaches `loaded()`.
 
 The hillshade light is anchored to the map. MapLibre anchors it to the viewport by
 default, which welds the sun to the screen: rotating the camera re-lights every slope,
@@ -444,7 +478,7 @@ left to the built-in gestures; a drag that starts above 85 can still tilt back d
 Camera and every control live in the location hash, so a reload restores the view:
 
 ```
-#map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&exaggeration=3.7
+#map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&autoExposure=0&exaggeration=3.7
 ```
 
 `detail=` and `debugPivot=` join them, read once at load; everything else is written back
