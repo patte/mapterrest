@@ -123,10 +123,15 @@ for (const key of BASEMAP_KEYS) {
   picker.add(new Option(BASEMAPS[key].label, key, false, key === basemapKey));
 }
 
+/** Most basemaps fix the panel's chrome; the ones that read either way defer to the browser. */
+function applyChrome(): void {
+  document.body.dataset.theme = isDark(basemapKey, prefersDark()) ? 'dark' : 'light';
+}
+
 function setBasemap(key: BasemapKey): void {
   basemapKey = key;
   picker.value = key;
-  document.body.dataset.theme = isDark(key) ? 'dark' : 'light';
+  applyChrome();
   map.setStyle(BASEMAPS[key].url);
 }
 
@@ -138,6 +143,8 @@ picker.addEventListener('change', () => {
 
 onSchemeChange((dark) => {
   if (followsScheme) setBasemap(defaultBasemap(dark));
+  // A hand-picked basemap keeps its style, but its chrome may still track the scheme.
+  else applyChrome();
 });
 
 /**
@@ -266,4 +273,4 @@ toggle.addEventListener('click', () => {
   toggle.setAttribute('aria-expanded', String(open));
 });
 
-document.body.dataset.theme = isDark(basemapKey) ? 'dark' : 'light';
+applyChrome();

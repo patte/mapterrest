@@ -3,7 +3,8 @@ import type { SkySpecification } from 'maplibre-gl';
 export type Basemap = {
   label: string;
   url: string;
-  dark: boolean;
+  /** Chrome the panel takes over this basemap; null reads over either, so it follows the browser. */
+  dark: boolean | null;
   sky: SkySpecification;
   hillshade: { shadow: string; highlight: string; exaggeration: number };
   /** Ground under the terrain while the basemap is hidden. */
@@ -62,12 +63,12 @@ const WARM_DAY: Palette = {
 };
 
 /**
- * Aerial imagery is shot in daylight, so it takes a daylight sky — but the ground it
- * paints is dark enough that the panel reads better as dark chrome. It is the one style
- * whose `dark` and whose sky disagree, which is why it carries its own palette.
+ * Aerial imagery is shot in daylight, so it takes a daylight sky whichever way the panel
+ * goes. Its ground runs from dark rock to bright snow within one frame, so neither chrome
+ * is the right one and the browser's scheme decides.
  */
 const SATELLITE: Palette = {
-  dark: true,
+  dark: null,
   sky: {
     'sky-color': '#7fb0e0',
     'horizon-color': '#cddced',
@@ -117,4 +118,5 @@ export const BASEMAP_KEYS = (Object.keys(BASEMAPS) as BasemapKey[]).filter(
 /** Which style the browser's colour scheme asks for when the hash names none. */
 export const defaultBasemap = (dark: boolean): BasemapKey => (dark ? 'carto-dark' : 'carto-light');
 
-export const isDark = (key: BasemapKey): boolean => BASEMAPS[key].dark;
+export const isDark = (key: BasemapKey, schemeDark: boolean): boolean =>
+  BASEMAPS[key].dark ?? schemeDark;
