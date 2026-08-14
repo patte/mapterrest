@@ -142,6 +142,35 @@
         height: 20px;
       }
 
+      /* MapLibre's own controls carry one light palette; these hand them the panel's.
+         Its stylesheet loads after this one, so every override needs the leading `body`
+         to out-specify it. */
+      body .maplibregl-ctrl-group {
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+      }
+      body .maplibregl-ctrl-group:not(:empty) {
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+      }
+      body .maplibregl-ctrl-group button + button {
+        border-top: 1px solid var(--panel-border);
+      }
+      body .maplibregl-ctrl.maplibregl-ctrl-attrib,
+      body .maplibregl-ctrl-attrib.maplibregl-compact {
+        background: var(--panel-bg);
+        color: var(--panel-fg);
+      }
+      body .maplibregl-ctrl-attrib a {
+        color: var(--panel-fg);
+      }
+      /* Both icon sets are dark SVGs baked into background-image, so there is no fill to
+         recolour — inverting the sprite is what lifts them off dark chrome. */
+      body[data-theme='dark'] .maplibregl-ctrl-icon,
+      body[data-theme='dark'] .maplibregl-ctrl-attrib-button,
+      body[data-theme='dark'] .maplibregl-ctrl-attrib.maplibregl-compact::after {
+        filter: invert(1);
+      }
+
       /* Narrow screens: the panel folds behind the button and spans the width it has. */
       @media (max-width: 640px) {
         #panel-toggle {
