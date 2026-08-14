@@ -11,18 +11,29 @@ export type Range = { lo: number; hi: number };
  * is the relief inside one cell, and a cell is only as small as its tile is deep. The
  * horizon is where that bites, since LOD hands it the coarsest tiles — the Netherlands at
  * pitch 78 answers 22 m over its true 275 m top here, against 107 m at 16 px and 290 m at
- * 64. Held under MIN_SPAN, so the slop stays narrower than the narrowest range the ramp
- * will stretch, which costs 171 KB a tile against 11 KB at 16 px and buys the exact answer
- * at every zoom that fills the frame with one tile level.
+ * 64. Measured against the span it perturbs that is 5 %, where 16 px was 26 %, and it is
+ * nothing at all wherever one tile level fills the frame. The cost is 171 KB a tile
+ * against 11 KB, and the walk is no slower — the descent is bounded by the skip above,
+ * not by how deep the pyramid goes.
  */
 const CELL = 4;
 
 /**
- * The narrowest range worth stretching, in metres. Across still water the visible relief
- * is zero and the endpoints would divide by it; a floor also keeps a dead-flat view from
- * spreading the DEM's own quantisation over the whole ramp.
+ * The narrowest range worth stretching, in metres.
+ *
+ * Open ocean reads exactly 0.000 m across the frame, and a ramp whose ends meet is a
+ * single flat colour — MapLibre takes the collapsed stops without complaint, so what this
+ * prevents is a black frame rather than an error. Widened, dead-flat ground sits at the
+ * middle of the ramp and reads mid grey.
+ *
+ * Above two floors and below a ceiling. Terrarium quantises to 1/256 m, so a metre already
+ * carries the 256 levels grey has to give and anything narrower bands. `SETTLED` ignores
+ * moves under half a metre, which would be half of a one-metre ramp, so the narrowest ramp
+ * has to be some multiple of it or the exposure sticks inside its own dead zone. And real
+ * flat country runs wider than either: Flevoland 22 m, the Po valley 22 m, the Hungarian
+ * plain 27 m, all of which should keep their own contrast rather than be spread to fit.
  */
-const MIN_SPAN = 40;
+const MIN_SPAN = 10;
 
 /** Seconds for the exposure to close most of a gap. */
 const EASE_TAU = 0.25;

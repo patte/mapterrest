@@ -232,8 +232,17 @@ past the frame's edge is counted, and a cell is only as small as its tile is dee
 a z12 tile is 50 m of ground, but 4 px of the z5 tile LOD gives the horizon is 6 km. That
 is what the size is chosen against — measured against a per-pixel scan, 4 px answers the
 Netherlands 22 m over its true 275 m top, where 16 px is 107 m over and 64 px is 290 m.
-Holding the slop under `MIN_SPAN` keeps it narrower than the narrowest range the ramp will
-stretch, and costs 171 KB a tile rather than 11 KB.
+Against the span it perturbs that is 5 %, where 16 px was 26 %, and it is nothing at all
+wherever one tile level fills the frame. It costs 171 KB a tile rather than 11 KB and
+nothing in time, since the descent is bounded by the skip rather than by the depth.
+
+The other end of the ramp has a floor of its own. Open ocean reads exactly 0.000 m across
+the frame, and a ramp whose ends meet is one flat colour — MapLibre takes the collapsed
+stops without complaint, so what `MIN_SPAN` prevents is a black frame, not an error.
+10 m clears the 1/256 m the terrarium encoding quantises to, stays well clear of the half
+metre `SETTLED` ignores, and sits under the 22 to 27 m that real flat country — Flevoland,
+the Po valley, the Hungarian plain — turns out to hold, so none of them are spread to fit
+a floor instead of keeping their own contrast.
 
 At world zoom the whole question is moot, because every tile is in frame — Everest comes
 back as 5604 m, which is what a z0 tile flattens it to and therefore what the ramp should

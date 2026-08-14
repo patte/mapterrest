@@ -156,6 +156,19 @@ check(
   JSON.stringify(coarse),
 );
 
+// Open ocean is exactly 0.000 m across the frame. A ramp whose ends meet renders one flat
+// colour, so the floor holds it open — and no wider, since real flat country runs 22 m and
+// up and has its own contrast to keep.
+await ranges.evaluate(() => window.map.jumpTo({ center: [-40, 30], zoom: 12, pitch: 0 }));
+await ranges.waitForTimeout(9000);
+await settle();
+const still = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
+check(
+  still !== null && still.hi - still.lo > 1 && still.hi - still.lo <= 12,
+  'dead-flat water holds the ramp open at the floor, not wider',
+  still && `${(still.hi - still.lo).toFixed(2)} m`,
+);
+
 await ranges.evaluate(() => window.map.jumpTo({ center: [10, 20], zoom: 1, pitch: 0 }));
 await ranges.waitForTimeout(9000);
 await settle();
