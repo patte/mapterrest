@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Deploy the built site to the Bunny Storage zone "mapterrest" via its
+# S3-compatible endpoint. Runs the aws CLI via uvx if present, else a local aws.
+set -euo pipefail
+
+if command -v uvx >/dev/null 2>&1; then
+  AWS=(uvx --from awscli aws)
+elif command -v aws >/dev/null 2>&1; then
+  AWS=(aws)
+else
+  echo "error: need 'uvx' or 'aws' on PATH (brew install awscli, or install uv)" >&2
+  exit 1
+fi
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Credentials live in .env.deploy (gitignored). See .env.deploy.example.
+ENV_FILE="$ROOT/.env.deploy"
+if [ -f "$ENV_FILE" ]; then
+  set -a; . "$ENV_FILE"; set +a
+fi
+
+: "${BUNNY_STORAGE_ZONE:=mapterrest}"          # = S3 access key / username
+: "${BUNNY_STORAGE_PASSWORD:?set BUNNY_STORAGE_PASSWORD in $ENV_FILE}"  # = S3 secret key
+
+ENDPOINT="https://de-s3.storage.bunnycdn.com"
+
+export AWS_ACCESS_KEY_ID="$BUNNY_STORAGE_ZONE"
+export AWS_SECRET_ACCESS_KEY="$BUNNY_STORAGE_PASSWORD"
+export AWS_DEFAULT_REGION="de"
+
+echo "==> Building"
+pnpm --dir "$ROOT" build
+
+echo "==> Syncing dist/ -> s3://$BUNNY_STORAGE_ZONE/"
+"${AWS[@]}" s3 sync "$ROOT/dist/" "s3://$BUNNY_STORAGE_ZONE/" \
+  --endpoint-url "$ENDPOINT" \
+  --delete
+
+echo "==> Done"

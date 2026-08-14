@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "probe:coverage": "node scripts/probe-coverage.mjs",
-    "verify": "node scripts/verify-app.mjs"
+    "verify": "node scripts/verify-app.mjs",
+    "deploy": "bash scripts/deploy.sh"
   },
   "license": "ISC",
   "packageManager": "pnpm@10.17.1",
