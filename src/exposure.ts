@@ -15,10 +15,14 @@ export type Range = { lo: number; hi: number };
  *
  * Measured against `tileZoom` rather than the deepest tile present, because the deepest
  * tile moves as tiles finish loading and would walk the exposure while a view settles.
- * Apparent screen size is the measure this approximates, and approximates because the
- * honest version needs each tile's quad clipped to the viewport.
  */
 const NEAR_FIELD = 1;
+
+/**
+ * Pixels on a side of the finest cell in a tile's elevation pyramid, and so the
+ * resolution the visible range is answered at.
+ */
+const CELL = 16;
 
 /**
  * The narrowest range worth stretching, in metres. Across still water the visible relief
@@ -33,31 +37,187 @@ const EASE_TAU = 0.25;
 /** Metres of remaining travel below which the ease has arrived. */
 const SETTLED = 0.5;
 
+/** MapLibre's frustum verdict for a bounding box. */
+const NONE = 0;
+const FULL = 2;
+
+/**
+ * The parts of MapLibre's culling primitives used here. They are what `coveringTiles`
+ * decides tile visibility with, and none of them are named in the public types.
+ */
+type Frustum = object;
+type Plane = object | null;
+type Box = {
+  /** Halves the box in x and y, keeping its full elevation span. */
+  quadrant(index: number): Box;
+  intersectsFrustum(frustum: Frustum): number;
+  intersectsPlane(plane: object): number;
+};
+type Dem = { dim: number; stride: number; min: number; max: number } & {
+  getPixels(): { data: Uint8Array };
+  getUnpackVector(): number[];
+};
+
+/** Elevation extremes per cell, coarsest level first; level i is 2^i cells a side. */
+type Pyramid = { min: Float32Array; max: Float32Array }[];
+
+/** Keyed on the DEM, whose interior never changes once the tile has decoded. */
+const pyramids = new WeakMap<object, Pyramid>();
+
+/**
+ * A tile's elevation extremes at every scale from the whole tile down to `CELL` pixels.
+ *
+ * This is the same thing sub-tiles would report, computed rather than fetched: matching
+ * a 16 px cell of a z4 tile with real tiles means z9, which is 1024 of them. MapLibre
+ * already walks every pixel of a tile to fill `dem.min`/`dem.max`, so a downloaded
+ * sub-tile carries the cost of this pass anyway — once each, plus a request and a decode.
+ */
+function pyramidFor(dem: Dem): Pyramid {
+  const cached = pyramids.get(dem);
+  if (cached) return cached;
+
+  const { dim, stride } = dem;
+  let n = 1;
+  while (n * CELL < dim) n *= 2;
+
+  // The bytes and the unpack factors directly: dem.get() re-resolves the byte view and
+  // bounds-checks per pixel, which over a quarter of a million of them is most of the work.
+  const px = dem.getPixels().data;
+  const [red, green, blue, base] = dem.getUnpackVector();
+  const min = new Float32Array(n * n).fill(Infinity);
+  const max = new Float32Array(n * n).fill(-Infinity);
+  for (let y = 0; y < dim; y++) {
+    const row = (((y * n) / dim) | 0) * n;
+    // The DEM has a one pixel border on every side, so the interior starts at (1, 1).
+    let i = ((y + 1) * stride + 1) * 4;
+    for (let x = 0; x < dim; x++, i += 4) {
+      const v = px[i] * red + px[i + 1] * green + px[i + 2] * blue - base;
+      const cell = row + (((x * n) / dim) | 0);
+      if (v < min[cell]) min[cell] = v;
+      if (v > max[cell]) max[cell] = v;
+    }
+  }
+
+  const levels: Pyramid = [{ min, max }];
+  for (let size = n; size > 1; size /= 2) {
+    const fine = levels[0];
+    const half = size / 2;
+    const up = { min: new Float32Array(half * half), max: new Float32Array(half * half) };
+    for (let y = 0; y < half; y++) {
+      for (let x = 0; x < half; x++) {
+        const a = y * 2 * size + x * 2;
+        const b = a + size;
+        up.min[y * half + x] = Math.min(fine.min[a], fine.min[a + 1], fine.min[b], fine.min[b + 1]);
+        up.max[y * half + x] = Math.max(fine.max[a], fine.max[a + 1], fine.max[b], fine.max[b + 1]);
+      }
+    }
+    levels.unshift(up);
+  }
+  pyramids.set(dem, levels);
+  return levels;
+}
+
+/** MapLibre's own test, which pairs the frustum with the clipping plane when there is one. */
+function seen(box: Box, frustum: Frustum, plane: Plane): number {
+  const hit = box.intersectsFrustum(frustum);
+  if (!plane || hit === NONE) return hit;
+  const clipped = box.intersectsPlane(plane);
+  if (clipped === NONE) return NONE;
+  return hit === FULL && clipped === FULL ? FULL : 1;
+}
+
+/**
+ * Widens `into` by the elevations one pyramid node holds, descending only where the
+ * frustum cuts through it: a node fully in view answers from its stored extremes and a
+ * node fully outside answers not at all, so the walk costs the frame's edge rather than
+ * its area.
+ */
+function collect(
+  box: Box,
+  level: number,
+  x: number,
+  y: number,
+  levels: Pyramid,
+  frustum: Frustum,
+  plane: Plane,
+  into: Range,
+): void {
+  const cell = y * (1 << level) + x;
+  const lo = levels[level].min[cell];
+  const hi = levels[level].max[cell];
+  // A node inside the range already found cannot widen it, and neither can anything under
+  // it — every child's extremes sit inside its parent's. Most of the frame's edge is
+  // ordinary ground somewhere between the summits and the valley floors, so this prunes
+  // the descent long before the frustum does.
+  if (lo >= into.lo && hi <= into.hi) return;
+
+  const hit = seen(box, frustum, plane);
+  if (hit === NONE) return;
+
+  if (hit === FULL || level === levels.length - 1) {
+    if (lo < into.lo) into.lo = lo;
+    if (hi > into.hi) into.hi = hi;
+    return;
+  }
+  // quadrant() splits x on the low bit of the index and y on the high one.
+  for (let q = 0; q < 4; q++) {
+    collect(box.quadrant(q), level + 1, x * 2 + (q & 1), y * 2 + (q >> 1), levels, frustum, plane, into);
+  }
+}
+
 /**
  * The elevation range the frame holds, or null while no tile near enough to count has
  * loaded — the caller keeps what it had rather than exposing against the horizon.
  *
- * `dem.min`/`dem.max` are the tile's own extremes, so this reads the exact range of the
- * data being drawn rather than sampling it: at world zoom Everest comes back as 5604 m,
- * which is what a z0 tile flattens it to and therefore what the ramp should end at.
+ * Read off the DEM itself rather than sampled, so at world zoom Everest comes back as
+ * 5604 m, which is what a z0 tile flattens it to and therefore what the ramp should end
+ * at. A tile's own `dem.min`/`dem.max` answer for the whole tile though, and a coarse
+ * tile reaches far past the frame: over Rybinsk at z5.45 the four z4 tiles drawn are a
+ * tenth on screen each and carry Elbrus and the Karagiye Depression 1200 km south of the
+ * bottom edge, for a range of −131 to 4839 m over ground that runs 0 to 340 m. So each
+ * tile is cut to the frustum first, against the same boxes and the same test that chose
+ * the tile for drawing.
  */
 export function visibleRange(map: MapLibreMap, source: string): Range | null {
   const tiles = map.style.tileManagers[source];
   if (!tiles) return null;
-  const floor = map._camera.transform.tileZoom - NEAR_FIELD;
+  const transform = map._camera.transform;
+  const frustum = transform.getCameraFrustum() as Frustum;
+  const plane = transform.getClippingPlane() as Plane;
+  const volumes = transform.getCoveringTilesDetailsProvider();
+  const floor = transform.tileZoom - NEAR_FIELD;
 
-  let lo = Infinity;
-  let hi = -Infinity;
+  const into: Range = { lo: Infinity, hi: -Infinity };
+  const cut: { box: Box; dem: Dem }[] = [];
   for (const id of tiles.getRenderableIds()) {
     const tile = tiles.getTileByID(id);
     if (!tile?.dem || tile.tileID.overscaledZ < floor) continue;
-    lo = Math.min(lo, tile.dem.min);
-    hi = Math.max(hi, tile.dem.max);
-  }
-  if (lo === Infinity) return null;
 
-  if (hi - lo >= MIN_SPAN) return { lo, hi };
-  const mid = (lo + hi) / 2;
+    // Terrain gives the box the tile's own elevation span; without it the box is flat at
+    // the camera's plane and a mountain leaves the frustum before its ground does.
+    const box = volumes.getTileBoundingVolume(tile.tileID.canonical, tile.tileID.wrap, transform.elevation, {
+      terrain: map.terrain,
+      tileSize: tiles.tileSize,
+    }) as unknown as Box;
+
+    const hit = seen(box, frustum, plane);
+    if (hit === NONE) continue;
+    if (hit === FULL) {
+      if (tile.dem.min < into.lo) into.lo = tile.dem.min;
+      if (tile.dem.max > into.hi) into.hi = tile.dem.max;
+    } else {
+      cut.push({ box, dem: tile.dem as unknown as Dem });
+    }
+  }
+  // The tiles wholly in frame cost one test each and are held whole, so taking them first
+  // hands the descents below a range to prune against.
+  for (const { box, dem } of cut) {
+    collect(box, 0, 0, 0, pyramidFor(dem), frustum, plane, into);
+  }
+  if (into.lo === Infinity) return null;
+
+  if (into.hi - into.lo >= MIN_SPAN) return into;
+  const mid = (into.lo + into.hi) / 2;
   return { lo: mid - MIN_SPAN / 2, hi: mid + MIN_SPAN / 2 };
 }
 

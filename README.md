@@ -195,21 +195,41 @@ hillshade, which reads the DEM's gradient and never sees an absolute elevation f
 endpoints to move.
 
 What counts as visible is the whole question. The DEM tiles behind the shading carry their
-own `dem.min`/`dem.max`, so the range is the exact extent of the data being drawn rather
-than a sample of it — but those tiles run to the horizon, and a horizon tile is coarse and
-enormous. Taken raw, the Zermatt valley at pitch 78 spans −6 to 4772 m and the Netherlands
-−299 to 990 m, which is the flat grey the exposure exists to cure. Terrain LOD hands the
-coarse tiles to distant ground, so dropping everything below `tileZoom - 1` is a cut on
-distance: those two views become 1104–4622 m and −9 to 85 m. The scan costs about 0.3 ms,
-against 11–19 ms for a raycast grid that also missed the summits it was sampling for.
+own `dem.min`/`dem.max`, so the range is read off the data being drawn rather than sampled
+from it — but those extremes answer for a whole tile, and a tile is only sometimes the
+size of the frame. Over Rybinsk at z5.45 the four z4 tiles drawn are about a tenth on
+screen each, and they carry Elbrus and the Karagiye Depression more than a thousand
+kilometres south of the bottom edge: the ramp is pinned to −131…4839 m over ground that
+runs 0 to 340 m, and the map goes black. Nudging to z6 only trades those tiles for a set
+that reaches the Carpathians instead.
 
-At world zoom the filter is a no-op, because every tile shares a zoom — Everest comes back
+So each tile is cut to the frustum before it is read. `getTileBoundingVolume` and
+`intersectsFrustum` are what `coveringTiles` picks tiles with, which makes the cut agree
+with what is drawn by construction, and `Aabb.quadrant` walks a tile down in quarters. To
+answer for a quarter, a tile carries a pyramid of its own elevation extremes down to 16 px
+cells, built in one pass the first time the tile is found straddling the frustum edge.
+That pass is the one MapLibre already runs to fill `dem.min`/`dem.max` — no server bakes
+those in — so the alternative of fetching real sub-tiles pays the same pass once per
+sub-tile, plus a request and a decode, and matching a 16 px cell of a z4 tile means z9,
+which is 1024 of them.
+
+The walk costs the frame's edge rather than its area: a node wholly in view answers from
+its stored extremes and a node wholly outside answers not at all. A node whose extremes
+already sit inside the range found so far is skipped outright — no child can widen what
+its parent could not — which is what keeps the pitched views cheap. Zermatt at pitch 78
+reads 410–4471 m in 0.14 ms, against 2.4 ms for the same walk without that cut.
+
+The near-field floor survives from before the cut and is now a matter of taste rather than
+of correctness: dropping everything below `tileZoom - 1` exposes Zermatt for the valley at
+410–4471 m, where admitting the horizon gives the true 209–4772 m.
+
+At world zoom the floor is a no-op, because every tile shares a zoom — Everest comes back
 as 5604 m, which is what a z0 tile flattens it to and therefore what the ramp should end
 at. So auto-exposure needs no threshold to disable it: at that scale it simply becomes the
 global ramp.
 
-Tiles cross the near-field floor whole, so the raw range steps as the camera moves and a
-ramp repainted straight from it makes the map breathe. The endpoints ease over a quarter
+The range still steps as tiles cross the floor and as cells cross the frustum, so a ramp
+repainted straight from it would make the map breathe. The endpoints ease over a quarter
 second instead. Only a range that has actually moved is reported: repainting an unchanged
 one dirties the style, which draws a frame, which fires `sourcedata`, which measures again
 — and a still map never reaches `loaded()`.
