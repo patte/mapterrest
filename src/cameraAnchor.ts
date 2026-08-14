@@ -103,6 +103,20 @@ const MARCH_FAR = 80000;
 const MARCH_STEPS = 48;
 
 /**
+ * Metres are not a unit the projection has. MapLibre derives one per frame at the centre's
+ * latitude and measures the whole scene with it, so the axis has to be measured with the
+ * centre's scale too — and the centre is what the axis is being solved for, so the two are
+ * settled against each other.
+ */
+const SCALE_PASSES = 4;
+
+/** Relative scale change below which another pass would not move the camera. */
+const SCALE_TOLERANCE = 1e-6;
+
+const scaleAt = (at: { lng: number; lat: number }): number =>
+  MercatorCoordinate.fromLngLat(at).meterInMercatorCoordinateUnits();
+
+/**
  * How steeply a ray has to descend before the distance it takes to fall to sea level is a
  * usable bound. MapLibre gives up on the same quantity at the same threshold.
  */
@@ -233,7 +247,12 @@ export function settle(map: MapLibreMap): boolean {
     bearing: tr.bearing,
     pitch: tr.pitch,
   };
-  const mercatorPerMetre = MercatorCoordinate.fromLngLat(pose.camera).meterInMercatorCoordinateUnits();
+  // Seeded from the centre rather than the camera, because it is the scale the frame on
+  // screen was drawn with and it starts near the answer. The camera's own scale is what
+  // this used to measure with, and at z5.8 and pitch 24 the centre sits five degrees
+  // nearer the equator: 6 % of scale, which `zoomFor` writes as 0.08 of zoom and the
+  // camera takes back as 95 km of altitude the moment a gesture ends.
+  let mercatorPerMetre = scaleAt(tr.center);
 
   // Sky, or ground the DEM has no tile for — mid-ocean, or a level not yet loaded. There
   // is no centre to move to, and settling anyway is worse than doing nothing: the centre
@@ -241,8 +260,17 @@ export function settle(map: MapLibreMap): boolean {
   // elevation plane 10 km under a camera that may be hundreds of kilometres up. Zoom is
   // the distance to that plane, so the map then holds a zoom for a height it is nowhere
   // near and asks the LOD for that detail across everything it can see.
-  const crossed = axisCrossing(map, mercatorPerMetre, pose, tr.tileZoom);
+  let crossed = axisCrossing(map, mercatorPerMetre, pose, tr.tileZoom);
   if (crossed === null) return false;
+
+  for (let pass = 0; pass < SCALE_PASSES; pass++) {
+    const next = scaleAt(axisAt(mercatorPerMetre, pose, crossed).centre);
+    if (Math.abs(next - mercatorPerMetre) <= mercatorPerMetre * SCALE_TOLERANCE) break;
+    mercatorPerMetre = next;
+    const again = axisCrossing(map, mercatorPerMetre, pose, tr.tileZoom);
+    if (again === null) break;
+    crossed = again;
+  }
 
   // The pin will sample at whatever tile zoom the new distance implies. Where that is
   // not the one the march used, it is reading a different DEM level, and the camera

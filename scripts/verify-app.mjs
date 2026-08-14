@@ -461,6 +461,27 @@ for (const zoom of [11, 10, 9]) {
 }
 await high.close();
 
+// Settling re-expresses the camera it was handed, so the zoom it writes has to be the one
+// it was given. Metres are the trap: MapLibre measures the scene with a scale taken at the
+// centre's latitude, and at low zoom under pitch the centre is degrees away from the
+// camera — five of them here, which is 6 % of scale and 0.08 of zoom given away on every
+// mouse-up. Equatorward bearings lost zoom, poleward gained it.
+const held = await open({ hash: '#map=5.84/29.682/53.557/-149.8/24' });
+const drift = await held.evaluate(async () => {
+  const before = window.map.getZoom();
+  // A no-op move fires moveend, which is what settles the camera.
+  window.map.jumpTo({ center: window.map.getCenter() });
+  await new Promise((done) => setTimeout(done, 2000));
+  const tr = window.map._camera.transform;
+  return { before, after: tr.zoom, camera: tr.getCameraAltitude() };
+});
+check(
+  Math.abs(drift.after - drift.before) < 0.005,
+  'settling holds the zoom it was handed, well away from the equator',
+  `z${drift.before.toFixed(4)} → z${drift.after.toFixed(4)}`,
+);
+await held.close();
+
 // Mid-ocean the march finds no DEM at all, which is the other way in: settling on a
 // crossing that does not exist writes the same invented plane. Nothing to anchor to means
 // leave the camera alone, so the plane stays at sea level and the LOD stays coarse.
