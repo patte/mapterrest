@@ -104,6 +104,49 @@ check(
 );
 await dflt.close();
 
+/* Visible elevation range -------------------------------------------------- */
+
+// The range is what the exposure spreads over the ramp, so what it must not do is answer
+// for the horizon: pitched over the Netherlands the raw DEM tiles reach the Ardennes.
+const ranges = await open({ hash: '#map=12.6/46.005/7.7/-135/0' });
+// The range is null until a tile near enough to count has loaded, so wait on that rather
+// than on a duration — a second GL context in a software renderer takes its time.
+const settle = () =>
+  ranges.waitForFunction(() => window.visibleRange(window.map, 'mapterhorn-dem') !== null, null, {
+    timeout: 60000,
+  });
+
+await settle();
+const zermatt = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
+check(
+  zermatt !== null && zermatt.lo > 300 && zermatt.hi > 4000,
+  'Zermatt exposes over the valley and the summits',
+  JSON.stringify(zermatt),
+);
+
+await ranges.evaluate(() => window.map.jumpTo({ center: [5.11, 52.09], zoom: 11, pitch: 78 }));
+await ranges.waitForTimeout(9000);
+await settle();
+const flat = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
+check(
+  flat !== null && flat.lo > -50 && flat.hi < 300,
+  'the Netherlands at pitch exposes over the country, not the horizon',
+  JSON.stringify(flat),
+);
+
+await ranges.evaluate(() => window.map.jumpTo({ center: [10, 20], zoom: 1, pitch: 0 }));
+await ranges.waitForTimeout(9000);
+await settle();
+const world = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
+// A z0 tile is the planet in 256 px, so the summits it carries are flattened — and that
+// is the range to expose over, because it is the data being drawn.
+check(
+  world !== null && world.lo < 0 && world.hi > 3000,
+  'the world view exposes over the whole globe',
+  JSON.stringify(world),
+);
+await ranges.close();
+
 /* Attribution -------------------------------------------------------------- */
 
 const attribution = await page.textContent('.maplibregl-ctrl-attrib');

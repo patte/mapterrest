@@ -10,6 +10,7 @@ import {
   type ShadingKey,
 } from './shading';
 import { enableCameraAnchor } from './cameraAnchor';
+import { visibleRange } from './exposure';
 import { choosePivot, projectPoint } from './pivot';
 import { enablePerfDebug } from './perfDebug';
 import { enablePivotDebug } from './pivotDebug';
@@ -66,7 +67,7 @@ const map = new MapLibreMap({
   hash: MAP_HASH_KEY,
 });
 
-if (import.meta.env.DEV) Object.assign(window, { map, choosePivot, projectPoint });
+if (import.meta.env.DEV) Object.assign(window, { map, choosePivot, projectPoint, visibleRange });
 
 // Independent of the pivot: what a frame costs is a question about the map itself.
 if (readBoolean('debugPerf', false)) enablePerfDebug(map);

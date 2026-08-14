@@ -18,6 +18,7 @@ look like when someone has already done it well".
 | [src/terrain.ts](src/terrain.ts) | The Mapterhorn source spec |
 | [src/basemaps.ts](src/basemaps.ts) | Basemap styles with matching sky and hillshade palettes |
 | [src/shading.ts](src/shading.ts) | Hillshade and elevation-heatmap layers |
+| [src/exposure.ts](src/exposure.ts) | The elevation range in view, for the ramps to spread over |
 | [src/theme.ts](src/theme.ts) | `prefers-color-scheme` detection |
 | [src/urlState.ts](src/urlState.ts) | Control state in the location hash |
 | [src/shiftDragCamera.ts](src/shiftDragCamera.ts) | Shift+drag orbit around the terrain in the frame |
