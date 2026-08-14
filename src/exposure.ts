@@ -4,10 +4,18 @@ import type { MapLibreMap, MapSourceDataEvent } from 'maplibre-gl';
 export type Range = { lo: number; hi: number };
 
 /**
- * Pixels on a side of the finest cell in a tile's elevation pyramid, and so the
- * resolution the visible range is answered at.
+ * Pixels on a side of the finest cell in a tile's elevation pyramid, and so the resolution
+ * the visible range is answered at.
+ *
+ * A cell is cut whole, so whatever it holds beyond the frame's edge is counted: the error
+ * is the relief inside one cell, and a cell is only as small as its tile is deep. The
+ * horizon is where that bites, since LOD hands it the coarsest tiles — the Netherlands at
+ * pitch 78 answers 22 m over its true 275 m top here, against 107 m at 16 px and 290 m at
+ * 64. Held under MIN_SPAN, so the slop stays narrower than the narrowest range the ramp
+ * will stretch, which costs 171 KB a tile against 11 KB at 16 px and buys the exact answer
+ * at every zoom that fills the frame with one tile level.
  */
-const CELL = 16;
+const CELL = 4;
 
 /**
  * The narrowest range worth stretching, in metres. Across still water the visible relief

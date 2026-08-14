@@ -206,31 +206,34 @@ that reaches the Carpathians instead.
 So each tile is cut to the frustum before it is read. `getTileBoundingVolume` and
 `intersectsFrustum` are what `coveringTiles` picks tiles with, which makes the cut agree
 with what is drawn by construction, and `Aabb.quadrant` walks a tile down in quarters. To
-answer for a quarter, a tile carries a pyramid of its own elevation extremes down to 16 px
+answer for a quarter, a tile carries a pyramid of its own elevation extremes down to 4 px
 cells, built in one pass the first time the tile is found straddling the frustum edge.
 That pass is the one MapLibre already runs to fill `dem.min`/`dem.max` — no server bakes
 those in — so the alternative of fetching real sub-tiles pays the same pass once per
-sub-tile, plus a request and a decode, and matching a 16 px cell of a z4 tile means z9,
-which is 1024 of them.
+sub-tile, plus a request and a decode, and matching a 4 px cell of a z4 tile means z11,
+which is 16384 of them.
 
 The walk costs the frame's edge rather than its area: a node wholly in view answers from
 its stored extremes and a node wholly outside answers not at all. A node whose extremes
 already sit inside the range found so far is skipped outright — no child can widen what
 its parent could not — which is what keeps the pitched views cheap. Zermatt at pitch 78
-reads 209–4772 m in 0.7 ms; the same walk without that skip measured 2.4 ms over a smaller
+reads 223–4772 m in 0.5 ms; the same walk without that skip measured 2.4 ms over a smaller
 set of tiles.
 
 Everything in frame counts and nothing else does, so there is no distance to argue about
 and no constant to tune. That is a change of policy as well as of precision: the ramp now
 answers for the horizon when the horizon is in shot. Looking southwest from Utrecht at
-pitch 78 the frame runs to lat 50.2 and the ramp carries the Ardennes at 291 m, where a
+pitch 78 the frame runs to lat 50.2 and the ramp carries the Ardennes at 297 m, where a
 cut on distance would have held the country at 85 m. Pitch down, or turn, and it is a flat
 country again.
 
-The honest limit is resolution rather than reach. A cell is 16 px of whatever tile holds
-it, so it is 200 m across in the foreground and 24 km at the horizon, where terrain LOD
-hands out z5 tiles — and a cell that size cannot be cut closer than tens of kilometres
-from the frame's edge.
+The honest limit is resolution rather than reach. A cell is cut whole, so what it holds
+past the frame's edge is counted, and a cell is only as small as its tile is deep: 4 px of
+a z12 tile is 50 m of ground, but 4 px of the z5 tile LOD gives the horizon is 6 km. That
+is what the size is chosen against — measured against a per-pixel scan, 4 px answers the
+Netherlands 22 m over its true 275 m top, where 16 px is 107 m over and 64 px is 290 m.
+Holding the slop under `MIN_SPAN` keeps it narrower than the narrowest range the ramp will
+stretch, and costs 171 KB a tile rather than 11 KB.
 
 At world zoom the whole question is moot, because every tile is in frame — Everest comes
 back as 5604 m, which is what a z0 tile flattens it to and therefore what the ramp should
