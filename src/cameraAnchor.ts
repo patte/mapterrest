@@ -221,8 +221,8 @@ export function applyPose(
  * raycasting answers from the rendered mesh, which disagrees with the DEM by metres on a
  * slope, so the crossing is marched against the DEM instead (see `axisCrossing`).
  *
- * Returns whether a crossing was found; without one (a view of nothing but sky and
- * horizon) the current elevation plane is kept, which changes nothing.
+ * Returns whether a crossing was found. Without one there is nothing to anchor to and the
+ * camera is left exactly as it is.
  */
 export function settle(map: MapLibreMap): boolean {
   if (!map.terrain) return false;
@@ -235,17 +235,25 @@ export function settle(map: MapLibreMap): boolean {
   };
   const mercatorPerMetre = MercatorCoordinate.fromLngLat(pose.camera).meterInMercatorCoordinateUnits();
 
+  // Sky, or ground the DEM has no tile for — mid-ocean, or a level not yet loaded. There
+  // is no centre to move to, and settling anyway is worse than doing nothing: the centre
+  // would go `MAX_CENTRE_DISTANCE` down an axis that runs much further, which writes an
+  // elevation plane 10 km under a camera that may be hundreds of kilometres up. Zoom is
+  // the distance to that plane, so the map then holds a zoom for a height it is nowhere
+  // near and asks the LOD for that detail across everything it can see.
   const crossed = axisCrossing(map, mercatorPerMetre, pose, tr.tileZoom);
-  let distance = crossed ?? distanceToPlane(pose, tr.elevation);
+  if (crossed === null) return false;
+
   // The pin will sample at whatever tile zoom the new distance implies. Where that is
   // not the one the march used, it is reading a different DEM level, and the camera
   // keeps the difference — a few metres of it. Marching again at that level closes it.
+  let distance = crossed;
   const settled = Math.max(0, Math.floor(zoomFor(map, mercatorPerMetre, distance)));
   if (settled !== tr.tileZoom) {
     distance = axisCrossing(map, mercatorPerMetre, pose, settled) ?? distance;
   }
   applyPose(map, mercatorPerMetre, pose, distance);
-  return crossed !== null;
+  return true;
 }
 
 export type CameraAnchor = {

@@ -343,6 +343,26 @@ for (const zoom of [11, 10, 9]) {
 }
 await high.close();
 
+// Mid-ocean the march finds no DEM at all, which is the other way in: settling on a
+// crossing that does not exist writes the same invented plane. Nothing to anchor to means
+// leave the camera alone, so the plane stays at sea level and the LOD stays coarse.
+const sea = await open({ hash: '#map=1.46/-40.3/-82.3' });
+await sea.evaluate(async () => {
+  window.map.jumpTo({ zoom: 3 });
+  await new Promise((done) => setTimeout(done, 3000));
+});
+const overWater = await sea.evaluate(() => ({
+  plane: window.map._camera.transform.elevation,
+  zoom: window.map._camera.transform.zoom,
+  rtt: window.map.terrain.tileManager._renderableTilesKeys.length,
+}));
+check(
+  Math.abs(overWater.plane) < 500 && overWater.rtt < 255,
+  'a camera over open water keeps its centre at sea level',
+  `plane ${overWater.plane.toFixed(0)} m, z${overWater.zoom.toFixed(2)}, ${overWater.rtt} terrain tiles`,
+);
+await sea.close();
+
 /* The pivot debug overlay -------------------------------------------------- */
 
 const debug = await open({ viewport: { width: 800, height: 600 }, hash: '#debugPivot=1' });
