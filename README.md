@@ -1,4 +1,4 @@
-# Alpenglow — Mapterhorn terrain in MapLibre 3D
+# Mapterrest — Mapterhorn terrain in MapLibre 3D
 
 Pre-baked terrarium tiles from [Mapterhorn](https://mapterhorn.com) driving MapLibre's 3D
 terrain. No key, no proxy, no transcoding: the tiles arrive ready for `raster-dem`.
