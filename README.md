@@ -560,5 +560,5 @@ over dense terrain is worth suspecting whenever a screen-to-ground answer looks 
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm verify` | Headless end-to-end at `detail=low`: terrain, elevations, attribution, hash round-trip, colour scheme, shift+drag orbit and its pivot, mobile panel. Playwright specs under `tests/`, one per section — filter with `pnpm verify orbit`; starts its own dev server. The SwiftShader default runs sequentially (~7 min); `GL=metal` renders on the GPU and runs parallel (~1 min) |
-| `pnpm probe:coverage` | What asking past Mapterhorn's depth costs, per place and zoom. Reuses a dev server at `URL` or starts its own; `GL=metal` probes in ~1 min |
+| `pnpm verify` | Headless end-to-end at `detail=low`: terrain, elevations, attribution, hash round-trip, colour scheme, shift+drag orbit and its pivot, mobile panel. Playwright specs under `tests/`, one per section — filter with `pnpm verify orbit`; starts its own dev server. On a Mac it renders on the GPU and runs parallel (~1 min); CI, Linux, or `GL=swiftshader` goes through software GL sequentially (~7 min) |
+| `pnpm probe:coverage` | What asking past Mapterhorn's depth costs, per place and zoom. Reuses a dev server at `URL` or starts its own; ~1 min on the GPU |

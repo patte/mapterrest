@@ -13,7 +13,7 @@ export default defineConfig({
   fullyParallel: true,
   // SwiftShader renders on ~5 CPU threads per page, so parallel workers starve each other
   // past the 90s map-load budget; only the GPU-backed mode can afford real parallelism.
-  workers: process.env.GL === 'metal' ? undefined : 1,
+  workers: gl.mode === 'metal' ? undefined : 1,
   // A fresh GL context through SwiftShader takes its time; map loads inside the
   // specs wait up to 90s each, so the per-test budget has to clear a few of them.
   timeout: 240_000,
