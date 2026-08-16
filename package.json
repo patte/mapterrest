@@ -21,11 +21,11 @@
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "@types/node": "^26.2.0",
-    "playwright": "^1.62.1",
+    "playwright": "1.62.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.1"
   },
   "dependencies": {
-    "maplibre-gl": "^6.2.0"
+    "maplibre-gl": "6.3.0"
   }
 }

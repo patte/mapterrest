@@ -112,9 +112,11 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
   const draw = (): void => {
     const tr = map._camera.transform;
     const ratio = window.devicePixelRatio || 1;
-    if (canvas.width !== Math.round(tr.width * ratio)) {
-      canvas.width = Math.round(tr.width * ratio);
-      canvas.height = Math.round(tr.height * ratio);
+    const width = Math.round(tr.width * ratio);
+    const height = Math.round(tr.height * ratio);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
     }
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, tr.width, tr.height);
@@ -191,7 +193,7 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
     );
   };
 
-  /** Out of the render and event handlers the solve was triggered from: it reads pixels. */
+  /** Deferred a frame: moveend, idle and terrain often fire together, and one solve per burst is plenty. */
   const solve = (): void => {
     if (held || pending) return;
     pending = requestAnimationFrame(() => {
@@ -217,6 +219,7 @@ export function enablePivotDebug(map: MapLibreMap): PivotDebug {
       if (!held) solve();
     },
     disable: () => {
+      if (pending) cancelAnimationFrame(pending);
       map.off('render', draw);
       map.off('moveend', solve);
       map.off('idle', solve);

@@ -72,7 +72,7 @@ const pyramids = new WeakMap<object, Pyramid>();
  * A tile's elevation extremes at every scale from the whole tile down to `CELL` pixels.
  *
  * This is the same thing sub-tiles would report, computed rather than fetched: matching
- * a 16 px cell of a z4 tile with real tiles means z9, which is 1024 of them. MapLibre
+ * a 4 px cell of a z4 tile with real tiles means z11, which is 16384 of them. MapLibre
  * already walks every pixel of a tile to fill `dem.min`/`dem.max`, so a downloaded
  * sub-tile carries the cost of this pass anyway — once each, plus a request and a decode.
  */

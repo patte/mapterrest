@@ -335,7 +335,7 @@ function onSurface(map: MapLibreMap, v: View, surface: Surface): PivotPoint {
 }
 
 /**
- * The pivot for the camera as it stands. The readbacks are a GPU stall, so this runs once
+ * The pivot for the camera as it stands. A solve marches 117 rays, so this runs once
  * per gesture rather than once per frame.
  */
 export function choosePivot(map: MapLibreMap): Pivot | null {

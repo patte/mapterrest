@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       maplibre-gl:
-        specifier: ^6.2.0
+        specifier: 6.3.0
         version: 6.3.0
     devDependencies:
       '@playwright/test':
@@ -19,7 +19,7 @@ importers:
         specifier: ^26.2.0
         version: 26.2.0
       playwright:
-        specifier: ^1.62.1
+        specifier: 1.62.1
         version: 1.62.1
       typescript:
         specifier: ^7.0.2
