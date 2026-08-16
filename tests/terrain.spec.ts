@@ -10,7 +10,8 @@ const PROBES = [
 
 test('DEM source, terrain, and elevation probes', async ({ browser }) => {
   // queryTerrainElevation reports the exaggerated mesh, so probe at 1x to read metres.
-  const page = await open(browser, { hash: '#exaggeration=1' });
+  // This is the case that verifies the detail=low mode itself, so it pins it.
+  const page = await open(browser, { hash: '#exaggeration=1&detail=low' });
 
   const source = await page.evaluate(() => {
     const s = window.map.getStyle().sources['mapterhorn-dem'];
@@ -67,7 +68,7 @@ test('detail=high buys a zoom level', async ({ browser }) => {
 test('default detail is medium', async ({ browser }) => {
   // No detail in the hash: the app's own default has to be medium — real tile size, LOD
   // params shaping the horizon.
-  const dflt = await open(browser, { hash: '#map=12.6/46.005/7.7/-135/0', appDefaultDetail: true });
+  const dflt = await open(browser, { hash: '#map=12.6/46.005/7.7/-135/0' });
   await check(
     (await dflt.evaluate(() => window.map.getStyle().sources['mapterhorn-dem'].tileSize)) === 512,
     'default detail declares the tiles at their real size',

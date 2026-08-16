@@ -31,8 +31,12 @@ test('visible elevation range answers for the frame', async ({ browser }) => {
   await settled(ranges);
   await settle();
   const flat = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
+  // The floor is North Sea bathymetry at the skyline, and it deepens with tile
+  // coarseness (−73 m at detail=low, −121 m at the default), so it gets room. The guard
+  // against whole-tile reach is the ceiling: a leak answers with the Ardennes tiles'
+  // full extremes and blows straight past 400 (historically 990).
   await check(
-    flat !== null && flat.lo > -100 && flat.hi < 400,
+    flat !== null && flat.lo > -160 && flat.hi < 400,
     'the Netherlands at pitch exposes over the frame, not over the tiles behind it',
     JSON.stringify(flat),
   );

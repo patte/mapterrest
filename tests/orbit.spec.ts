@@ -79,8 +79,9 @@ test('shift+drag orbits around a pivot on the terrain', async ({ browser }) => {
   // terrain.pointCoordinate encodes the tile a pixel came from in one byte, so past 255
   // rendered terrain tiles it decodes the wrong tile and answers with a real coordinate from
   // somewhere else — a 1900×1532 window at pitch 85 draws 306 and every sample came back
-  // 200-350 km out. These checks run at detail=low, 18 tiles, and would never see it. So
-  // assert the pivot does not ask that question at all: break the call, expect no change.
+  // 200-350 km out. These checks run in a small window, far under 255 tiles, and would
+  // never see it. So assert the pivot does not ask that question at all: break the call,
+  // expect no change.
   const withoutCoords = await orbit.evaluate((g) => {
     const map = window.map;
     const real = map.terrain.pointCoordinate;

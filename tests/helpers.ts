@@ -50,16 +50,15 @@ async function fromCache(route: Route) {
 
 type OpenOpts = Parameters<Browser['newPage']>[0] & {
   hash?: string;
-  appDefaultDetail?: boolean;
 };
 
 /**
- * A fresh page per case, so hash state and colour scheme never leak between them, and
- * every case runs at `detail=low`: none of them are testing the tuned LOD, and a pitched
- * frame at full detail pulls hundreds of tiles through a software GL.
+ * A fresh page per case, so hash state and colour scheme never leak between them. Cases
+ * run at the app's default detail — what a user sees; a case that is about a specific
+ * detail mode pins it in its hash.
  */
 export async function open(browser: Browser, opts: OpenOpts = {}): Promise<Page> {
-  const { hash: rawHash, appDefaultDetail, ...pageOpts } = opts;
+  const { hash = '', ...pageOpts } = opts;
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, ...pageOpts });
   const base = test.info().project.use.baseURL ?? 'http://localhost:5199/';
   // Everything not from the dev server is a provider asset.
@@ -67,12 +66,6 @@ export async function open(browser: Browser, opts: OpenOpts = {}): Promise<Page>
     const origin = new URL(base).origin;
     await page.route((u) => u.origin !== origin, fromCache);
   }
-  const hash =
-    rawHash?.includes('detail=') || appDefaultDetail
-      ? (rawHash ?? '')
-      : rawHash
-        ? `${rawHash}&detail=low`
-        : '#detail=low';
   await page.goto(base + hash, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => (window as any).map?.loaded?.(), null, { timeout: 90000 });
   return page;

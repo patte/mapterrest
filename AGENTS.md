@@ -55,6 +55,9 @@ Mapterhorn republishes tiles. `probe:coverage` deliberately bypasses it: that sc
   `tests/helpers.ts` (two frames so the tile requests exist, then `areTilesLoaded`, then
   a short grace) rather than sleeping a tuned duration. Contention now costs time, not
   correctness; still avoid heavy CPU work alongside a SwiftShader run.
+- A SwiftShader run leaves a thermal/scheduler hangover: for several minutes afterwards
+  runs crawl at a fraction of normal speed and look stuck. Before timing anything or
+  declaring a run wedged, wait for the 1-minute load average to drop back to idle.
 
 ## Spike scripts
 
