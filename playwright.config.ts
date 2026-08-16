@@ -8,10 +8,13 @@ const PORT = Number(process.env.PORT || 5199);
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
+  // SwiftShader renders on ~5 CPU threads per page, so parallel workers starve each other
+  // past the 90s map-load budget; only the GPU-backed mode can afford real parallelism.
+  workers: process.env.GL === 'metal' ? undefined : 1,
   // A fresh GL context through SwiftShader takes its time; map loads inside the
   // specs wait up to 90s each, so the per-test budget has to clear a few of them.
   timeout: 240_000,
-  reporter: [['list'], ['json', { outputFile: 'test-results/report.json' }]],
+  reporter: 'list',
   use: {
     baseURL: process.env.URL || `http://localhost:${PORT}/`,
     // GL=metal renders on the real GPU: full Chromium in new-headless mode, since the
