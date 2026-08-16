@@ -29,6 +29,13 @@ wins; otherwise a Mac gets Metal and CI or Linux gets SwiftShader.
   config pins it to one worker — parallel SwiftShader workers starve each other past the
   90s map-load budget and fail spuriously.
 
+## Resident browser
+
+`pnpm browser:start` keeps a browser server up and records it in `.browser-server.json`;
+verify runs and probes connect to it instead of launching (saves the process launch,
+worth ~0.5s on a single spec) and fall back to launching whenever it is absent or its GL
+mode does not match. `pnpm browser:stop` takes it down. Opt-in — nothing requires it.
+
 ## Gotchas
 
 - `window.map`, `window.visibleRange`, `window.choosePivot`, `window.projectPoint` exist

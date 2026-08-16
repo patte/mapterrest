@@ -6,4 +6,5 @@ shots/
 .env.deploy
 .env
 test-results/
+.browser-server.json
 local

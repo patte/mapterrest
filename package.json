@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "probe:coverage": "node scripts/probe-coverage.mjs",
+    "browser:start": "node scripts/browser-daemon.mjs start",
+    "browser:stop": "node scripts/browser-daemon.mjs stop",
     "test": "playwright test",
     "verify": "playwright test",
     "deploy": "bash scripts/deploy.sh"

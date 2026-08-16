@@ -9,7 +9,7 @@
 // default measures the same traffic, just slower.
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
-import { glLaunchOptions } from './browser.mjs';
+import { glLaunchOptions, residentServer } from './browser.mjs';
 
 const PORT = Number(process.env.PORT || 5199);
 const URL_ = process.env.URL || `http://localhost:${PORT}/`;
@@ -41,8 +41,12 @@ if (!(await up())) {
   }
 }
 
+// Closing a connected browser only disconnects; the resident server stays for the next run.
 const gl = glLaunchOptions();
-const browser = await chromium.launch({ channel: gl.channel, args: gl.args });
+const resident = residentServer(gl.mode);
+const browser = resident
+  ? await chromium.connect(resident.wsEndpoint)
+  : await chromium.launch({ channel: gl.channel, args: gl.args });
 const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
 
 let hits = 0;

@@ -562,3 +562,4 @@ over dense terrain is worth suspecting whenever a screen-to-ground answer looks 
 | --- | --- |
 | `pnpm verify` | Headless end-to-end at `detail=low`: terrain, elevations, attribution, hash round-trip, colour scheme, shift+drag orbit and its pivot, mobile panel. Playwright specs under `tests/`, one per section — filter with `pnpm verify orbit`; starts its own dev server. On a Mac it renders on the GPU and runs parallel (~1 min); CI, Linux, or `GL=swiftshader` goes through software GL sequentially (~7 min) |
 | `pnpm probe:coverage` | What asking past Mapterhorn's depth costs, per place and zoom. Reuses a dev server at `URL` or starts its own; ~1 min on the GPU |
+| `pnpm browser:start` / `browser:stop` | Optional resident browser server; verify runs and probes connect to it instead of launching their own |
