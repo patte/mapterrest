@@ -78,14 +78,33 @@ const map = new MapLibreMap({
 if (import.meta.env.DEV) Object.assign(window, { map, choosePivot, projectPoint, visibleRange });
 
 // Independent of the pivot: what a frame costs is a question about the map itself.
-if (readBoolean('debugPerf', false)) enablePerfDebug(map);
+let perfDebug: (() => void) | null = null;
+function setPerfDebug(on: boolean): void {
+  if (on && !perfDebug) perfDebug = enablePerfDebug(map);
+  else if (!on && perfDebug) {
+    perfDebug();
+    perfDebug = null;
+  }
+}
+setPerfDebug(readBoolean('debugPerf', false));
 
+/**
+ * `#debugPivot=1` draws the pivot and the grid behind it, whether or not a gesture is
+ * running, so the choice can be inspected before committing to a drag.
+ */
+let pivotDebug: ReturnType<typeof enablePivotDebug> | null = null;
+function setPivotDebug(on: boolean): void {
+  if (!pivotEnabled) return;
+  if (on && !pivotDebug) pivotDebug = enablePivotDebug(map);
+  else if (!on && pivotDebug) {
+    pivotDebug.disable();
+    pivotDebug = null;
+  }
+}
 if (pivotEnabled) {
   const anchor = enableCameraAnchor(map);
-  // `#debugPivot=1` draws the pivot and the grid behind it, whether or not a gesture is
-  // running, so the choice can be inspected before committing to a drag.
-  const pivotDebug = readBoolean('debugPivot', false) ? enablePivotDebug(map) : null;
   enableShiftDragCamera(map, anchor, (pivot) => pivotDebug?.hold(pivot));
+  setPivotDebug(readBoolean('debugPivot', false));
 }
 map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 
@@ -129,6 +148,7 @@ function applyChrome(): void {
 }
 
 function setBasemap(key: BasemapKey): void {
+  if (key === basemapKey) return;
   basemapKey = key;
   picker.value = key;
   applyChrome();
@@ -186,19 +206,32 @@ const shadingPicker = document.getElementById('shading') as HTMLSelectElement;
 for (const key of SHADING_KEYS) {
   shadingPicker.add(new Option(SHADINGS[key], key, false, key === shadingKey));
 }
-shadingPicker.addEventListener('change', () => {
-  shadingKey = shadingPicker.value as ShadingKey;
+function setShading(key: ShadingKey): void {
+  if (key === shadingKey) return;
+  shadingKey = key;
+  shadingPicker.value = key;
   applyExposure();
   applyShading();
+}
+
+shadingPicker.addEventListener('change', () => {
+  setShading(shadingPicker.value as ShadingKey);
   write('shading', shadingKey);
 });
 
 const shadingBox = document.getElementById('shading-visible') as HTMLInputElement;
 shadingBox.checked = shadingVisible;
-shadingBox.addEventListener('change', () => {
-  shadingVisible = shadingBox.checked;
+
+function setShadingVisible(on: boolean): void {
+  if (on === shadingVisible) return;
+  shadingVisible = on;
+  shadingBox.checked = on;
   applyExposure();
   applyShading();
+}
+
+shadingBox.addEventListener('change', () => {
+  setShadingVisible(shadingBox.checked);
   write('shadingVisible', shadingVisible);
 });
 
@@ -242,11 +275,17 @@ function applyExposure(): void {
   }
 }
 
-exposureBox.checked = autoExposure;
-exposureBox.addEventListener('change', () => {
-  autoExposure = exposureBox.checked;
+function setAutoExposure(on: boolean): void {
+  if (on === autoExposure) return;
+  autoExposure = on;
+  exposureBox.checked = on;
   applyExposure();
   applyShading();
+}
+
+exposureBox.checked = autoExposure;
+exposureBox.addEventListener('change', () => {
+  setAutoExposure(exposureBox.checked);
   write('autoExposure', autoExposure);
 });
 
@@ -258,12 +297,59 @@ slider.max = String(MAX_EXAGGERATION);
 slider.value = String(exaggeration);
 sliderValue.textContent = exaggeration.toFixed(1) + '×';
 
+let terrainFrame = 0;
+function setExaggeration(value: number): void {
+  if (value === exaggeration) return;
+  exaggeration = value;
+  slider.value = String(value);
+  sliderValue.textContent = value.toFixed(1) + '×';
+  // setTerrain tears down and rebuilds the terrain and its render-to-texture cache, and
+  // the camera anchor re-settles on the 'terrain' event it fires — at most one per frame.
+  terrainFrame ||= requestAnimationFrame(() => {
+    terrainFrame = 0;
+    if (map.getTerrain()) map.setTerrain({ source: DEM_SOURCE, exaggeration });
+  });
+}
+
+let writeTimer: number | undefined;
 slider.addEventListener('input', () => {
-  exaggeration = Number(slider.value);
-  sliderValue.textContent = exaggeration.toFixed(1) + '×';
-  if (map.getTerrain()) map.setTerrain({ source: DEM_SOURCE, exaggeration });
-  write('exaggeration', exaggeration);
+  setExaggeration(Number(slider.value));
+  // MapLibre throttles its own hash writer to 300 ms; Safari refuses more than 100
+  // replaceState calls per 30 s, which an unthrottled drag exceeds. Only the hash
+  // trails — the terrain above is already current.
+  window.clearTimeout(writeTimer);
+  writeTimer = window.setTimeout(() => write('exaggeration', exaggeration), 300);
 });
+
+/* Hash edits ---------------------------------------------------------------- */
+
+/**
+ * Editing the hash by hand is a same-document navigation: nothing reloads, the browser
+ * fires `hashchange`, and MapLibre reads only its own `map` param out of it. This
+ * applies the rest. Programmatic writes never land here — both hash writers use
+ * replaceState, which fires no event — and every setter above no-ops on an unchanged
+ * value, so a running map is only touched where the hash actually differs.
+ */
+function applyHash(): void {
+  // Construction-time choices: tileSize only counts on a source declared at style.load,
+  // and the ground pin is a Map option. A reload is the only honest apply.
+  if (
+    readString('detail', DEFAULT_DETAIL, DETAIL_LEVELS) !== detail ||
+    readBoolean('pivot', true) !== pivotEnabled
+  ) {
+    location.reload();
+    return;
+  }
+  followsScheme = !has('basemap');
+  setBasemap(readString('basemap', defaultBasemap(prefersDark()), BASEMAP_KEYS));
+  setShading(readString('shading', DEFAULT_SHADING, SHADING_KEYS));
+  setShadingVisible(readBoolean('shadingVisible', true));
+  setAutoExposure(readBoolean('autoExposure', true));
+  setExaggeration(readNumber('exaggeration', DEFAULT_EXAGGERATION, 0, MAX_EXAGGERATION));
+  setPerfDebug(readBoolean('debugPerf', false));
+  setPivotDebug(readBoolean('debugPivot', false));
+}
+window.addEventListener('hashchange', applyHash);
 
 /* Panel ---------------------------------------------------------------------*/
 

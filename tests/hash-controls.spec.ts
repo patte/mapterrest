@@ -33,6 +33,71 @@ test('controls write themselves into the hash', async ({ browser }) => {
   await page.close();
 });
 
+test('an edited hash applies without a reload', async ({ browser }) => {
+  const page = await open(browser);
+  // Editing only the fragment is a same-document navigation: the browser fires
+  // hashchange and reloads nothing, so the marker has to survive the edit.
+  await page.evaluate(() => {
+    (window as any).__sameDocument = true;
+    location.hash += '&shading=heatmap&exaggeration=2.5&debugPivot=1';
+  });
+  // The terrain apply is coalesced to an animation frame; give it a beat.
+  await page.waitForTimeout(500);
+  await check(
+    await page.evaluate(() => (window as any).__sameDocument === true),
+    'the edit reloads nothing',
+  );
+  await check(
+    await page.evaluate(() => window.map.getLayer('terrain-shading')?.type === 'color-relief'),
+    'an edited shading applies live',
+  );
+  await check(
+    await page.evaluate(
+      () => (document.getElementById('shading') as HTMLSelectElement).value === 'heatmap',
+    ),
+    'the picker follows the hash',
+  );
+  await check(
+    await page.evaluate(() => Math.abs(window.map.getTerrain().exaggeration - 2.5) < 1e-6),
+    'an edited exaggeration applies live',
+  );
+  await check(
+    await page.evaluate(
+      () => document.querySelectorAll('.maplibregl-canvas-container canvas').length === 2,
+    ),
+    'debugPivot=1 adds the overlay live',
+  );
+
+  await page.evaluate(() => {
+    location.hash = location.hash.replace('debugPivot=1', 'debugPivot=0');
+  });
+  await page.waitForTimeout(200);
+  await check(
+    await page.evaluate(
+      () => document.querySelectorAll('.maplibregl-canvas-container canvas').length === 1,
+    ),
+    'debugPivot=0 removes it again',
+  );
+
+  // detail is a construction-time choice — tileSize only counts on a source declared at
+  // style.load — so the only honest apply is a reload.
+  await page.evaluate(() => {
+    location.hash += '&detail=low';
+  });
+  await page.waitForFunction(
+    () => !(window as any).__sameDocument && (window as any).map?.loaded?.(),
+    null,
+    { timeout: 90000 },
+  );
+  await check(
+    await page.evaluate(
+      () => window.map.getSource('mapterhorn-dem').calculateTileZoom === undefined,
+    ),
+    'an edited detail reloads into the new mode',
+  );
+  await page.close();
+});
+
 test('the hash restores the controls', async ({ browser }) => {
   const restored = await open(browser, {
     hash: '#basemap=liberty&shading=heatmap&shadingVisible=0&exaggeration=2.5',

@@ -62,8 +62,9 @@ Camera and every control live in the location hash, so a reload restores the vie
 #map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&autoExposure=0&exaggeration=3.7
 ```
 
-`detail=`, `debugPivot=`, `debugPerf=` and `pivot=` join them, read once at load;
-everything else is written back as it changes.
+`detail=`, `debugPivot=`, `debugPerf=` and `pivot=` join them; everything else is
+written back as it changes. Hand-editing the hash applies live — except `detail=` and
+`pivot=`, construction-time choices that reload the page.
 
 ## Docs
 
