@@ -8,3 +8,4 @@ shots/
 test-results/
 .browser-server.json
 local
+.tile-cache/

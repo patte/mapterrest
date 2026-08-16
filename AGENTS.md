@@ -36,6 +36,15 @@ verify runs and probes connect to it instead of launching (saves the process lau
 worth ~0.5s on a single spec) and fall back to launching whenever it is absent or its GL
 mode does not match. `pnpm browser:stop` takes it down. Opt-in — nothing requires it.
 
+## Tile cache
+
+The specs serve every provider asset (DEM tiles, basemap tiles, styles, glyphs — anything
+not from the dev server) out of a gitignored `.tile-cache/` disk cache shared across
+workers and runs, so repeated runs cost the providers nothing. `TILECACHE=0` goes to the
+network; `rm -rf .tile-cache` empties it — there is no invalidation, so clear it when
+Mapterhorn republishes tiles. `probe:coverage` deliberately bypasses it: that script
+*measures* tile traffic, and a cache would falsify its numbers.
+
 ## Gotchas
 
 - `window.map`, `window.visibleRange`, `window.choosePivot`, `window.projectPoint` exist
