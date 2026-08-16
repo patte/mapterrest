@@ -4,9 +4,15 @@
 // This reports, per place and zoom, how many tile requests hit and missed and whether
 // the terrain still has elevation there — a miss that falls back to the parent keeps
 // its height, a miss that does not reads 0 m.
+//
+// GL=metal renders on the GPU and probes in a fraction of the time; the SwiftShader
+// default measures the same traffic, just slower.
+import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
+import { glLaunchOptions } from './browser.mjs';
 
-const URL_ = process.env.URL || 'http://localhost:5173/';
+const PORT = Number(process.env.PORT || 5199);
+const URL_ = process.env.URL || `http://localhost:${PORT}/`;
 
 const PLACES = [
   { name: 'Matterhorn (CH, z17)', lng: 7.6586, lat: 45.9763, ground: 4478 },
@@ -16,9 +22,27 @@ const PLACES = [
 ];
 const ZOOMS = [12, 14, 16];
 
-const browser = await chromium.launch({
-  args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'],
-});
+// window.map is only exposed under import.meta.env.DEV, so the server must be `vite dev`;
+// reuse one already answering at URL_, otherwise start our own and take it down after.
+const up = async () => {
+  try {
+    return (await fetch(URL_, { signal: AbortSignal.timeout(1000) })).ok;
+  } catch {
+    return false;
+  }
+};
+let server = null;
+if (!(await up())) {
+  server = spawn('pnpm', ['dev', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+  const t0 = Date.now();
+  while (!(await up())) {
+    if (Date.now() - t0 > 15000) throw new Error(`no dev server came up at ${URL_}`);
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
+const gl = glLaunchOptions();
+const browser = await chromium.launch({ channel: gl.channel, args: gl.args });
 const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
 
 let hits = 0;
@@ -45,7 +69,12 @@ for (const place of PLACES) {
       ([lng, lat, z]) => window.map.jumpTo({ center: [lng, lat], zoom: z, pitch: 60 }),
       [place.lng, place.lat, zoom],
     );
-    await page.waitForTimeout(5000);
+    // Settle on the tiles, not on a duration: a fixed pause undercounts the traffic
+    // whenever loading outlasts it. The grace catches responses still in flight.
+    await page.waitForFunction(() => window.map.areTilesLoaded() && window.map.loaded(), null, {
+      timeout: 120000,
+    });
+    await page.waitForTimeout(250);
     const m = await page.evaluate(
       ([lng, lat]) => window.map.queryTerrainElevation({ lng, lat }),
       [place.lng, place.lat],
@@ -58,3 +87,4 @@ for (const place of PLACES) {
 }
 
 await browser.close();
+server?.kill();

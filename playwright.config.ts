@@ -1,4 +1,7 @@
 import { defineConfig } from '@playwright/test';
+import { glLaunchOptions } from './scripts/browser.mjs';
+
+const gl = glLaunchOptions();
 
 // The suite drives the app through window.map, which is only exposed under
 // import.meta.env.DEV — so the server has to be `vite dev`, never `vite preview`.
@@ -17,16 +20,8 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: process.env.URL || `http://localhost:${PORT}/`,
-    // GL=metal renders on the real GPU: full Chromium in new-headless mode, since the
-    // default headless shell has no GPU path. Default stays SwiftShader — deterministic,
-    // works in CI, and reproduces the software-GL-specific bugs the suite guards.
-    ...(process.env.GL === 'metal' ? { channel: 'chromium' as const } : {}),
-    launchOptions: {
-      args:
-        process.env.GL === 'metal'
-          ? ['--use-angle=metal']
-          : ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'],
-    },
+    channel: gl.channel,
+    launchOptions: { args: gl.args },
   },
   webServer: process.env.URL
     ? undefined
