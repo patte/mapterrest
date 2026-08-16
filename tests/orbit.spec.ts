@@ -1,5 +1,5 @@
 import { test } from '@playwright/test';
-import { open, check } from './helpers';
+import { open, check, settled } from './helpers';
 
 /* Shift+drag orbits the subject of the frame */
 
@@ -7,7 +7,7 @@ test('shift+drag orbits around a pivot on the terrain', async ({ browser }) => {
   // A small window: the pitched default view is the expensive one to settle, and the
   // gesture only needs terrain in the frame and a rendered frame to raycast.
   const orbit = await open(browser, { viewport: { width: 800, height: 600 } });
-  await orbit.waitForTimeout(10000);
+  await settled(orbit, 500);
 
   const grabbed = await orbit.evaluate(() => {
     const map = window.map;

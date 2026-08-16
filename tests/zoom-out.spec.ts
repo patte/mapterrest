@@ -1,5 +1,5 @@
 import { test } from '@playwright/test';
-import { open, check } from './helpers';
+import { open, check, settled } from './helpers';
 
 // The anchor marches the view axis to find the terrain the centre should sit on. A march
 // that stops short reports no terrain for a view that is nothing but terrain, and settle
@@ -12,16 +12,16 @@ test('zooming out leaves the centre on the ground', async ({ browser }) => {
     window.map.terrain.getElevationForLngLatZoom(window.map.getCenter(), 12),
   );
   for (const zoom of [11, 10, 9]) {
-    const settled = await high.evaluate(async (z) => {
-      window.map.jumpTo({ zoom: z });
-      await new Promise((done) => setTimeout(done, 3000));
+    await high.evaluate((z) => window.map.jumpTo({ zoom: z }), zoom);
+    await settled(high);
+    const rest = await high.evaluate(() => {
       const tr = window.map._camera.transform;
       return { zoom: tr.zoom, plane: tr.elevation, altitude: tr.getCameraAltitude() };
-    }, zoom);
+    });
     await check(
-      Math.abs(settled.plane - ground) < 500 && Math.abs(settled.zoom - zoom) < 0.5,
+      Math.abs(rest.plane - ground) < 500 && Math.abs(rest.zoom - zoom) < 0.5,
       `zooming out to z${zoom} leaves the centre on the ground`,
-      `plane ${settled.plane.toFixed(0)} m against ${ground.toFixed(0)} m, reads z${settled.zoom.toFixed(2)}`,
+      `plane ${rest.plane.toFixed(0)} m against ${ground.toFixed(0)} m, reads z${rest.zoom.toFixed(2)}`,
     );
   }
   await high.close();
@@ -34,14 +34,17 @@ test('zooming out leaves the centre on the ground', async ({ browser }) => {
 // mouse-up. Equatorward bearings lost zoom, poleward gained it.
 test('settling holds the zoom it was handed', async ({ browser }) => {
   const held = await open(browser, { hash: '#map=5.84/29.682/53.557/-149.8/24' });
-  const drift = await held.evaluate(async () => {
-    const before = window.map.getZoom();
+  const before = await held.evaluate(() => {
+    const z = window.map.getZoom();
     // A no-op move fires moveend, which is what settles the camera.
     window.map.jumpTo({ center: window.map.getCenter() });
-    await new Promise((done) => setTimeout(done, 2000));
-    const tr = window.map._camera.transform;
-    return { before, after: tr.zoom, camera: tr.getCameraAltitude() };
+    return z;
   });
+  await settled(held);
+  const drift = await held.evaluate((b) => {
+    const tr = window.map._camera.transform;
+    return { before: b, after: tr.zoom, camera: tr.getCameraAltitude() };
+  }, before);
   await check(
     Math.abs(drift.after - drift.before) < 0.005,
     'settling holds the zoom it was handed, well away from the equator',
@@ -55,10 +58,8 @@ test('settling holds the zoom it was handed', async ({ browser }) => {
 // leave the camera alone, so the plane stays at sea level and the LOD stays coarse.
 test('a camera over open water keeps its centre at sea level', async ({ browser }) => {
   const sea = await open(browser, { hash: '#map=1.46/-40.3/-82.3' });
-  await sea.evaluate(async () => {
-    window.map.jumpTo({ zoom: 3 });
-    await new Promise((done) => setTimeout(done, 3000));
-  });
+  await sea.evaluate(() => window.map.jumpTo({ zoom: 3 }));
+  await settled(sea);
   const overWater = await sea.evaluate(() => ({
     plane: window.map._camera.transform.elevation,
     zoom: window.map._camera.transform.zoom,

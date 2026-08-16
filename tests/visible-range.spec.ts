@@ -1,5 +1,5 @@
 import { test } from '@playwright/test';
-import { open, check } from './helpers';
+import { open, check, settled } from './helpers';
 
 // The range is what the exposure spreads over the ramp, so what it must not do is answer
 // for ground outside the frame: a DEM tile's own extremes cover the whole tile, and a
@@ -28,7 +28,7 @@ test('visible elevation range answers for the frame', async ({ browser }) => {
   await ranges.evaluate(() =>
     window.map.jumpTo({ center: [5.11, 52.09], zoom: 11, pitch: 78, bearing: -135 }),
   );
-  await ranges.waitForTimeout(9000);
+  await settled(ranges);
   await settle();
   const flat = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
   await check(
@@ -43,7 +43,7 @@ test('visible elevation range answers for the frame', async ({ browser }) => {
   await ranges.evaluate(() =>
     window.map.jumpTo({ center: [38.024, 57.914], zoom: 5.45, pitch: 0, bearing: 0 }),
   );
-  await ranges.waitForTimeout(9000);
+  await settled(ranges);
   await settle();
   const coarse = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
   await check(
@@ -56,7 +56,7 @@ test('visible elevation range answers for the frame', async ({ browser }) => {
   // colour, so the floor holds it open — and no wider, since real flat country runs 22 m and
   // up and has its own contrast to keep.
   await ranges.evaluate(() => window.map.jumpTo({ center: [-40, 30], zoom: 12, pitch: 0 }));
-  await ranges.waitForTimeout(9000);
+  await settled(ranges);
   await settle();
   const still = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
   await check(
@@ -66,7 +66,7 @@ test('visible elevation range answers for the frame', async ({ browser }) => {
   );
 
   await ranges.evaluate(() => window.map.jumpTo({ center: [10, 20], zoom: 1, pitch: 0 }));
-  await ranges.waitForTimeout(9000);
+  await settled(ranges);
   await settle();
   const world = await ranges.evaluate(() => window.visibleRange(window.map, 'mapterhorn-dem'));
   // A z0 tile is the planet in 256 px, so the summits it carries are flattened — and that

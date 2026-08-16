@@ -1,5 +1,5 @@
 import { test } from '@playwright/test';
-import { open, check } from './helpers';
+import { open, check, settled } from './helpers';
 
 const PROBES = [
   { name: 'Matterhorn', lng: 7.6586, lat: 45.9763, expect: [4300, 4500] },
@@ -11,7 +11,6 @@ const PROBES = [
 test('DEM source, terrain, and elevation probes', async ({ browser }) => {
   // queryTerrainElevation reports the exaggerated mesh, so probe at 1x to read metres.
   const page = await open(browser, { hash: '#exaggeration=1' });
-  await page.waitForTimeout(8000);
 
   const source = await page.evaluate(() => {
     const s = window.map.getStyle().sources['mapterhorn-dem'];
@@ -42,7 +41,7 @@ test('DEM source, terrain, and elevation probes', async ({ browser }) => {
       ([lng, lat]) => window.map.jumpTo({ center: [lng, lat], zoom: 14, pitch: 0 }),
       [p.lng, p.lat],
     );
-    await page.waitForTimeout(3500);
+    await settled(page);
     const m = await page.evaluate(
       ([lng, lat]) => window.map.queryTerrainElevation({ lng, lat }),
       [p.lng, p.lat],

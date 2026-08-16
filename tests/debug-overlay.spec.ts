@@ -1,12 +1,12 @@
 import { test } from '@playwright/test';
-import { open, check } from './helpers';
+import { open, check, settled } from './helpers';
 
 test('#debugPivot=1 draws a non-interactive overlay', async ({ browser }) => {
   const debug = await open(browser, {
     viewport: { width: 800, height: 600 },
     hash: '#debugPivot=1',
   });
-  await debug.waitForTimeout(10000);
+  await settled(debug, 500);
   const overlay = await debug.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>(
       '.maplibregl-canvas-container canvas:last-child',

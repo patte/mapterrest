@@ -79,6 +79,22 @@ export async function open(browser: Browser, opts: OpenOpts = {}): Promise<Page>
 }
 
 /**
+ * Wait for a view change to actually land, instead of sleeping a tuned number of seconds:
+ * two frames, so the render loop has picked up the new view and issued its tile requests
+ * — areTilesLoaded is vacuously true before then — then every source's tiles, then a
+ * short grace for work that follows tile arrival (elevation recalc, an exposure ease).
+ */
+export async function settled(page: Page, grace = 300): Promise<void> {
+  await page.evaluate(
+    () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))),
+  );
+  await page.waitForFunction(() => window.map.areTilesLoaded() && window.map.loaded(), null, {
+    timeout: 90000,
+  });
+  await page.waitForTimeout(grace);
+}
+
+/**
  * The old suite's `check(ok, label, detail)`, kept verbatim at every call site: a soft
  * expect so one failure never hides the rest, wrapped in a step so the label lands in the
  * JSON report — that's what scripts/coverage-diff.mjs tallies against the manifest.

@@ -51,9 +51,10 @@ Mapterhorn republishes tiles. `probe:coverage` deliberately bypasses it: that sc
   only under `import.meta.env.DEV` — anything driving the app needs `vite dev`, never
   `vite preview`. The playwright config and `probe:coverage` start their own dev server;
   port 5173 is often squatted by a stale VS Code forward, which is why they pin 5199.
-- The specs still contain fixed sleeps, which are contention-sensitive: don't run
-  CPU-heavy work alongside a SwiftShader run, or elevations get probed before the right
-  tiles are in.
+- Waits are condition-based: after a view change, call `settled(page)` from
+  `tests/helpers.ts` (two frames so the tile requests exist, then `areTilesLoaded`, then
+  a short grace) rather than sleeping a tuned duration. Contention now costs time, not
+  correctness; still avoid heavy CPU work alongside a SwiftShader run.
 
 ## Spike scripts
 
