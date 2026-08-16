@@ -58,6 +58,11 @@ Mapterhorn republishes tiles. `probe:coverage` deliberately bypasses it: that sc
 - A SwiftShader run leaves a thermal/scheduler hangover: for several minutes afterwards
   runs crawl at a fraction of normal speed and look stuck. Before timing anything or
   declaring a run wedged, wait for the 1-minute load average to drop back to idle.
+- A full parallel run launches a browser per worker, and under machine load one of those
+  launches can hang outright. It fails at the config's 60s launch timeout rather than
+  stalling silently, but the real fix is the resident browser, which replaces the
+  per-worker launches with one shared server. A metal-mode run past ~2× its normal ~40s
+  is hung, not slow — interrupt and diagnose rather than waiting it out.
 
 ## Spike scripts
 

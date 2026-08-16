@@ -24,7 +24,11 @@ export default defineConfig({
   use: {
     baseURL: process.env.URL || `http://localhost:${PORT}/`,
     channel: gl.channel,
-    launchOptions: { args: gl.args },
+    // A warm launch takes ~2s; under machine load one of the parallel launches can hang
+    // outright, and the default 180s launch timeout stalls the whole run before failing.
+    // A minute is enough headroom for a cold first-ever launch (macOS bundle
+    // verification) while surfacing a hang while the run is still worth interrupting.
+    launchOptions: { args: gl.args, timeout: 60_000 },
     connectOptions: resident ? { wsEndpoint: resident.wsEndpoint } : undefined,
   },
   webServer: process.env.URL
