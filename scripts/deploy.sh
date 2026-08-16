@@ -32,6 +32,10 @@ export AWS_DEFAULT_REGION="de"
 echo "==> Building"
 pnpm --dir "$ROOT" build
 
+# Caching is pull-zone config, not object metadata: the S3 gateway discards uploaded
+# Cache-Control (verified — the storage origin serves none, and the CDN stamps the
+# zone's max-age on everything). The zone must carry an Edge Rule setting no-cache on
+# /index.html, or browsers hold a stale page that names chunks --delete has removed.
 echo "==> Syncing dist/ -> s3://$BUNNY_STORAGE_ZONE/"
 "${AWS[@]}" s3 sync "$ROOT/dist/" "s3://$BUNNY_STORAGE_ZONE/" \
   --endpoint-url "$ENDPOINT" \
