@@ -1,0 +1,66 @@
+DEM source is terrarium
+relief reaches the horizon (minzoom 0)
+detail=low declares the tiles at their real size
+detail=low leaves the LOD params alone
+terrain is attached
+hillshade light is anchored to the map, not the viewport
+Matterhorn elevation
+Jungfrau elevation
+Zürich HB elevation
+Lake Zürich elevation
+detail=high understates tileSize to buy a zoom level
+default detail declares the tiles at their real size
+default detail shapes the horizon with the LOD params
+Zermatt exposes over the valley and the summits
+the Netherlands at pitch exposes over the frame, not over the tiles behind it
+a coarse zoom exposes over the ground in frame, not the tiles that overhang it
+dead-flat water holds the ramp open at the floor, not wider
+the world view exposes over the whole globe
+the grey ramp is pinned to the alpine view
+the ramp follows the view down to a flat one
+auto-exposure is offered only to the ramps
+the range read-out clears when nothing is exposed
+Mapterhorn credited in the attribution control
+attribution links to mapterhorn.com
+hash carries shading=heatmap
+hash carries basemapVisible=0
+hash carries exaggeration=3.7
+hash carries autoExposure=0
+heatmap swaps in the color-relief layer
+shading checkbox removes the layer
+hash carries shadingVisible=0
+hash restores the basemap
+hash restores shading off
+hash restores exaggeration
+dark browser picks carto-dark
+panel follows the dark scheme
+light browser picks carto-light
+panel follows the light scheme
+an explicit basemap in the hash beats the browser scheme
+the frame grid finds a pivot
+the grid, not the anchor ladder, chooses it
+one surface carries the choice
+the pivot sits on the terrain surface
+a raycast point projects back onto the pixel it came from
+the pivot is marched off the DEM, not read from the coords framebuffer
+a 72 px drag turns by the rotate speed
+a 40 px drag tilts by the pitch speed
+the pivot holds its place through the turn
+letting go leaves the camera where the drag left it
+zooming out to z11 leaves the centre on the ground
+zooming out to z10 leaves the centre on the ground
+zooming out to z9 leaves the centre on the ground
+settling holds the zoom it was handed, well away from the equator
+a camera over open water keeps its centre at sea level
+#debugPivot=1 adds an overlay canvas
+the overlay draws the pivot and its grid
+the overlay does not swallow the gesture
+without the param there is no overlay
+toggle button shows on a phone
+panel starts folded on a phone
+toggle opens the panel
+toggle reports aria-expanded
+open panel stays inside the viewport
+toggle closes the panel again
+toggle button hides on desktop
+panel always open on desktop

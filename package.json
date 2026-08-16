@@ -10,12 +10,15 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "probe:coverage": "node scripts/probe-coverage.mjs",
+    "test": "playwright test",
     "verify": "node scripts/verify-app.mjs",
+    "verify:parity": "node scripts/coverage-diff.mjs diff",
     "deploy": "bash scripts/deploy.sh"
   },
   "license": "ISC",
   "packageManager": "pnpm@10.17.1",
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@types/node": "^26.2.0",
     "playwright": "^1.62.1",
     "typescript": "^7.0.2",

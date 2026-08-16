@@ -5,3 +5,4 @@ shots/
 .env*.local
 .env.deploy
 .env
+test-results/
