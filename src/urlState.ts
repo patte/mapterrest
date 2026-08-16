@@ -6,6 +6,10 @@
  * its own key and re-serialises the rest, so the two writers coexist. The
  * serialisation below mirrors MapLibre's exactly — otherwise the hash would flip
  * between encoded and decoded forms as each side writes.
+ *
+ * Bearing in the map param runs −180 to 180: `Hash._isValidHash` rejects anything
+ * outside that and drops the whole param with it, so a hand-written `225` silently
+ * loads the default camera instead.
  */
 
 export const MAP_HASH_KEY = 'map';
