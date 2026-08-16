@@ -39,6 +39,9 @@ setWorkerUrl(maplibreWorkerUrl);
 
 const BACKDROP_LAYER = 'terrain-backdrop';
 
+/** Layer ids the current style ships with `visibility: none`, captured at style.load. */
+let styleHidden = new Set<string>();
+
 /** Only until the basemap is chosen by hand — after that the choice is the user's. */
 let followsScheme = !has('basemap');
 
@@ -116,6 +119,15 @@ map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 map.on('style.load', () => {
   const basemap = BASEMAPS[basemapKey];
 
+  // What the style ships hidden stays hidden: the visibility toggle restores the style,
+  // it must not reveal layers the author turned off.
+  styleHidden = new Set(
+    map
+      .getStyle()
+      .layers.filter((l) => 'layout' in l && l.layout?.visibility === 'none')
+      .map((l) => l.id),
+  );
+
   map.addSource(DEM_SOURCE, demSource(detail));
   if (usesLodParams(detail)) {
     map.setSourceTileLodParams(MAX_ZOOM_LEVELS_ON_SCREEN, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
@@ -175,7 +187,8 @@ onSchemeChange((dark) => {
  */
 function applyBasemapVisibility(): void {
   for (const layer of map.getStyle().layers) {
-    if (layer.id === SHADING_LAYER || layer.type === 'background') continue;
+    if (layer.id === SHADING_LAYER || layer.type === 'background' || styleHidden.has(layer.id))
+      continue;
     map.setLayoutProperty(layer.id, 'visibility', basemapVisible ? 'visible' : 'none');
   }
   map.setLayoutProperty(BACKDROP_LAYER, 'visibility', basemapVisible ? 'none' : 'visible');
