@@ -1,4 +1,5 @@
 import { MapLibreMap, NavigationControl, setWorkerUrl } from 'maplibre-gl';
+import { setupAbout } from './about';
 import 'maplibre-gl/dist/maplibre-gl.css';
 // maplibre resolves its worker next to its own import.meta.url, which after
 // bundling points at our chunk rather than the package. Let vite emit it.
@@ -119,6 +120,8 @@ if (pivotEnabled) {
   pivotBox.title = '#pivot=0 hands the camera to MapLibre — there is no pivot to draw';
 }
 map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
+
+const about = setupAbout();
 
 /* Basemap & shading tiles ---------------------------------------------------- */
 
@@ -433,6 +436,7 @@ function applyHash(): void {
   setPerfDebug(readBoolean('debugPerf', false));
   setPivotDebug(readBoolean('debugPivot', false));
   tray.setForceCollapsed(readBoolean('collapsed', false));
+  about.setOpen(readBoolean('about', false));
 }
 window.addEventListener('hashchange', applyHash);
 

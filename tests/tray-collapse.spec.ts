@@ -8,9 +8,9 @@ test('the tray folds down to the settings tile on a phone', async ({ browser }) 
     isMobile: true,
   });
   await check(await phone.locator('#tray-tile').isVisible(), 'the settings tile shows on a phone');
-  await check(!(await phone.locator('#tray').isVisible()), 'the tray starts folded on a phone');
+  await check(!(await phone.locator('#card').isVisible()), 'the card starts folded on a phone');
   await phone.click('#tray-tile');
-  await check(await phone.locator('#tray').isVisible(), 'the settings tile opens the tray');
+  await check(await phone.locator('#card').isVisible(), 'the settings tile opens the tray');
   await check(
     (await phone.getAttribute('#tray-tile', 'aria-expanded')) === 'true',
     'the settings tile reports aria-expanded',
@@ -25,19 +25,20 @@ test('the tray folds down to the settings tile on a phone', async ({ browser }) 
     JSON.stringify(overflow),
   );
   await phone.click('#tray-close');
-  await check(!(await phone.locator('#tray').isVisible()), 'the X folds the tray again');
+  await check(!(await phone.locator('#card').isVisible()), 'the X folds the card again');
   await phone.close();
 });
 
 test('desktop starts expanded and the X folds it', async ({ browser }) => {
   const page = await open(browser);
-  await check(await page.locator('#tray').isVisible(), 'the tray starts open on desktop');
+  await check(await page.locator('#card').isVisible(), 'the card starts open on desktop');
   await check(!(await page.locator('#tray-tile').isVisible()), 'no settings tile while open');
   await page.click('#tray-close');
-  await check(!(await page.locator('#tray').isVisible()), 'the X folds the tray on desktop');
+  await check(!(await page.locator('#card').isVisible()), 'the X folds the card on desktop');
   await check(await page.locator('#tray-tile').isVisible(), 'folding leaves the settings tile');
+  await check(await page.locator('#about').isVisible(), 'the About pill outlives the fold');
   await page.click('#tray-tile');
-  await check(await page.locator('#tray').isVisible(), 'the settings tile brings the tray back');
+  await check(await page.locator('#card').isVisible(), 'the settings tile brings the card back');
   await page.close();
 });
 
@@ -65,7 +66,7 @@ test('a tight corner folds one of card and attribution', async ({ browser }) => 
   await check(folded, 'expanding the attribution folds the card');
   await check(await expanded(), 'the attribution stays expanded');
   await page.click('#tray-tile');
-  await check(await page.locator('#tray').isVisible(), 'reopening the card takes the corner back');
+  await check(await page.locator('#card').isVisible(), 'reopening the card takes the corner back');
   await check(!(await expanded()), 'and collapses the attribution again');
   await page.close();
 });
@@ -73,8 +74,8 @@ test('a tight corner folds one of card and attribution', async ({ browser }) => 
 test('#collapsed=1 forces the fold on desktop', async ({ browser }) => {
   const page = await open(browser, { hash: '#collapsed=1' });
   await check(await page.locator('#tray-tile').isVisible(), 'the settings tile shows when forced');
-  await check(!(await page.locator('#tray').isVisible()), 'the tray starts folded when forced');
+  await check(!(await page.locator('#card').isVisible()), 'the card starts folded when forced');
   await page.click('#tray-tile');
-  await check(await page.locator('#tray').isVisible(), 'the settings tile still opens the tray');
+  await check(await page.locator('#card').isVisible(), 'the settings tile still opens the tray');
   await page.close();
 });
