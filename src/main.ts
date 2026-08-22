@@ -284,8 +284,14 @@ slider.addEventListener('input', () => {
 
 /* Thumbnails ----------------------------------------------------------------- */
 
+/** False until a first preview has landed — empty tiles get eagerness, not patience. */
+let thumbsPrimed = false;
+
 const thumbs = createThumbnailer(map, {
-  onImage: (id, url) => tray.setImage(id, url),
+  onImage: (id, url) => {
+    thumbsPrimed = true;
+    tray.setImage(id, url);
+  },
   // Folded is not invisible: the settings tile still previews the view, so only a
   // hidden tab stops the walk.
   visible: () => !document.hidden,
@@ -338,7 +344,7 @@ function scheduleThumbs(delay = THUMB_DELAY): void {
   thumbTimer = window.setTimeout(() => {
     if (document.hidden) return;
     thumbs.refresh(thumbVariants());
-  }, delay);
+  }, thumbsPrimed ? delay : THUMB_QUICK);
 }
 // 'idle' covers every trigger there is: a camera that settles, a control that changed
 // the scene, an exposure ease that finished — each dirties the map and idles after.
