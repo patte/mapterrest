@@ -185,6 +185,15 @@ export function rayCrossing(
   return null;
 }
 
+/**
+ * Whether any DEM tile has data yet. A terrain over an empty cache answers elevation 0
+ * everywhere it is asked — a finite number, so the march cannot tell it from real ground.
+ */
+const demHasData = (map: MapLibreMap): boolean => {
+  const dem = map.terrain?.tileManager.tileManager;
+  return dem !== undefined && dem.getIds().some((id) => dem.getTileByID(id)?.dem);
+};
+
 const axisCrossing = (
   map: MapLibreMap,
   mercatorPerMetre: number,
@@ -239,7 +248,11 @@ export function applyPose(
  * camera is left exactly as it is.
  */
 export function settle(map: MapLibreMap): boolean {
-  if (!map.terrain) return false;
+  // No DEM data is no ground: a march over an empty cache would "find" the sea-level
+  // crossing of a view that is nothing but mountains and write its distance into zoom.
+  // Empty happens — a style swap re-adds the DEM source and fires 'terrain' before any
+  // tile of it has loaded.
+  if (!map.terrain || !demHasData(map)) return false;
   const tr = map._camera.transform;
   const pose: Pose = {
     camera: tr.getCameraLngLat(),

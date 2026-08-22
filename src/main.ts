@@ -118,6 +118,7 @@ map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
  */
 map.on('style.load', () => {
   const basemap = BASEMAPS[basemapKey];
+  const elevation = map._camera.transform.elevation;
 
   // What the style ships hidden stays hidden: the visibility toggle restores the style,
   // it must not reveal layers the author turned off.
@@ -133,6 +134,13 @@ map.on('style.load', () => {
     map.setSourceTileLodParams(MAX_ZOOM_LEVELS_ON_SCREEN, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
   }
   map.setTerrain({ source: DEM_SOURCE, exaggeration });
+  // setTerrain re-derives the centre's elevation from the just-added DEM source, whose
+  // cache is still empty and answers 0 — on a basemap switch that sinks the camera by
+  // the centre's height. The elevation the swap started with is still right (same DEM,
+  // same exaggeration), so it goes back. The initial load enters at 0 and skips: its
+  // elevation arrives per terrain tile (cameraAnchor), and a jumpTo here would fire a
+  // moveend that ends that regime early.
+  if (map._camera.transform.elevation !== elevation) map.jumpTo({ elevation });
   map.setSky(basemap.sky);
 
   // Above the style's own background, so it covers it once the basemap goes.
