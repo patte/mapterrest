@@ -42,14 +42,15 @@ which levers exist and what each costs.
 
 ## Controls
 
-A tray in the lower left, folding behind a chip under 640 px (or anywhere with
-`#collapsed=1`): a row of basemap tiles under a row of shading tiles (hillshade,
-elevation heatmap or grey heightmap), stacked the way the layers render, each row led
-by a "none" tile that hides its layer. Once the camera settles, a hidden mini map
-re-renders every tile into a live preview of what switching to it would show. Above
-them: terrain exaggeration (0–10×, true heights by default), auto-exposure, and the
-debug overlays. The basemap follows `prefers-color-scheme` until one is picked by
-hand. Auto-exposure pins the colour ramps to the elevations in view —
+A stepped card in the lower left: a row of basemap tiles under a row of shading tiles
+(hillshade, elevation heatmap or grey heightmap), stacked the way the layers render,
+each row led by a "none" tile that hides its layer. Once the camera settles, a hidden
+mini map re-renders every tile into a live preview of what switching to it would show.
+Above them: terrain exaggeration (0–10×, true heights by default), auto-exposure, and
+the debug overlays. An X folds the whole card down to a single settings tile that
+previews the current view; narrow screens and `#collapsed=1` start folded. The basemap
+follows `prefers-color-scheme` until one is picked by hand. Auto-exposure pins the
+colour ramps to the elevations in view —
 [docs/exposure.md](docs/exposure.md) — and shift+drag orbits the terrain in the frame —
 [docs/camera.md](docs/camera.md).
 
