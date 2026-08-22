@@ -80,10 +80,15 @@
       #tray-top {
         padding-right: 40px;
       }
-      #shading-card {
+      #shading-card,
+      #basemap-card {
         display: flex;
         flex-direction: column;
         gap: 6px;
+      }
+      .title {
+        margin: 0;
+        color: var(--panel-muted);
       }
       /* Wrapped to the shading row's width, the whole card stays one rectangle. */
       #basemap-thumbs {
@@ -380,14 +385,16 @@
           </button>
         </div>
         <div id="shading-card">
-          <div id="shading-thumbs" class="thumbs" role="group" aria-label="shading"></div>
+          <p class="title">overlays</p>
+          <div id="shading-thumbs" class="thumbs" role="group" aria-label="overlays"></div>
           <div class="row" id="auto-exposure-row">
             <input id="auto-exposure" type="checkbox" />
             <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
           </div>
         </div>
         <div id="basemap-card">
-          <div id="basemap-thumbs" class="thumbs" role="group" aria-label="basemap"></div>
+          <p class="title">basemaps</p>
+          <div id="basemap-thumbs" class="thumbs" role="group" aria-label="basemaps"></div>
         </div>
       </div>
     </div>
