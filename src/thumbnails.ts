@@ -107,10 +107,20 @@ export function createThumbnailer(
   const RETRY_DELAY = 15_000;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /**
+   * What each tile currently shows, as spec + camera. A variant whose every tile
+   * already shows exactly this render is skipped whole — a basemap switch re-renders
+   * the overlay row and the tiles that carry the chosen basemap, never the other
+   * basemaps, and a settle that changed nothing renders nothing.
+   */
+  const rendered = new Map<string, string>();
+
   async function walk(gen: number, variants: ThumbVariant[], retriesLeft: number): Promise<void> {
     ensure(variants[0].spec);
+    const center = main.getCenter();
+    const camera = [center.lng, center.lat, main.getZoom(), main.getPitch(), main.getBearing()];
     mini!.jumpTo({
-      center: main.getCenter(),
+      center,
       zoom: main.getZoom() - ZOOM_OUT,
       pitch: main.getPitch(),
       bearing: main.getBearing(),
@@ -118,6 +128,8 @@ export function createThumbnailer(
     let failed = 0;
     for (const variant of variants) {
       if (gen !== generation || !opts.visible()) return;
+      const key = JSON.stringify([variant.spec, camera]);
+      if (variant.ids.every((id) => rendered.get(id) === key)) continue;
       try {
         // setStyle fetches the incoming style before anything observable changes, and
         // until then the map still reports the old style loaded and idle — a settle
@@ -137,7 +149,10 @@ export function createThumbnailer(
           continue;
         }
         const url = mini!.getCanvas().toDataURL();
-        for (const id of variant.ids) opts.onImage(id, url);
+        for (const id of variant.ids) {
+          opts.onImage(id, url);
+          rendered.set(id, key);
+        }
       } catch {
         // A variant can land on a mini map whose last style never finished (a timed-out
         // tile server, an aborted walk) and MapLibre throws on the swap. That costs the
