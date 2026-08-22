@@ -8,10 +8,11 @@ test('#debugPivot=1 draws a non-interactive overlay', async ({ browser }) => {
   });
   await settled(debug, 500);
   const overlay = await debug.evaluate(() => {
+    // Scoped to #map: the thumbnailer keeps its own maplibre canvas offscreen.
     const canvas = document.querySelector<HTMLCanvasElement>(
-      '.maplibregl-canvas-container canvas:last-child',
+      '#map .maplibregl-canvas-container canvas:last-child',
     );
-    if (!canvas || canvas === document.querySelector('.maplibregl-canvas')) return null;
+    if (!canvas || canvas === document.querySelector('#map .maplibregl-canvas')) return null;
     const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
     let drawn = 0;
     for (let i = 3; i < data.length; i += 4) if (data[i] > 0) drawn++;
@@ -27,7 +28,7 @@ test('without the param there is no overlay', async ({ browser }) => {
   const plain = await open(browser, { viewport: { width: 400, height: 300 } });
   await check(
     await plain.evaluate(
-      () => document.querySelectorAll('.maplibregl-canvas-container canvas').length === 1,
+      () => document.querySelectorAll('#map .maplibregl-canvas-container canvas').length === 1,
     ),
     'without the param there is no overlay',
   );

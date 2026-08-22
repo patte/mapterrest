@@ -102,9 +102,13 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
     });
   }
 
+  /** The centre's elevation as a basemap swap began, to put back once terrain returns. */
+  let swapElevation: number | null = null;
+
   const onStyleLoad = (): void => {
     const basemap = BASEMAPS[spec.basemap];
-    const elevation = map._camera.transform.elevation;
+    const elevation = swapElevation ?? map._camera.transform.elevation;
+    swapElevation = null;
 
     // What the style ships hidden stays hidden: the visibility toggle restores the style,
     // it must not reveal layers the author turned off.
@@ -145,7 +149,14 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
       const prev = spec;
       spec = { ...spec, ...partial };
       if (spec.basemap !== prev.basemap) {
-        // style.load re-applies the whole spec over the incoming style.
+        // The old terrain must not draw over the incoming style: the painter's depth
+        // pass reads style.projection, which the fresh style has not resolved yet, and
+        // every frame until it does throws. style.load re-attaches the terrain along
+        // with the rest of the spec, and the elevation goes back with it.
+        if (map.getTerrain()) {
+          swapElevation = map._camera.transform.elevation;
+          map.setTerrain(null);
+        }
         map.setStyle(BASEMAPS[spec.basemap].url);
         return;
       }

@@ -42,9 +42,13 @@ which levers exist and what each costs.
 
 ## Controls
 
-One panel, collapsing behind a button under 640 px: basemap, shading (hillshade,
-elevation heatmap or grey heightmap), auto-exposure, terrain exaggeration (0–10×, true
-heights by default). The basemap follows `prefers-color-scheme` until one is picked by
+A tray in the lower left, folding behind a chip under 640 px (or anywhere with
+`#collapsed=1`): a row of basemap tiles under a row of shading tiles (hillshade,
+elevation heatmap or grey heightmap), stacked the way the layers render, each row led
+by a "none" tile that hides its layer. Once the camera settles, a hidden mini map
+re-renders every tile into a live preview of what switching to it would show. Above
+them: terrain exaggeration (0–10×, true heights by default), auto-exposure, and the
+debug overlays. The basemap follows `prefers-color-scheme` until one is picked by
 hand. Auto-exposure pins the colour ramps to the elevations in view —
 [docs/exposure.md](docs/exposure.md) — and shift+drag orbits the terrain in the frame —
 [docs/camera.md](docs/camera.md).
@@ -62,8 +66,8 @@ Camera and every control live in the location hash, so a reload restores the vie
 #map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&autoExposure=0&exaggeration=3.7
 ```
 
-`detail=`, `debugPivot=`, `debugPerf=` and `pivot=` join them; everything else is
-written back as it changes. Hand-editing the hash applies live — except `detail=` and
+`detail=`, `debugPivot=`, `debugPerf=`, `pivot=` and `collapsed=` join them; everything
+else is written back as it changes. Hand-editing the hash applies live — except `detail=` and
 `pivot=`, construction-time choices that reload the page.
 
 ## Docs

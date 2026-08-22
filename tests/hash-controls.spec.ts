@@ -64,9 +64,10 @@ test('an edited hash applies without a reload', async ({ browser }) => {
     await page.evaluate(() => Math.abs(window.map.getTerrain().exaggeration - 2.5) < 1e-6),
     'an edited exaggeration applies live',
   );
+  // Scoped to #map: the thumbnailer keeps its own maplibre canvas offscreen.
   await check(
     await page.evaluate(
-      () => document.querySelectorAll('.maplibregl-canvas-container canvas').length === 2,
+      () => document.querySelectorAll('#map .maplibregl-canvas-container canvas').length === 2,
     ),
     'debugPivot=1 adds the overlay live',
   );
@@ -77,7 +78,7 @@ test('an edited hash applies without a reload', async ({ browser }) => {
   await page.waitForTimeout(200);
   await check(
     await page.evaluate(
-      () => document.querySelectorAll('.maplibregl-canvas-container canvas').length === 1,
+      () => document.querySelectorAll('#map .maplibregl-canvas-container canvas').length === 1,
     ),
     'debugPivot=0 removes it again',
   );

@@ -5,8 +5,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, type BasemapKey } from './basemaps';
 import { DEFAULT_SHADING, isRamp, SHADING_KEYS, type ShadingKey } from './shading';
-import { attachScene } from './scene';
-import { createTray } from './tray';
+import { attachScene, type SceneSpec } from './scene';
+import { createThumbnailer, type ThumbVariant } from './thumbnails';
+import { createTray, tileId } from './tray';
 import { enableCameraAnchor } from './cameraAnchor';
 import { trackExposure, visibleRange, type Range } from './exposure';
 import { choosePivot, projectPoint } from './pivot';
@@ -279,6 +280,59 @@ slider.addEventListener('input', () => {
   window.clearTimeout(writeTimer);
   writeTimer = window.setTimeout(() => write('exaggeration', exaggeration), 300);
 });
+
+/* Thumbnails ----------------------------------------------------------------- */
+
+const thumbs = createThumbnailer(map, {
+  onImage: (id, url) => tray.setImage(id, url),
+  visible: () => tray.visible() && !document.hidden,
+});
+
+/**
+ * Every tile as a SceneSpec against the current selection: the shading row over the
+ * current basemap, the basemap row under the current shading. Identical specs — the
+ * selected pair sits in both rows — render once and land on every tile sharing them.
+ * Ramp previews freeze the exposure the main view would give them, measured once here
+ * rather than tracked while the walk runs.
+ */
+function thumbVariants(): ThumbVariant[] {
+  const current = scene.spec();
+  const frozen = autoExposure ? (exposure ?? visibleRange(map, DEM_SOURCE)) : null;
+  const forRamp = (key: ShadingKey): Range | null => (isRamp(key) ? frozen : null);
+  const variants = new Map<string, ThumbVariant>();
+  const add = (id: string, spec: SceneSpec): void => {
+    const key = JSON.stringify(spec);
+    const seen = variants.get(key);
+    if (seen) seen.ids.push(id);
+    else variants.set(key, { ids: [id], spec });
+  };
+  // The shading row first: it shares the mini map's current style, so the whole row is
+  // layer swaps before the basemap row starts paying a setStyle per tile.
+  add(tileId('s', null), { ...current, shadingVisible: false, exposure: null });
+  for (const key of SHADING_KEYS) {
+    add(tileId('s', key), { ...current, shading: key, shadingVisible: true, exposure: forRamp(key) });
+  }
+  const shownRamp = current.shadingVisible ? forRamp(current.shading) : null;
+  add(tileId('b', null), { ...current, basemapVisible: false, exposure: shownRamp });
+  for (const key of BASEMAP_KEYS) {
+    add(tileId('b', key), { ...current, basemap: key, basemapVisible: true, exposure: shownRamp });
+  }
+  return [...variants.values()];
+}
+
+let thumbTimer: number | undefined;
+function scheduleThumbs(): void {
+  window.clearTimeout(thumbTimer);
+  thumbTimer = window.setTimeout(() => {
+    if (!tray.visible() || document.hidden) return;
+    thumbs.refresh(thumbVariants());
+  }, 200);
+}
+// 'idle' covers every trigger there is: a camera that settles, a control that changed
+// the scene, an exposure ease that finished — each dirties the map and idles after.
+map.on('idle', scheduleThumbs);
+tray.onVisibleChange(scheduleThumbs);
+document.addEventListener('visibilitychange', scheduleThumbs);
 
 /* Hash edits ---------------------------------------------------------------- */
 
