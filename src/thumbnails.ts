@@ -25,6 +25,8 @@ const SETTLE_TIMEOUT = 8000;
 export type Thumbnailer = {
   /** Re-renders every variant at the main camera, replacing any walk still running. */
   refresh(variants: ThumbVariant[]): void;
+  /** Retires the running walk and any pending retry without starting a new one. */
+  cancel(): void;
   destroy(): void;
 };
 
@@ -100,7 +102,12 @@ export function createThumbnailer(
       mini!.once('style.load', onLoad);
     });
 
-  async function walk(gen: number, variants: ThumbVariant[]): Promise<void> {
+  /** A walk that lost variants to timeouts re-runs once this much later, unless
+   * something newer has superseded it — stale thumbs heal without the camera moving. */
+  const RETRY_DELAY = 15_000;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+  async function walk(gen: number, variants: ThumbVariant[], retriesLeft: number): Promise<void> {
     ensure(variants[0].spec);
     mini!.jumpTo({
       center: main.getCenter(),
@@ -108,21 +115,43 @@ export function createThumbnailer(
       pitch: main.getPitch(),
       bearing: main.getBearing(),
     });
+    let failed = 0;
     for (const variant of variants) {
       if (gen !== generation || !opts.visible()) return;
-      // setStyle fetches the incoming style before anything observable changes, and
-      // until then the map still reports the old style loaded and idle — a settle
-      // started right away can pass against the outgoing state and snapshot the seam.
-      // Listen for the swap first, before set() so a fast one cannot slip past.
-      const swapping = scene!.spec().basemap !== variant.spec.basemap;
-      const swapped = swapping ? styleSwapWithin() : null;
-      scene!.set(variant.spec);
-      if (swapped && !(await swapped)) continue;
-      const settled = await settle();
-      if (gen !== generation) return;
-      if (!settled) continue;
-      const url = mini!.getCanvas().toDataURL();
-      for (const id of variant.ids) opts.onImage(id, url);
+      try {
+        // setStyle fetches the incoming style before anything observable changes, and
+        // until then the map still reports the old style loaded and idle — a settle
+        // started right away can pass against the outgoing state and snapshot the seam.
+        // Listen for the swap first, before set() so a fast one cannot slip past.
+        const swapping = scene!.spec().basemap !== variant.spec.basemap;
+        const swapped = swapping ? styleSwapWithin() : null;
+        scene!.set(variant.spec);
+        if (swapped && !(await swapped)) {
+          failed++;
+          continue;
+        }
+        const settled = await settle();
+        if (gen !== generation) return;
+        if (!settled) {
+          failed++;
+          continue;
+        }
+        const url = mini!.getCanvas().toDataURL();
+        for (const id of variant.ids) opts.onImage(id, url);
+      } catch {
+        // A variant can land on a mini map whose last style never finished (a timed-out
+        // tile server, an aborted walk) and MapLibre throws on the swap. That costs the
+        // variant its refresh, never the walk — and never the queue behind it.
+        failed++;
+      }
+    }
+    // Once, not until it works: a downed tile server is not worth polling forever,
+    // and the next camera settle refreshes everything anyway.
+    if (failed > 0 && retriesLeft > 0 && gen === generation) {
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(() => {
+        if (gen === generation) start(gen, variants, retriesLeft - 1);
+      }, RETRY_DELAY);
     }
   }
 
@@ -130,17 +159,29 @@ export function createThumbnailer(
    * Walks never overlap: a swap of the mini map's style while the last one is still
    * loading races MapLibre's own render loop. A refresh retires the running walk via
    * the generation and queues behind its current variant — at most one settle away.
+   * The catch keeps the chain alive whatever a walk dies of: a rejected link would
+   * silently swallow every refresh after it.
    */
   let queue: Promise<void> = Promise.resolve();
+  function start(gen: number, variants: ThumbVariant[], retriesLeft: number): void {
+    queue = queue.then(() =>
+      gen === generation ? walk(gen, variants, retriesLeft).catch(() => {}) : undefined,
+    );
+  }
 
   return {
     refresh(variants: ThumbVariant[]): void {
       if (variants.length === 0) return;
-      const gen = ++generation;
-      queue = queue.then(() => (gen === generation ? walk(gen, variants) : undefined));
+      clearTimeout(retryTimer);
+      start(++generation, variants, 1);
+    },
+    cancel(): void {
+      generation++;
+      clearTimeout(retryTimer);
     },
     destroy(): void {
       generation++;
+      clearTimeout(retryTimer);
       scene?.destroy();
       mini?.remove();
       container?.remove();

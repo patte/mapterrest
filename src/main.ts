@@ -327,19 +327,30 @@ function thumbVariants(): ThumbVariant[] {
   return [...variants.values()];
 }
 
+/** Seconds of stillness after the map settles before the walk spends anything. */
+const THUMB_DELAY = 3000;
+/** Opening the tray or returning to the tab asks for previews, not for patience. */
+const THUMB_QUICK = 250;
+
 let thumbTimer: number | undefined;
-function scheduleThumbs(): void {
+function scheduleThumbs(delay = THUMB_DELAY): void {
   window.clearTimeout(thumbTimer);
   thumbTimer = window.setTimeout(() => {
     if (document.hidden) return;
     thumbs.refresh(thumbVariants());
-  }, 200);
+  }, delay);
 }
 // 'idle' covers every trigger there is: a camera that settles, a control that changed
 // the scene, an exposure ease that finished — each dirties the map and idles after.
-map.on('idle', scheduleThumbs);
-tray.onOpenChange(scheduleThumbs);
-document.addEventListener('visibilitychange', scheduleThumbs);
+map.on('idle', () => scheduleThumbs());
+// A moving camera takes it all back: the pending refresh, the walk in flight, the
+// retry — nothing renders or fetches against a view that is already gone.
+map.on('movestart', () => {
+  window.clearTimeout(thumbTimer);
+  thumbs.cancel();
+});
+tray.onOpenChange(() => scheduleThumbs(THUMB_QUICK));
+document.addEventListener('visibilitychange', () => scheduleThumbs(THUMB_QUICK));
 
 /* Hash edits ---------------------------------------------------------------- */
 
