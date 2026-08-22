@@ -257,7 +257,11 @@ export function trackExposure(
     frame = 0;
     if (!current || !target) return;
     const now = performance.now();
-    const dt = Math.min((now - last) / 1000, 0.1);
+    // dt as elapsed, never clamped: the exponential ease is stable for any step, and a
+    // capped dt breaks its time-correctness exactly where frames run long — software GL
+    // renders near a second a frame, and a dt held to 0.1 stretches the quarter-second
+    // glide into minutes of ramp repaints, each holding the map's loaded() false.
+    const dt = (now - last) / 1000;
     last = now;
 
     if (gap(current, target) <= SETTLED) {
