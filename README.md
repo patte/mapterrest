@@ -79,6 +79,7 @@ else is written back as it changes. Hand-editing the hash applies live — excep
 | [docs/lod.md](docs/lod.md) | Terrain LOD: the `tileSize` lever, the horizon params, the detail levels |
 | [docs/exposure.md](docs/exposure.md) | Auto-exposure: what counts as visible, and the hillshade light |
 | [docs/camera.md](docs/camera.md) | The orbit pivot, the raycast, and how the camera is anchored |
+| [docs/thumbnails.md](docs/thumbnails.md) | Live previews: the scene spec, the hidden mini map's walk, the refresh policy |
 
 ## Scripts
 
