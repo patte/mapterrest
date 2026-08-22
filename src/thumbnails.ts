@@ -60,6 +60,7 @@ export function createThumbnailer(
       canvasContextAttributes: { preserveDrawingBuffer: true },
     });
     scene = attachScene(mini, spec, 'low');
+    if (import.meta.env.DEV) Object.assign(window, { __mini: mini, __miniScene: scene });
   }
 
   /** Resolves true on 'idle', false when the timeout wins; either way the walk moves on. */
@@ -70,12 +71,33 @@ export function createThumbnailer(
         resolve(false);
       }, SETTLE_TIMEOUT);
       const onIdle = (): void => {
+        // 'idle' can fire in the seam of a style swap, before the incoming style has
+        // asked for its tiles — a snapshot there is a navy void with a few labels.
+        if (!mini!.isStyleLoaded() || !mini!.areTilesLoaded()) {
+          mini!.once('idle', onIdle);
+          mini!.triggerRepaint();
+          return;
+        }
         clearTimeout(timer);
         resolve(true);
       };
       mini!.once('idle', onIdle);
       // A map already idle fires no event on its own; one forced frame re-raises it.
       mini!.triggerRepaint();
+    });
+
+  /** Resolves true when the next style.load fires within the settle budget. */
+  const styleSwapWithin = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        mini!.off('style.load', onLoad);
+        resolve(false);
+      }, SETTLE_TIMEOUT);
+      const onLoad = (): void => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+      mini!.once('style.load', onLoad);
     });
 
   async function walk(gen: number, variants: ThumbVariant[]): Promise<void> {
@@ -88,7 +110,14 @@ export function createThumbnailer(
     });
     for (const variant of variants) {
       if (gen !== generation || !opts.visible()) return;
+      // setStyle fetches the incoming style before anything observable changes, and
+      // until then the map still reports the old style loaded and idle — a settle
+      // started right away can pass against the outgoing state and snapshot the seam.
+      // Listen for the swap first, before set() so a fast one cannot slip past.
+      const swapping = scene!.spec().basemap !== variant.spec.basemap;
+      const swapped = swapping ? styleSwapWithin() : null;
       scene!.set(variant.spec);
+      if (swapped && !(await swapped)) continue;
       const settled = await settle();
       if (gen !== generation) return;
       if (!settled) continue;
