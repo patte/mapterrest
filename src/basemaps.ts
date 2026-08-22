@@ -99,11 +99,11 @@ const maptiler = (style: string) =>
 export const BASEMAPS = {
   'carto-dark': { label: 'CARTO DataViz Dark', short: 'Carto Dark', url: carto('dark-matter'), ...NIGHT },
   'carto-light': { label: 'CARTO DataViz Light', short: 'Carto Light', url: carto('positron'), ...DAY },
-  liberty: { label: 'OpenFreeMap Liberty', short: 'Liberty', url: openFreeMap('liberty'), ...WARM_DAY },
-  'ofm-bright': { label: 'OpenFreeMap Bright', short: 'Bright', url: openFreeMap('bright'), ...WARM_DAY },
-  'ofm-positron': { label: 'OpenFreeMap Positron', short: 'Positron', url: openFreeMap('positron'), ...DAY },
+  liberty: { label: 'OpenFreeMap Liberty', short: 'OFM Liberty', url: openFreeMap('liberty'), ...WARM_DAY },
+  'ofm-bright': { label: 'OpenFreeMap Bright', short: 'OFM Bright', url: openFreeMap('bright'), ...WARM_DAY },
+  'ofm-positron': { label: 'OpenFreeMap Positron', short: 'OFM Positron', url: openFreeMap('positron'), ...DAY },
   'ofm-dark': { label: 'OpenFreeMap Dark', short: 'OFM Dark', url: openFreeMap('dark'), ...NIGHT },
-  satellite: { label: 'MapTiler Satellite Hybrid', short: 'Satellite', url: maptiler('hybrid-v4'), ...SATELLITE },
+  satellite: { label: 'MapTiler Satellite Hybrid', short: 'MapTiler Satellite', url: maptiler('hybrid-v4'), ...SATELLITE },
 } satisfies Record<string, Basemap>;
 
 export type BasemapKey = keyof typeof BASEMAPS;
