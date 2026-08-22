@@ -55,11 +55,11 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
     img.alt = '';
     preview.appendChild(img);
     if (id.endsWith(':none')) preview.insertAdjacentHTML('beforeend', SLASH);
-    button.appendChild(preview);
     const text = document.createElement('span');
     text.className = 'caption';
     text.textContent = caption;
-    button.appendChild(text);
+    preview.appendChild(text);
+    button.appendChild(preview);
     button.addEventListener('click', onClick);
     tiles.set(id, button);
     images.set(id, img);

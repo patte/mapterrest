@@ -7,6 +7,8 @@
     <style>
       :root {
         color-scheme: light;
+        --tile: 96px;
+        --tile-gap: 8px;
         --panel-bg: rgba(255, 255, 255, 0.92);
         --panel-fg: #111;
         --panel-muted: #555;
@@ -36,7 +38,8 @@
       }
 
       /* The tray: exaggeration and extras on top, then shading, then basemap — the rows
-         stack the way the layers render, the thing painted on top sits on top. */
+         stack the way the layers render, the thing painted on top sits on top. Only the
+         top row is a card; the tiles carry their own labels and float on the map. */
       #tray {
         position: absolute;
         bottom: calc(var(--edge) + env(safe-area-inset-bottom));
@@ -44,18 +47,36 @@
         z-index: 1;
         display: flex;
         flex-direction: column;
-        gap: 9px;
-        background: var(--panel-bg);
+        align-items: flex-start;
+        gap: 8px;
         color: var(--panel-fg);
-        backdrop-filter: blur(8px);
-        border-radius: 12px;
-        padding: 10px 12px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
         font-size: 12px;
         line-height: 1.4;
         max-width: calc(
           100vw - 2 * var(--edge) - env(safe-area-inset-left) - env(safe-area-inset-right)
         );
+        /* The tray's box is mostly open air over the map — only its visible pieces catch
+           the pointer, so drags that start in the gaps still reach the map. */
+        pointer-events: none;
+      }
+      #tray .card,
+      #tray .thumbs,
+      #shading-card .row {
+        pointer-events: auto;
+      }
+      .card {
+        box-sizing: border-box;
+        max-width: 100%;
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        border-radius: 12px;
+        padding: 10px 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+      }
+      #shading-card {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
       }
       #tray label {
         color: var(--panel-muted);
@@ -64,9 +85,6 @@
         display: flex;
         flex-direction: column;
         gap: 6px;
-      }
-      .thumbs + .row {
-        margin-top: 6px;
       }
       .row {
         display: flex;
@@ -91,46 +109,62 @@
         font-variant-numeric: tabular-nums;
       }
       input[type='range'] {
-        flex: 1;
-        min-width: 60px;
+        width: 200px;
         margin: 0;
       }
       #exaggeration-value {
         font-variant-numeric: tabular-nums;
         min-width: 34px;
       }
-      .sep {
-        width: 1px;
-        align-self: stretch;
-        background: var(--panel-border);
-        margin: 0 4px;
+      .row .name {
+        color: var(--panel-muted);
+      }
+      /* Only the ramps take an exposure, so the pill appears when one is shown and
+         starts under the first of them (heatmap). */
+      #shading-card .row {
+        margin-left: calc(2 * (var(--tile) + var(--tile-gap)));
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        border-radius: 999px;
+        padding: 4px 12px;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+        width: fit-content;
+      }
+      /* Gone but not collapsed: the row keeps its height so the tray never jumps as
+         the selection moves between ramps and hillshade. */
+      #shading-card .row[hidden] {
+        display: flex;
+        visibility: hidden;
       }
 
       .thumbs {
         display: flex;
-        gap: 8px;
+        gap: var(--tile-gap);
         overflow-x: auto;
-        /* Room for the selection ring, which sits just outside the preview square. */
-        padding: 2px;
+        /* Sized to its tiles, not the tray: the strip catches the pointer, so it must
+           not stretch past what it shows. */
+        width: fit-content;
+        max-width: 100%;
+        /* The scroll box clips at its padding edge, so the tiles' shadows need space
+           inside it: padding opens the room and the negative margin hands the same
+           room back to the layout, leaving the tiles where they were. */
+        padding: 4px 4px 14px;
+        margin: -4px -4px -14px;
       }
       .tile {
         flex: none;
-        width: 96px;
+        width: var(--tile);
         padding: 0;
         border: none;
         background: none;
         color: var(--panel-muted);
         cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 3px;
         font: inherit;
       }
       .tile .preview {
         position: relative;
-        width: 96px;
-        height: 96px;
+        width: var(--tile);
+        height: var(--tile);
         border: 1px solid var(--panel-border);
         border-radius: 8px;
         background: var(--control-bg);
@@ -138,6 +172,9 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        /* Floating on the map, the shadow is what separates a light tile from light
+           terrain behind it. */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
       }
       .tile img {
         position: absolute;
@@ -156,27 +193,47 @@
         height: 24px;
         filter: drop-shadow(0 0 2px var(--control-bg));
       }
+      /* The label lives on the tile itself, on a scrim the preview shows through — dark
+         with white text whichever theme, since the preview underneath is a map, not
+         chrome. */
       .tile .caption {
-        max-width: 100%;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 12px 5px 3px;
+        background: linear-gradient(transparent, rgba(0, 0, 0, 0.62));
+        color: #fff;
         font-size: 10px;
-        line-height: 1.2;
+        line-height: 1.3;
+        text-align: center;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      /* Selection has to read at a glance over any preview: a fat ring hugging the
+         square (the strip's padding gives it clip room) and the caption bar going
+         solid accent. */
       .tile[aria-pressed='true'] .preview {
-        outline: 2px solid var(--accent);
-        outline-offset: 1px;
         border-color: var(--accent);
+        outline: 3px solid var(--accent);
+        outline-offset: -1px;
       }
       .tile[aria-pressed='true'] .caption {
-        color: var(--accent);
+        font-weight: 600;
       }
 
+      /* A gesture tip, not a control: it floats over the map as a pill above the cards. */
       #hint {
         margin: 0;
+        width: fit-content;
         color: var(--panel-muted);
         font-size: 12px;
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        border-radius: 999px;
+        padding: 3px 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
       }
       /* Shift+drag is a mouse gesture; on touch the hint is noise. */
       @media (hover: none) {
@@ -272,22 +329,24 @@
     </button>
 
     <div id="tray">
-      <div id="tray-top">
+      <p id="hint"><kbd>Shift</kbd> + drag to rotate and tilt</p>
+      <div class="card" id="tray-top">
         <div class="row">
           <label for="exaggeration">exaggeration</label>
           <input id="exaggeration" type="range" min="0" max="10" step="0.1" value="1" />
           <span id="exaggeration-value">1.0×</span>
-          <span class="sep"></span>
+        </div>
+        <div class="row">
+          <span class="name">debug</span>
           <input id="debug-perf" type="checkbox" />
           <label for="debug-perf" title="frame-cost overlay">perf</label>
           <input id="debug-pivot" type="checkbox" />
           <label for="debug-pivot" title="pivot and grid overlay">pivot</label>
         </div>
-        <p id="hint"><kbd>Shift</kbd> + drag to rotate and tilt</p>
       </div>
-      <div>
+      <div id="shading-card">
         <div id="shading-thumbs" class="thumbs" role="group" aria-label="shading"></div>
-        <div class="row">
+        <div class="row" id="auto-exposure-row">
           <input id="auto-exposure" type="checkbox" />
           <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
         </div>

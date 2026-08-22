@@ -206,6 +206,7 @@ function setShadingVisible(on: boolean): void {
 /* Auto-exposure ------------------------------------------------------------- */
 
 const exposureBox = document.getElementById('auto-exposure') as HTMLInputElement;
+const exposureRow = exposureBox.parentElement as HTMLElement;
 const exposureRange = document.getElementById('exposure-range')!;
 
 /** The range the ramp is currently pinned to, or null while it spans its own metres. */
@@ -218,10 +219,10 @@ let stopTracking: (() => void) | null = null;
  */
 function applyExposure(): void {
   const wanted = autoExposure && shadingVisible && isRamp(shadingKey);
-  exposureBox.disabled = !isRamp(shadingKey);
-  exposureBox.title = isRamp(shadingKey)
-    ? 'spread the ramp over the elevations in view'
-    : 'hillshade reads slope, not height';
+  // The pill shows only while a ramp is on screen — for hillshade or no shading there
+  // is no exposure to offer, so the row disappears rather than sitting greyed out.
+  exposureRow.hidden = !(shadingVisible && isRamp(shadingKey));
+  exposureBox.title = 'spread the ramp over the elevations in view';
 
   if (wanted && !stopTracking) {
     stopTracking = trackExposure(map, DEM_SOURCE, (range) => {
