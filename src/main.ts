@@ -4,16 +4,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // bundling points at our chunk rather than the package. Let vite emit it.
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, type BasemapKey } from './basemaps';
-import {
-  DEFAULT_SHADING,
-  isRamp,
-  rampColor,
-  SHADINGS,
-  SHADING_KEYS,
-  SHADING_LAYER,
-  shadingLayer,
-  type ShadingKey,
-} from './shading';
+import { DEFAULT_SHADING, isRamp, SHADINGS, SHADING_KEYS, type ShadingKey } from './shading';
+import { attachScene } from './scene';
 import { enableCameraAnchor } from './cameraAnchor';
 import { trackExposure, visibleRange, type Range } from './exposure';
 import { choosePivot, projectPoint } from './pivot';
@@ -26,21 +18,12 @@ import {
   DEFAULT_EXAGGERATION,
   DEM_SOURCE,
   DETAIL_LEVELS,
-  demSource,
   MAX_EXAGGERATION,
-  MAX_ZOOM_LEVELS_ON_SCREEN,
-  TILE_COUNT_MAX_MIN_RATIO,
-  usesLodParams,
   type Detail,
 } from './terrain';
 import { has, MAP_HASH_KEY, readBoolean, readNumber, readString, write } from './urlState';
 
 setWorkerUrl(maplibreWorkerUrl);
-
-const BACKDROP_LAYER = 'terrain-backdrop';
-
-/** Layer ids the current style ships with `visibility: none`, captured at style.load. */
-let styleHidden = new Set<string>();
 
 /** Only until the basemap is chosen by hand — after that the choice is the user's. */
 let followsScheme = !has('basemap');
@@ -78,6 +61,12 @@ const map = new MapLibreMap({
   hash: MAP_HASH_KEY,
 });
 
+const scene = attachScene(
+  map,
+  { basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible, exposure: null, exaggeration },
+  detail,
+);
+
 if (import.meta.env.DEV) Object.assign(window, { map, choosePivot, projectPoint, visibleRange });
 
 // Independent of the pivot: what a frame costs is a question about the map itself.
@@ -111,50 +100,6 @@ if (pivotEnabled) {
 }
 map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 
-/**
- * setStyle() replaces sources, layers, terrain and sky wholesale, so everything the
- * terrain contributes is re-attached here. `style.load` fires on the initial load and
- * on every subsequent style change.
- */
-map.on('style.load', () => {
-  const basemap = BASEMAPS[basemapKey];
-  const elevation = map._camera.transform.elevation;
-
-  // What the style ships hidden stays hidden: the visibility toggle restores the style,
-  // it must not reveal layers the author turned off.
-  styleHidden = new Set(
-    map
-      .getStyle()
-      .layers.filter((l) => 'layout' in l && l.layout?.visibility === 'none')
-      .map((l) => l.id),
-  );
-
-  map.addSource(DEM_SOURCE, demSource(detail));
-  if (usesLodParams(detail)) {
-    map.setSourceTileLodParams(MAX_ZOOM_LEVELS_ON_SCREEN, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
-  }
-  map.setTerrain({ source: DEM_SOURCE, exaggeration });
-  // setTerrain re-derives the centre's elevation from the just-added DEM source, whose
-  // cache is still empty and answers 0 — on a basemap switch that sinks the camera by
-  // the centre's height. The elevation the swap started with is still right (same DEM,
-  // same exaggeration), so it goes back. The initial load enters at 0 and skips: its
-  // elevation arrives per terrain tile (cameraAnchor), and a jumpTo here would fire a
-  // moveend that ends that regime early.
-  if (map._camera.transform.elevation !== elevation) map.jumpTo({ elevation });
-  map.setSky(basemap.sky);
-
-  // Above the style's own background, so it covers it once the basemap goes.
-  map.addLayer(
-    { id: BACKDROP_LAYER, type: 'background', paint: { 'background-color': basemap.backdrop } },
-    map.getStyle().layers[1]?.id,
-  );
-
-  // Exposure first, so the ramp is built pinned to the view rather than repainted after.
-  applyExposure();
-  applyShading();
-  applyBasemapVisibility();
-});
-
 /* Basemap ------------------------------------------------------------------ */
 
 const picker = document.getElementById('basemap') as HTMLSelectElement;
@@ -172,7 +117,7 @@ function setBasemap(key: BasemapKey): void {
   basemapKey = key;
   picker.value = key;
   applyChrome();
-  map.setStyle(BASEMAPS[key].url);
+  scene.set({ basemap: key });
 }
 
 picker.addEventListener('change', () => {
@@ -187,41 +132,15 @@ onSchemeChange((dark) => {
   else applyChrome();
 });
 
-/**
- * Background layers stay on: MapLibre hangs vertical skirts off every terrain tile
- * edge to cover LOD seams, and over a see-through drape those skirts smear the edge
- * pixels into grey curtains between tiles. The backdrop then replaces the style's
- * near-black or paper-white ground with a mid tone the relief reads against.
- */
-function applyBasemapVisibility(): void {
-  for (const layer of map.getStyle().layers) {
-    if (layer.id === SHADING_LAYER || layer.type === 'background' || styleHidden.has(layer.id))
-      continue;
-    map.setLayoutProperty(layer.id, 'visibility', basemapVisible ? 'visible' : 'none');
-  }
-  map.setLayoutProperty(BACKDROP_LAYER, 'visibility', basemapVisible ? 'none' : 'visible');
-}
-
 const basemapBox = document.getElementById('basemap-visible') as HTMLInputElement;
 basemapBox.checked = basemapVisible;
 basemapBox.addEventListener('change', () => {
   basemapVisible = basemapBox.checked;
-  applyBasemapVisibility();
+  scene.set({ basemapVisible });
   write('basemapVisible', basemapVisible);
 });
 
 /* Shading ------------------------------------------------------------------ */
-
-/** Relief belongs under the basemap's symbols, or place names sit behind the ramp. */
-function applyShading(): void {
-  if (map.getLayer(SHADING_LAYER)) map.removeLayer(SHADING_LAYER);
-  if (!shadingVisible) return;
-  const firstSymbol = map.getStyle().layers.find((l) => l.type === 'symbol');
-  map.addLayer(
-    shadingLayer(shadingKey, DEM_SOURCE, BASEMAPS[basemapKey], exposure),
-    firstSymbol?.id,
-  );
-}
 
 const shadingPicker = document.getElementById('shading') as HTMLSelectElement;
 for (const key of SHADING_KEYS) {
@@ -232,7 +151,7 @@ function setShading(key: ShadingKey): void {
   shadingKey = key;
   shadingPicker.value = key;
   applyExposure();
-  applyShading();
+  scene.set({ shading: key, exposure });
 }
 
 shadingPicker.addEventListener('change', () => {
@@ -248,7 +167,7 @@ function setShadingVisible(on: boolean): void {
   shadingVisible = on;
   shadingBox.checked = on;
   applyExposure();
-  applyShading();
+  scene.set({ shadingVisible: on, exposure });
 }
 
 shadingBox.addEventListener('change', () => {
@@ -280,13 +199,7 @@ function applyExposure(): void {
     stopTracking = trackExposure(map, DEM_SOURCE, (range) => {
       exposure = range;
       exposureRange.textContent = `${Math.round(range.lo)}–${Math.round(range.hi)} m`;
-      // Repainting the ramp is ~0.5 ms and leaves the layer in place; re-adding it would
-      // drop the tiles already drawn. The layer's own type has to be the test, not the
-      // mode it belongs to: tracking starts before the layer is swapped, and asking a
-      // hillshade layer for a colour ramp throws.
-      if (map.getLayer(SHADING_LAYER)?.type === 'color-relief' && isRamp(shadingKey)) {
-        map.setPaintProperty(SHADING_LAYER, 'color-relief-color', rampColor(shadingKey, range));
-      }
+      scene.set({ exposure: range });
     });
   } else if (!wanted && stopTracking) {
     stopTracking();
@@ -301,7 +214,7 @@ function setAutoExposure(on: boolean): void {
   autoExposure = on;
   exposureBox.checked = on;
   applyExposure();
-  applyShading();
+  scene.set({ exposure });
 }
 
 exposureBox.checked = autoExposure;
@@ -309,6 +222,10 @@ exposureBox.addEventListener('change', () => {
   setAutoExposure(exposureBox.checked);
   write('autoExposure', autoExposure);
 });
+
+// Before the first style lands, so the initial shading layer is built already pinned to
+// the view rather than repainted after.
+applyExposure();
 
 /* Exaggeration ------------------------------------------------------------- */
 
@@ -318,18 +235,12 @@ slider.max = String(MAX_EXAGGERATION);
 slider.value = String(exaggeration);
 sliderValue.textContent = exaggeration.toFixed(1) + '×';
 
-let terrainFrame = 0;
 function setExaggeration(value: number): void {
   if (value === exaggeration) return;
   exaggeration = value;
   slider.value = String(value);
   sliderValue.textContent = value.toFixed(1) + '×';
-  // setTerrain tears down and rebuilds the terrain and its render-to-texture cache, and
-  // the camera anchor re-settles on the 'terrain' event it fires — at most one per frame.
-  terrainFrame ||= requestAnimationFrame(() => {
-    terrainFrame = 0;
-    if (map.getTerrain()) map.setTerrain({ source: DEM_SOURCE, exaggeration });
-  });
+  scene.set({ exaggeration: value });
 }
 
 let writeTimer: number | undefined;
