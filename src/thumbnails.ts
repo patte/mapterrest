@@ -17,7 +17,7 @@ const SIZE = 96;
  * would fit the whole frame render a view the switch would never show. A little out keeps
  * the styles recognisable and the scene familiar.
  */
-const ZOOM_OUT = 1.5;
+const ZOOM_OUT = 4.0;
 
 /** A variant that cannot settle inside this forfeits its refresh — stale beats hung. */
 const SETTLE_TIMEOUT = 8000;
