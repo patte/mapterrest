@@ -42,9 +42,9 @@ which levers exist and what each costs.
 
 ## Controls
 
-A stepped card in the lower left: a row of basemap tiles under a row of shading tiles
+A card in the lower left: a grid of basemap tiles under a row of shading tiles
 (hillshade, elevation heatmap or grey heightmap), stacked the way the layers render,
-each row led by a "none" tile that hides its layer. Once the camera settles, a hidden
+each section led by a "none" tile that hides its layer. Once the camera settles, a hidden
 mini map re-renders every tile into a live preview of what switching to it would show.
 Above them: terrain exaggeration (0–10×, true heights by default), auto-exposure, and
 the debug overlays. An X folds the whole card down to a single settings tile that
