@@ -7,7 +7,7 @@ import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, type BasemapKey } from 
 import { DEFAULT_SHADING, isRamp, SHADING_KEYS, type ShadingKey } from './shading';
 import { attachScene, type SceneSpec } from './scene';
 import { createThumbnailer, type ThumbVariant } from './thumbnails';
-import { createTray, tileId } from './tray';
+import { createTray, CURRENT_TILE, tileId } from './tray';
 import { enableCameraAnchor } from './cameraAnchor';
 import { trackExposure, visibleRange, type Range } from './exposure';
 import { choosePivot, projectPoint } from './pivot';
@@ -286,7 +286,9 @@ slider.addEventListener('input', () => {
 
 const thumbs = createThumbnailer(map, {
   onImage: (id, url) => tray.setImage(id, url),
-  visible: () => tray.visible() && !document.hidden,
+  // Folded is not invisible: the settings tile still previews the view, so only a
+  // hidden tab stops the walk.
+  visible: () => !document.hidden,
 });
 
 /**
@@ -307,13 +309,17 @@ function thumbVariants(): ThumbVariant[] {
     if (seen) seen.ids.push(id);
     else variants.set(key, { ids: [id], spec });
   };
-  // The shading row first: it shares the mini map's current style, so the whole row is
+  // The settings tile previews the view itself — first because it is the cheapest
+  // (no style swap), and folded it is the only render there is.
+  const shownRamp = current.shadingVisible ? forRamp(current.shading) : null;
+  add(CURRENT_TILE, { ...current, exposure: shownRamp });
+  if (!tray.open()) return [...variants.values()];
+  // The shading row next: it shares the mini map's current style, so the whole row is
   // layer swaps before the basemap row starts paying a setStyle per tile.
   add(tileId('s', null), { ...current, shadingVisible: false, exposure: null });
   for (const key of SHADING_KEYS) {
     add(tileId('s', key), { ...current, shading: key, shadingVisible: true, exposure: forRamp(key) });
   }
-  const shownRamp = current.shadingVisible ? forRamp(current.shading) : null;
   add(tileId('b', null), { ...current, basemapVisible: false, exposure: shownRamp });
   for (const key of BASEMAP_KEYS) {
     add(tileId('b', key), { ...current, basemap: key, basemapVisible: true, exposure: shownRamp });
@@ -325,14 +331,14 @@ let thumbTimer: number | undefined;
 function scheduleThumbs(): void {
   window.clearTimeout(thumbTimer);
   thumbTimer = window.setTimeout(() => {
-    if (!tray.visible() || document.hidden) return;
+    if (document.hidden) return;
     thumbs.refresh(thumbVariants());
   }, 200);
 }
 // 'idle' covers every trigger there is: a camera that settles, a control that changed
 // the scene, an exposure ease that finished — each dirties the map and idles after.
 map.on('idle', scheduleThumbs);
-tray.onVisibleChange(scheduleThumbs);
+tray.onOpenChange(scheduleThumbs);
 document.addEventListener('visibilitychange', scheduleThumbs);
 
 /* Hash edits ---------------------------------------------------------------- */

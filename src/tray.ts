@@ -21,11 +21,14 @@ export type Tray = {
   /** Marks the tiles for `sel` pressed; a hidden layer presses its "none" tile. */
   select(sel: TraySelection): void;
   setImage(id: string, url: string): void;
-  /** False only while collapsed with the chip closed — nothing to keep previews fresh for. */
-  visible(): boolean;
-  onVisibleChange(cb: () => void): void;
+  /** False while folded down to the settings tile — only its preview stays fresh then. */
+  open(): boolean;
+  onOpenChange(cb: () => void): void;
   setForceCollapsed(on: boolean): void;
 };
+
+/** The settings tile's preview: the view itself, the spec every row varies from. */
+export const CURRENT_TILE = 'current';
 
 const SLASH =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
@@ -84,30 +87,28 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
     preview.style.background = backdrop;
   }
 
-  /* Collapse ---------------------------------------------------------------- */
+  /* Fold -------------------------------------------------------------------- */
 
-  const toggle = document.getElementById('tray-toggle') as HTMLButtonElement;
+  const settingsTile = document.getElementById('tray-tile') as HTMLButtonElement;
+  const closeButton = document.getElementById('tray-close') as HTMLButtonElement;
+  images.set(CURRENT_TILE, settingsTile.querySelector('img')!);
+
   const media = window.matchMedia('(max-width: 640px)');
   let force = forceCollapsed;
   const listeners: (() => void)[] = [];
   const notify = (): void => listeners.forEach((l) => l());
 
-  const collapsed = (): boolean => force || media.matches;
-  function applyCollapsed(): void {
-    document.body.classList.toggle('tray-collapsed', collapsed());
-    if (!collapsed()) setOpen(false);
-    notify();
-  }
   function setOpen(open: boolean): void {
-    document.body.classList.toggle('tray-open', open);
-    toggle.setAttribute('aria-expanded', String(open));
-  }
-  media.addEventListener('change', applyCollapsed);
-  toggle.addEventListener('click', () => {
-    setOpen(!document.body.classList.contains('tray-open'));
+    document.body.classList.toggle('tray-closed', !open);
+    settingsTile.setAttribute('aria-expanded', String(open));
     notify();
-  });
-  applyCollapsed();
+  }
+  settingsTile.addEventListener('click', () => setOpen(true));
+  closeButton.addEventListener('click', () => setOpen(false));
+  // The media and the hash pick the state a viewport starts in; the tile and the X
+  // hand it to the user from there.
+  media.addEventListener('change', () => setOpen(!(force || media.matches)));
+  setOpen(!(force || media.matches));
 
   return {
     select(sel: TraySelection): void {
@@ -123,14 +124,14 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
       const img = images.get(id);
       if (img) img.src = url;
     },
-    visible: () => !collapsed() || document.body.classList.contains('tray-open'),
-    onVisibleChange(listener: () => void): void {
+    open: () => !document.body.classList.contains('tray-closed'),
+    onOpenChange(listener: () => void): void {
       listeners.push(listener);
     },
     setForceCollapsed(on: boolean): void {
       if (on === force) return;
       force = on;
-      applyCollapsed();
+      setOpen(!(force || media.matches));
     },
   };
 }

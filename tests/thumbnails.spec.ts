@@ -28,16 +28,21 @@ test('tiles grow previews of the settled view', async ({ browser }) => {
   await page.close();
 });
 
-test('a folded tray renders no previews', async ({ browser }) => {
+test('a folded tray renders only the settings preview', async ({ browser }) => {
   const page = await open(browser, { hash: '#collapsed=1' });
+  await page.waitForFunction(
+    () => document.querySelector('#tray-tile img')?.getAttribute('src'),
+    null,
+    { timeout: 90000 },
+  );
   await settled(page, 2000);
   await check(
     await page.evaluate(() =>
-      [...document.querySelectorAll('.tile img')].every((img) => !img.getAttribute('src')),
+      [...document.querySelectorAll('#tray .tile img')].every((img) => !img.getAttribute('src')),
     ),
-    'no preview renders while the tray is folded',
+    'the row tiles render nothing while folded',
   );
-  await page.click('#tray-toggle');
+  await page.click('#tray-tile');
   await page.waitForFunction(
     () =>
       document
@@ -46,6 +51,6 @@ test('a folded tray renders no previews', async ({ browser }) => {
     null,
     { timeout: 90000 },
   );
-  await check(true, 'opening the tray starts the walk');
+  await check(true, 'opening the tray starts the full walk');
   await page.close();
 });

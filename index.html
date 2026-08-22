@@ -38,8 +38,9 @@
       }
 
       /* The tray: exaggeration and extras on top, then shading, then basemap — the rows
-         stack the way the layers render, the thing painted on top sits on top. Only the
-         top row is a card; the tiles carry their own labels and float on the map. */
+         stack the way the layers render, the thing painted on top sits on top. The rows
+         are one card whose outline steps around their widths; the X folds it down to
+         the settings tile. */
       #tray {
         position: absolute;
         bottom: calc(var(--edge) + env(safe-area-inset-bottom));
@@ -55,28 +56,97 @@
         max-width: calc(
           100vw - 2 * var(--edge) - env(safe-area-inset-left) - env(safe-area-inset-right)
         );
-        /* The tray's box is mostly open air over the map — only its visible pieces catch
-           the pointer, so drags that start in the gaps still reach the map. */
+        /* The tray's box reaches past the card — only the visible pieces catch the
+           pointer, so drags that start beside them still reach the map. */
         pointer-events: none;
       }
-      #tray .card,
-      #tray .thumbs,
-      #shading-card .row {
+      /* The card element's box is the full rectangle, empty top-right included — only
+         the painted rows may catch the pointer, or drags beside the steps die here. */
+      .card-row,
+      #hint {
         pointer-events: auto;
       }
-      .card {
+      /* One silhouette from three flush rows: the drop-shadow follows their composite
+         outline, so the staircase reads as a single card. (filter makes this element
+         its own backdrop root, which is why the rows blur nothing behind them.) */
+      #card {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        max-width: 100%;
+        filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.3));
+      }
+      .card-row {
         box-sizing: border-box;
+        position: relative;
         max-width: 100%;
         background: var(--panel-bg);
-        backdrop-filter: blur(8px);
-        border-radius: 12px;
-        padding: 10px 12px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+        padding: 8px 12px;
+      }
+      /* Where the next row runs wider, the outline turns with an inverse fillet: a
+         small square past the row's right edge, panel-coloured outside a quarter
+         circle. Assumes the rows widen downward. */
+      .card-row:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        left: 100%;
+        bottom: 0;
+        width: 12px;
+        height: 12px;
+        background: radial-gradient(circle 12px at 100% 0, transparent 11.5px, var(--panel-bg) 12px);
+      }
+      #tray-top {
+        border-radius: 12px 12px 0 0;
+        padding-right: 40px;
       }
       #shading-card {
         display: flex;
         flex-direction: column;
         gap: 6px;
+        border-radius: 0 12px 0 0;
+      }
+      #basemap-card {
+        border-radius: 0 12px 12px 12px;
+      }
+      /* Clamped rows all end at the same width — no steps, so no fillets, and the
+         rounding falls back to a plain card. */
+      @media (max-width: 640px) {
+        .card-row {
+          width: 100%;
+        }
+        .card-row::after {
+          display: none;
+        }
+        #shading-card {
+          border-radius: 0;
+        }
+        #basemap-card {
+          border-radius: 0 0 12px 12px;
+        }
+      }
+      #tray-close {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 34px;
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-radius: 6px;
+        background: none;
+        color: var(--panel-muted);
+        cursor: pointer;
+      }
+      #tray-close:hover {
+        background: var(--control-bg);
+        color: var(--panel-fg);
+      }
+      #tray-close svg {
+        width: 20px;
+        height: 20px;
       }
       #tray label {
         color: var(--panel-muted);
@@ -119,16 +189,10 @@
       .row .name {
         color: var(--panel-muted);
       }
-      /* Only the ramps take an exposure, so the pill appears when one is shown and
+      /* Only the ramps take an exposure, so the toggle appears when one is shown and
          starts under the first of them (heatmap). */
       #shading-card .row {
         margin-left: calc(2 * (var(--tile) + var(--tile-gap)));
-        background: var(--panel-bg);
-        backdrop-filter: blur(8px);
-        border-radius: 999px;
-        padding: 4px 12px;
-        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
-        width: fit-content;
       }
       /* Gone but not collapsed: the row keeps its height so the tray never jumps as
          the selection moves between ramps and hillshade. */
@@ -172,9 +236,9 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        /* Floating on the map, the shadow is what separates a light tile from light
-           terrain behind it. */
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+        /* On the card a whisper of depth is enough; the settings tile floats on the
+           map itself and leans on the same shadow to stand off light terrain. */
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
       .tile img {
         position: absolute;
@@ -251,39 +315,30 @@
         background: var(--control-bg);
       }
 
-      /* Collapsed mode — narrow screens, or forced by #collapsed=1: the tray folds
-         behind a chip in its corner. The class is set from JS, one source of truth. */
-      #tray-toggle {
+      /* Closed — narrow screens and #collapsed=1 start this way, the X gets there from
+         anywhere: the whole tray folds down to one tile previewing the current view.
+         The class is set from JS, one source of truth. */
+      #tray-tile {
         display: none;
         position: absolute;
         bottom: calc(var(--edge) + env(safe-area-inset-bottom));
         left: calc(var(--edge) + env(safe-area-inset-left));
-        z-index: 2;
-        width: 40px;
-        height: 40px;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-        border: none;
-        border-radius: 10px;
-        background: var(--panel-bg);
-        color: var(--panel-fg);
-        backdrop-filter: blur(8px);
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
-        cursor: pointer;
+        z-index: 1;
       }
-      #tray-toggle svg {
-        width: 20px;
-        height: 20px;
+      body.tray-closed #tray-tile {
+        display: block;
       }
-      body.tray-collapsed #tray-toggle {
-        display: flex;
-      }
-      body.tray-collapsed #tray {
-        bottom: calc(var(--edge) + 40px + 8px + env(safe-area-inset-bottom));
-      }
-      body.tray-collapsed:not(.tray-open) #tray {
+      body.tray-closed #tray {
         display: none;
+      }
+      #tray-tile .preview {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+      }
+      #tray-tile svg {
+        width: 28px;
+        height: 28px;
+        color: #fff;
+        filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
       }
 
       /* MapLibre's own controls carry one light palette; these hand them the panel's.
@@ -319,39 +374,51 @@
   <body>
     <div id="map"></div>
 
-    <button id="tray-toggle" type="button" aria-label="controls" aria-controls="tray" aria-expanded="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h10M18 17h2" stroke-linecap="round" />
-        <circle cx="16" cy="7" r="2" />
-        <circle cx="10" cy="12" r="2" />
-        <circle cx="16" cy="17" r="2" />
-      </svg>
+    <button id="tray-tile" class="tile" type="button" aria-label="map settings" aria-controls="tray" aria-expanded="false" title="map settings">
+      <span class="preview">
+        <img alt="" />
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3 3 8l9 5 9-5-9-5z" />
+          <path d="M3 12l9 5 9-5" />
+          <path d="M3 16l9 5 9-5" />
+        </svg>
+        <span class="caption">Settings</span>
+      </span>
     </button>
 
     <div id="tray">
       <p id="hint"><kbd>Shift</kbd> + drag to rotate and tilt</p>
-      <div class="card" id="tray-top">
-        <div class="row">
-          <label for="exaggeration">exaggeration</label>
-          <input id="exaggeration" type="range" min="0" max="10" step="0.1" value="1" />
-          <span id="exaggeration-value">1.0×</span>
+      <div id="card">
+        <div class="card-row" id="tray-top">
+          <div class="row">
+            <label for="exaggeration">exaggeration</label>
+            <input id="exaggeration" type="range" min="0" max="10" step="0.1" value="1" />
+            <span id="exaggeration-value">1.0×</span>
+          </div>
+          <div class="row">
+            <span class="name">debug</span>
+            <input id="debug-perf" type="checkbox" />
+            <label for="debug-perf" title="frame-cost overlay">perf</label>
+            <input id="debug-pivot" type="checkbox" />
+            <label for="debug-pivot" title="pivot and grid overlay">pivot</label>
+          </div>
+          <button id="tray-close" type="button" aria-label="hide controls">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </div>
-        <div class="row">
-          <span class="name">debug</span>
-          <input id="debug-perf" type="checkbox" />
-          <label for="debug-perf" title="frame-cost overlay">perf</label>
-          <input id="debug-pivot" type="checkbox" />
-          <label for="debug-pivot" title="pivot and grid overlay">pivot</label>
+        <div class="card-row" id="shading-card">
+          <div id="shading-thumbs" class="thumbs" role="group" aria-label="shading"></div>
+          <div class="row" id="auto-exposure-row">
+            <input id="auto-exposure" type="checkbox" />
+            <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
+          </div>
+        </div>
+        <div class="card-row" id="basemap-card">
+          <div id="basemap-thumbs" class="thumbs" role="group" aria-label="basemap"></div>
         </div>
       </div>
-      <div id="shading-card">
-        <div id="shading-thumbs" class="thumbs" role="group" aria-label="shading"></div>
-        <div class="row" id="auto-exposure-row">
-          <input id="auto-exposure" type="checkbox" />
-          <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
-        </div>
-      </div>
-      <div id="basemap-thumbs" class="thumbs" role="group" aria-label="basemap"></div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
