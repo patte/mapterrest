@@ -84,8 +84,11 @@ test('an edited hash applies without a reload', async ({ browser }) => {
   );
 
   // detail is a construction-time choice — tileSize only counts on a source declared at
-  // style.load — so the only honest apply is a reload.
+  // style.load — so the only honest apply is a reload. Back on hillshade first: the
+  // reloaded page must fit the same 90s budget as any load, and a ramp under software
+  // GL spends most of that converging its exposure.
   await page.evaluate(() => {
+    location.hash = location.hash.replace('shading=heatmap', 'shading=hillshade');
     location.hash += '&detail=low';
   });
   await page.waitForFunction(
