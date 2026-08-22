@@ -23,8 +23,9 @@ const WINDOW_MS = 1000;
 
 export function enablePerfDebug(map: MapLibreMap): () => void {
   const box = document.createElement('div');
+  // Top left: the corner the tile tray does not own.
   box.style.cssText =
-    'position:absolute;bottom:8px;left:8px;z-index:3;pointer-events:none;white-space:pre;' +
+    'position:absolute;top:8px;left:8px;z-index:3;pointer-events:none;white-space:pre;' +
     'font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;padding:8px 10px;' +
     'border-radius:6px;background:rgba(12,16,22,0.82);color:#e6edf3;' +
     'text-shadow:0 1px 2px rgba(0,0,0,0.6)';
