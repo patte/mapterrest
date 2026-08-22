@@ -2,7 +2,7 @@ import type { SkySpecification } from 'maplibre-gl';
 
 export type Basemap = {
   label: string;
-  /** Fits under a 64 px tile; the full label stays in the tooltip. */
+  /** Fits under a 96 px tile; the full label stays in the tooltip. */
   short: string;
   url: string;
   /** Chrome the panel takes over this basemap; null reads over either, so it follows the browser. */

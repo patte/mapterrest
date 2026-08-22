@@ -6,10 +6,10 @@ import { attachScene, type Scene, type SceneSpec } from './scene';
 export type ThumbVariant = { ids: string[]; spec: SceneSpec };
 
 /**
- * Backing pixels per side. The map renders at devicePixelRatio on top of this, so a
- * 128 px canvas is already 2× the 64 px tile on a plain screen.
+ * CSS pixels per side, matching the tile it lands on; the map renders at
+ * devicePixelRatio on top of this, so retina tiles stay sharp.
  */
-const SIZE = 128;
+const SIZE = 96;
 
 /**
  * How far under the main camera's zoom the previews render. A square cut from the middle
