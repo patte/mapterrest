@@ -4,8 +4,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // bundling points at our chunk rather than the package. Let vite emit it.
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, type BasemapKey } from './basemaps';
-import { DEFAULT_SHADING, isRamp, SHADINGS, SHADING_KEYS, type ShadingKey } from './shading';
+import { DEFAULT_SHADING, isRamp, SHADING_KEYS, type ShadingKey } from './shading';
 import { attachScene } from './scene';
+import { createTray } from './tray';
 import { enableCameraAnchor } from './cameraAnchor';
 import { trackExposure, visibleRange, type Range } from './exposure';
 import { choosePivot, projectPoint } from './pivot';
@@ -69,9 +70,15 @@ const scene = attachScene(
 
 if (import.meta.env.DEV) Object.assign(window, { map, choosePivot, projectPoint, visibleRange });
 
+/* Debug overlays ------------------------------------------------------------ */
+
+const perfBox = document.getElementById('debug-perf') as HTMLInputElement;
+const pivotBox = document.getElementById('debug-pivot') as HTMLInputElement;
+
 // Independent of the pivot: what a frame costs is a question about the map itself.
 let perfDebug: (() => void) | null = null;
 function setPerfDebug(on: boolean): void {
+  perfBox.checked = on;
   if (on && !perfDebug) perfDebug = enablePerfDebug(map);
   else if (!on && perfDebug) {
     perfDebug();
@@ -79,6 +86,10 @@ function setPerfDebug(on: boolean): void {
   }
 }
 setPerfDebug(readBoolean('debugPerf', false));
+perfBox.addEventListener('change', () => {
+  setPerfDebug(perfBox.checked);
+  write('debugPerf', perfBox.checked);
+});
 
 /**
  * `#debugPivot=1` draws the pivot and the grid behind it, whether or not a gesture is
@@ -87,6 +98,7 @@ setPerfDebug(readBoolean('debugPerf', false));
 let pivotDebug: ReturnType<typeof enablePivotDebug> | null = null;
 function setPivotDebug(on: boolean): void {
   if (!pivotEnabled) return;
+  pivotBox.checked = on;
   if (on && !pivotDebug) pivotDebug = enablePivotDebug(map);
   else if (!on && pivotDebug) {
     pivotDebug.disable();
@@ -97,15 +109,56 @@ if (pivotEnabled) {
   const anchor = enableCameraAnchor(map);
   enableShiftDragCamera(map, anchor, (pivot) => pivotDebug?.hold(pivot));
   setPivotDebug(readBoolean('debugPivot', false));
+  pivotBox.addEventListener('change', () => {
+    setPivotDebug(pivotBox.checked);
+    write('debugPivot', pivotBox.checked);
+  });
+} else {
+  pivotBox.disabled = true;
+  pivotBox.title = '#pivot=0 hands the camera to MapLibre — there is no pivot to draw';
 }
 map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 
-/* Basemap ------------------------------------------------------------------ */
+/* Basemap & shading tiles ---------------------------------------------------- */
 
-const picker = document.getElementById('basemap') as HTMLSelectElement;
-for (const key of BASEMAP_KEYS) {
-  picker.add(new Option(BASEMAPS[key].label, key, false, key === basemapKey));
+const tray = createTray(readBoolean('collapsed', false), {
+  onBasemap(key) {
+    if (key === null) {
+      if (basemapVisible) {
+        setBasemapVisible(false);
+        write('basemapVisible', false);
+      }
+      return;
+    }
+    followsScheme = false;
+    if (!basemapVisible) {
+      setBasemapVisible(true);
+      write('basemapVisible', true);
+    }
+    setBasemap(key);
+    write('basemap', key);
+  },
+  onShading(key) {
+    if (key === null) {
+      if (shadingVisible) {
+        setShadingVisible(false);
+        write('shadingVisible', false);
+      }
+      return;
+    }
+    if (!shadingVisible) {
+      setShadingVisible(true);
+      write('shadingVisible', true);
+    }
+    setShading(key);
+    write('shading', key);
+  },
+});
+
+function syncTray(): void {
+  tray.select({ basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible });
 }
+syncTray();
 
 /** Most basemaps fix the panel's chrome; the ones that read either way defer to the browser. */
 function applyChrome(): void {
@@ -115,16 +168,17 @@ function applyChrome(): void {
 function setBasemap(key: BasemapKey): void {
   if (key === basemapKey) return;
   basemapKey = key;
-  picker.value = key;
   applyChrome();
   scene.set({ basemap: key });
+  syncTray();
 }
 
-picker.addEventListener('change', () => {
-  followsScheme = false;
-  setBasemap(picker.value as BasemapKey);
-  write('basemap', basemapKey);
-});
+function setBasemapVisible(on: boolean): void {
+  if (on === basemapVisible) return;
+  basemapVisible = on;
+  scene.set({ basemapVisible: on });
+  syncTray();
+}
 
 onSchemeChange((dark) => {
   if (followsScheme) setBasemap(defaultBasemap(dark));
@@ -132,48 +186,21 @@ onSchemeChange((dark) => {
   else applyChrome();
 });
 
-const basemapBox = document.getElementById('basemap-visible') as HTMLInputElement;
-basemapBox.checked = basemapVisible;
-basemapBox.addEventListener('change', () => {
-  basemapVisible = basemapBox.checked;
-  scene.set({ basemapVisible });
-  write('basemapVisible', basemapVisible);
-});
-
-/* Shading ------------------------------------------------------------------ */
-
-const shadingPicker = document.getElementById('shading') as HTMLSelectElement;
-for (const key of SHADING_KEYS) {
-  shadingPicker.add(new Option(SHADINGS[key], key, false, key === shadingKey));
-}
 function setShading(key: ShadingKey): void {
   if (key === shadingKey) return;
   shadingKey = key;
-  shadingPicker.value = key;
   applyExposure();
   scene.set({ shading: key, exposure });
+  syncTray();
 }
-
-shadingPicker.addEventListener('change', () => {
-  setShading(shadingPicker.value as ShadingKey);
-  write('shading', shadingKey);
-});
-
-const shadingBox = document.getElementById('shading-visible') as HTMLInputElement;
-shadingBox.checked = shadingVisible;
 
 function setShadingVisible(on: boolean): void {
   if (on === shadingVisible) return;
   shadingVisible = on;
-  shadingBox.checked = on;
   applyExposure();
   scene.set({ shadingVisible: on, exposure });
+  syncTray();
 }
-
-shadingBox.addEventListener('change', () => {
-  setShadingVisible(shadingBox.checked);
-  write('shadingVisible', shadingVisible);
-});
 
 /* Auto-exposure ------------------------------------------------------------- */
 
@@ -274,21 +301,15 @@ function applyHash(): void {
   }
   followsScheme = !has('basemap');
   setBasemap(readString('basemap', defaultBasemap(prefersDark()), BASEMAP_KEYS));
+  setBasemapVisible(readBoolean('basemapVisible', true));
   setShading(readString('shading', DEFAULT_SHADING, SHADING_KEYS));
   setShadingVisible(readBoolean('shadingVisible', true));
   setAutoExposure(readBoolean('autoExposure', true));
   setExaggeration(readNumber('exaggeration', DEFAULT_EXAGGERATION, 0, MAX_EXAGGERATION));
   setPerfDebug(readBoolean('debugPerf', false));
   setPivotDebug(readBoolean('debugPivot', false));
+  tray.setForceCollapsed(readBoolean('collapsed', false));
 }
 window.addEventListener('hashchange', applyHash);
-
-/* Panel ---------------------------------------------------------------------*/
-
-const toggle = document.getElementById('panel-toggle') as HTMLButtonElement;
-toggle.addEventListener('click', () => {
-  const open = document.body.classList.toggle('panel-open');
-  toggle.setAttribute('aria-expanded', String(open));
-});
 
 applyChrome();

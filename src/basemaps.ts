@@ -2,6 +2,8 @@ import type { SkySpecification } from 'maplibre-gl';
 
 export type Basemap = {
   label: string;
+  /** Fits under a 64 px tile; the full label stays in the tooltip. */
+  short: string;
   url: string;
   /** Chrome the panel takes over this basemap; null reads over either, so it follows the browser. */
   dark: boolean | null;
@@ -95,13 +97,13 @@ const maptiler = (style: string) =>
   `https://api.maptiler.com/maps/${style}/style.json?key=${maptilerKey}`;
 
 export const BASEMAPS = {
-  'carto-dark': { label: 'CARTO DataViz Dark', url: carto('dark-matter'), ...NIGHT },
-  'carto-light': { label: 'CARTO DataViz Light', url: carto('positron'), ...DAY },
-  liberty: { label: 'OpenFreeMap Liberty', url: openFreeMap('liberty'), ...WARM_DAY },
-  'ofm-bright': { label: 'OpenFreeMap Bright', url: openFreeMap('bright'), ...WARM_DAY },
-  'ofm-positron': { label: 'OpenFreeMap Positron', url: openFreeMap('positron'), ...DAY },
-  'ofm-dark': { label: 'OpenFreeMap Dark', url: openFreeMap('dark'), ...NIGHT },
-  satellite: { label: 'MapTiler Satellite Hybrid', url: maptiler('hybrid-v4'), ...SATELLITE },
+  'carto-dark': { label: 'CARTO DataViz Dark', short: 'Carto Dark', url: carto('dark-matter'), ...NIGHT },
+  'carto-light': { label: 'CARTO DataViz Light', short: 'Carto Light', url: carto('positron'), ...DAY },
+  liberty: { label: 'OpenFreeMap Liberty', short: 'Liberty', url: openFreeMap('liberty'), ...WARM_DAY },
+  'ofm-bright': { label: 'OpenFreeMap Bright', short: 'Bright', url: openFreeMap('bright'), ...WARM_DAY },
+  'ofm-positron': { label: 'OpenFreeMap Positron', short: 'Positron', url: openFreeMap('positron'), ...DAY },
+  'ofm-dark': { label: 'OpenFreeMap Dark', short: 'OFM Dark', url: openFreeMap('dark'), ...NIGHT },
+  satellite: { label: 'MapTiler Satellite Hybrid', short: 'Satellite', url: maptiler('hybrid-v4'), ...SATELLITE },
 } satisfies Record<string, Basemap>;
 
 export type BasemapKey = keyof typeof BASEMAPS;

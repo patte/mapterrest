@@ -4,8 +4,8 @@ import { open, check } from './helpers';
 test('controls write themselves into the hash', async ({ browser }) => {
   const page = await open(browser, { hash: '#exaggeration=1' });
 
-  await page.selectOption('#shading', 'heatmap');
-  await page.uncheck('#basemap-visible');
+  await page.click('#shading-thumbs .tile[data-key="heatmap"]');
+  await page.click('#basemap-thumbs .tile[data-key="none"]');
   await page.uncheck('#auto-exposure');
   await page.fill('#exaggeration', '3.7');
   await page.dispatchEvent('#exaggeration', 'input');
@@ -20,11 +20,11 @@ test('controls write themselves into the hash', async ({ browser }) => {
     'heatmap swaps in the color-relief layer',
   );
 
-  await page.uncheck('#shading-visible');
+  await page.click('#shading-thumbs .tile[data-key="none"]');
   await page.waitForTimeout(300);
   await check(
     await page.evaluate(() => !window.map.getLayer('terrain-shading')),
-    'shading checkbox removes the layer',
+    'the no-shading tile removes the layer',
   );
   await check(
     (await page.evaluate(() => location.hash)).includes('shadingVisible=0'),
@@ -53,9 +53,12 @@ test('an edited hash applies without a reload', async ({ browser }) => {
   );
   await check(
     await page.evaluate(
-      () => (document.getElementById('shading') as HTMLSelectElement).value === 'heatmap',
+      () =>
+        document
+          .querySelector('#shading-thumbs .tile[aria-pressed="true"]')
+          ?.getAttribute('data-key') === 'heatmap',
     ),
-    'the picker follows the hash',
+    'the pressed tile follows the hash',
   );
   await check(
     await page.evaluate(() => Math.abs(window.map.getTerrain().exaggeration - 2.5) < 1e-6),
@@ -104,7 +107,12 @@ test('the hash restores the controls', async ({ browser }) => {
   });
   await restored.waitForTimeout(1500);
   await check(
-    await restored.evaluate(() => (document.getElementById('basemap') as any).value === 'liberty'),
+    await restored.evaluate(
+      () =>
+        document
+          .querySelector('#basemap-thumbs .tile[aria-pressed="true"]')
+          ?.getAttribute('data-key') === 'liberty',
+    ),
     'hash restores the basemap',
   );
   await check(

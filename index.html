@@ -12,6 +12,7 @@
         --panel-muted: #555;
         --panel-border: #ccc;
         --control-bg: #fff;
+        --accent: #2b7de0;
         --edge: 12px;
       }
       body[data-theme='dark'] {
@@ -21,6 +22,7 @@
         --panel-muted: #9aa8b6;
         --panel-border: #3a4653;
         --control-bg: #222b35;
+        --accent: #66a8ff;
       }
       html,
       body {
@@ -33,45 +35,52 @@
         inset: 0;
       }
 
-      #panel {
+      /* The tray: exaggeration and extras on top, then shading, then basemap — the rows
+         stack the way the layers render, the thing painted on top sits on top. */
+      #tray {
         position: absolute;
-        top: calc(var(--edge) + env(safe-area-inset-top));
+        bottom: calc(var(--edge) + env(safe-area-inset-bottom));
         left: calc(var(--edge) + env(safe-area-inset-left));
         z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
         background: var(--panel-bg);
         color: var(--panel-fg);
         backdrop-filter: blur(8px);
-        border-radius: 10px;
-        padding: 12px 14px;
+        border-radius: 12px;
+        padding: 10px 12px;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
-        font-size: 13px;
-        line-height: 1.5;
-        width: 240px;
+        font-size: 12px;
+        line-height: 1.4;
+        max-width: calc(
+          100vw - 2 * var(--edge) - env(safe-area-inset-left) - env(safe-area-inset-right)
+        );
       }
-      #panel label {
-        display: block;
+      #tray label {
         color: var(--panel-muted);
       }
-      #panel label + label,
-      #panel .field + .field {
-        margin-top: 10px;
+      #tray-top {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .thumbs + .row {
+        margin-top: 6px;
       }
       .row {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-top: 3px;
+        gap: 6px;
       }
-      /* Unchecked hides the thing the row selects, leaving the select as the choice for
-         when it comes back. */
       .row input[type='checkbox'] {
         flex: none;
         margin: 0;
         cursor: pointer;
       }
-      /* A row whose checkbox is named by its own label rather than by the field's. */
       .row > label {
         cursor: pointer;
+        white-space: nowrap;
       }
       .row > input:disabled,
       .row > input:disabled + label {
@@ -81,24 +90,91 @@
       #exposure-range {
         font-variant-numeric: tabular-nums;
       }
-      select {
-        display: block;
-        width: 100%;
-        min-width: 0;
-        font: inherit;
-        font-size: 12px;
-        padding: 4px 6px;
-        border: 1px solid var(--panel-border);
-        border-radius: 6px;
-        background: var(--control-bg);
-        color: var(--panel-fg);
-      }
       input[type='range'] {
-        width: 100%;
-        margin: 2px 0 0;
+        flex: 1;
+        min-width: 60px;
+        margin: 0;
       }
+      #exaggeration-value {
+        font-variant-numeric: tabular-nums;
+        min-width: 34px;
+      }
+      .sep {
+        width: 1px;
+        align-self: stretch;
+        background: var(--panel-border);
+        margin: 0 4px;
+      }
+
+      .thumbs {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        /* Room for the selection ring, which sits just outside the preview square. */
+        padding: 2px;
+      }
+      .tile {
+        flex: none;
+        width: 64px;
+        padding: 0;
+        border: none;
+        background: none;
+        color: var(--panel-muted);
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        font: inherit;
+      }
+      .tile .preview {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        border: 1px solid var(--panel-border);
+        border-radius: 8px;
+        background: var(--control-bg);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .tile img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .tile img:not([src]) {
+        display: none;
+      }
+      /* The slash of a "none" tile stays legible over whatever preview lands under it. */
+      .tile svg {
+        position: relative;
+        width: 24px;
+        height: 24px;
+        filter: drop-shadow(0 0 2px var(--control-bg));
+      }
+      .tile .caption {
+        max-width: 100%;
+        font-size: 10px;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tile[aria-pressed='true'] .preview {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+        border-color: var(--accent);
+      }
+      .tile[aria-pressed='true'] .caption {
+        color: var(--accent);
+      }
+
       #hint {
-        margin: 12px 0 0;
+        margin: 0;
         color: var(--panel-muted);
         font-size: 12px;
       }
@@ -118,10 +194,12 @@
         background: var(--control-bg);
       }
 
-      #panel-toggle {
+      /* Collapsed mode — narrow screens, or forced by #collapsed=1: the tray folds
+         behind a chip in its corner. The class is set from JS, one source of truth. */
+      #tray-toggle {
         display: none;
         position: absolute;
-        top: calc(var(--edge) + env(safe-area-inset-top));
+        bottom: calc(var(--edge) + env(safe-area-inset-bottom));
         left: calc(var(--edge) + env(safe-area-inset-left));
         z-index: 2;
         width: 40px;
@@ -137,9 +215,18 @@
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
         cursor: pointer;
       }
-      #panel-toggle svg {
+      #tray-toggle svg {
         width: 20px;
         height: 20px;
+      }
+      body.tray-collapsed #tray-toggle {
+        display: flex;
+      }
+      body.tray-collapsed #tray {
+        bottom: calc(var(--edge) + 40px + 8px + env(safe-area-inset-bottom));
+      }
+      body.tray-collapsed:not(.tray-open) #tray {
+        display: none;
       }
 
       /* MapLibre's own controls carry one light palette; these hand them the panel's.
@@ -170,28 +257,12 @@
       body[data-theme='dark'] .maplibregl-ctrl-attrib.maplibregl-compact::after {
         filter: invert(1);
       }
-
-      /* Narrow screens: the panel folds behind the button and spans the width it has. */
-      @media (max-width: 640px) {
-        #panel-toggle {
-          display: flex;
-        }
-        #panel {
-          top: calc(var(--edge) + 40px + 8px + env(safe-area-inset-top));
-          right: calc(var(--edge) + env(safe-area-inset-right));
-          width: auto;
-          max-width: 320px;
-        }
-        body:not(.panel-open) #panel {
-          display: none;
-        }
-      }
     </style>
   </head>
   <body>
     <div id="map"></div>
 
-    <button id="panel-toggle" type="button" aria-label="controls" aria-controls="panel" aria-expanded="false">
+    <button id="tray-toggle" type="button" aria-label="controls" aria-controls="tray" aria-expanded="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h10M18 17h2" stroke-linecap="round" />
         <circle cx="16" cy="7" r="2" />
@@ -200,30 +271,28 @@
       </svg>
     </button>
 
-    <div id="panel">
-      <div class="field">
-        <label for="basemap">basemap</label>
+    <div id="tray">
+      <div id="tray-top">
         <div class="row">
-          <input id="basemap-visible" type="checkbox" title="show basemap" />
-          <select id="basemap"></select>
+          <label for="exaggeration">exaggeration</label>
+          <input id="exaggeration" type="range" min="0" max="10" step="0.1" value="1" />
+          <span id="exaggeration-value">1.0×</span>
+          <span class="sep"></span>
+          <input id="debug-perf" type="checkbox" />
+          <label for="debug-perf" title="frame-cost overlay">perf</label>
+          <input id="debug-pivot" type="checkbox" />
+          <label for="debug-pivot" title="pivot and grid overlay">pivot</label>
         </div>
+        <p id="hint"><kbd>Shift</kbd> + drag to rotate and tilt</p>
       </div>
-      <div class="field">
-        <label for="shading">shading</label>
-        <div class="row">
-          <input id="shading-visible" type="checkbox" title="show shading" />
-          <select id="shading"></select>
-        </div>
+      <div>
+        <div id="shading-thumbs" class="thumbs" role="group" aria-label="shading"></div>
         <div class="row">
           <input id="auto-exposure" type="checkbox" />
           <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
         </div>
       </div>
-      <div class="field">
-        <label for="exaggeration">terrain exaggeration <span id="exaggeration-value">1.0×</span></label>
-        <input id="exaggeration" type="range" min="0" max="10" step="0.1" value="1" />
-      </div>
-      <p id="hint"><kbd>Shift</kbd> + drag to rotate and tilt</p>
+      <div id="basemap-thumbs" class="thumbs" role="group" aria-label="basemap"></div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

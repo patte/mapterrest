@@ -28,7 +28,7 @@ test('auto-exposure pins the ramp to the view', async ({ browser }) => {
   await check(dutch[1] < 300, 'the ramp follows the view down to a flat one', dutch.join('–'));
 
   // Hillshade lights the gradient, so there is no exposure for the checkbox to set.
-  await exposed.selectOption('#shading', 'hillshade');
+  await exposed.click('#shading-thumbs .tile[data-key="hillshade"]');
   await exposed.waitForTimeout(500);
   await check(await exposed.isDisabled('#auto-exposure'), 'auto-exposure is offered only to the ramps');
   await check(

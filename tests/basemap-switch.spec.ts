@@ -23,7 +23,7 @@ test('a basemap switch leaves the camera where it was', async ({ browser }) => {
     `${before.elevation.toFixed(0)} m`,
   );
 
-  await page.selectOption('#basemap', 'carto-light');
+  await page.click('#basemap-thumbs .tile[data-key="carto-light"]');
   await settled(page);
 
   const after = await page.evaluate(() => {
