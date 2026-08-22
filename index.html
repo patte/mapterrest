@@ -38,9 +38,9 @@
       }
 
       /* The tray: exaggeration and extras on top, then shading, then basemap — the rows
-         stack the way the layers render, the thing painted on top sits on top. The rows
-         are one card whose outline steps around their widths; the X folds it down to
-         the settings tile. */
+         stack the way the layers render, the thing painted on top sits on top. One
+         plain card: the basemaps wrap to a grid as wide as the shading row, and the X
+         folds everything down to the settings tile. */
       #tray {
         position: absolute;
         bottom: calc(var(--edge) + env(safe-area-inset-bottom));
@@ -60,68 +60,39 @@
            pointer, so drags that start beside them still reach the map. */
         pointer-events: none;
       }
-      /* The card element's box is the full rectangle, empty top-right included — only
-         the painted rows may catch the pointer, or drags beside the steps die here. */
-      .card-row,
+      #card,
       #hint {
         pointer-events: auto;
       }
-      /* One silhouette from three flush rows: the drop-shadow follows their composite
-         outline, so the staircase reads as a single card. (filter makes this element
-         its own backdrop root, which is why the rows blur nothing behind them.) */
       #card {
+        position: relative;
+        box-sizing: border-box;
+        max-width: 100%;
         display: flex;
         flex-direction: column;
-        align-items: flex-start;
-        max-width: 100%;
-        filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.3));
-      }
-      .card-row {
-        box-sizing: border-box;
-        position: relative;
-        max-width: 100%;
+        gap: 9px;
         background: var(--panel-bg);
-        padding: 8px 12px;
-      }
-      /* Where the next row runs wider, the outline turns with an inverse fillet: a
-         small square past the row's right edge, panel-coloured outside a quarter
-         circle. Assumes the rows widen downward. */
-      .card-row:not(:last-child)::after {
-        content: '';
-        position: absolute;
-        left: 100%;
-        bottom: 0;
-        width: 12px;
-        height: 12px;
-        background: radial-gradient(circle 12px at 100% 0, transparent 11.5px, var(--panel-bg) 12px);
+        backdrop-filter: blur(8px);
+        border-radius: 12px;
+        padding: 10px 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
       }
       #tray-top {
-        border-radius: 12px 12px 0 0;
         padding-right: 40px;
       }
       #shading-card {
         display: flex;
         flex-direction: column;
         gap: 6px;
-        border-radius: 0 12px 0 0;
       }
-      #basemap-card {
-        border-radius: 0 12px 12px 12px;
+      /* Wrapped to the shading row's width, the whole card stays one rectangle. */
+      #basemap-thumbs {
+        display: grid;
+        grid-template-columns: repeat(4, var(--tile));
       }
-      /* Clamped rows all end at the same width — no steps, so no fillets, and the
-         rounding falls back to a plain card. */
       @media (max-width: 640px) {
-        .card-row {
-          width: 100%;
-        }
-        .card-row::after {
-          display: none;
-        }
-        #shading-card {
-          border-radius: 0;
-        }
-        #basemap-card {
-          border-radius: 0 0 12px 12px;
+        #basemap-thumbs {
+          grid-template-columns: repeat(3, var(--tile));
         }
       }
       #tray-close {
@@ -389,7 +360,7 @@
     <div id="tray">
       <p id="hint"><kbd>Shift</kbd> + drag to rotate and tilt</p>
       <div id="card">
-        <div class="card-row" id="tray-top">
+        <div id="tray-top">
           <div class="row">
             <label for="exaggeration">exaggeration</label>
             <input id="exaggeration" type="range" min="0" max="10" step="0.1" value="1" />
@@ -408,14 +379,14 @@
             </svg>
           </button>
         </div>
-        <div class="card-row" id="shading-card">
+        <div id="shading-card">
           <div id="shading-thumbs" class="thumbs" role="group" aria-label="shading"></div>
           <div class="row" id="auto-exposure-row">
             <input id="auto-exposure" type="checkbox" />
             <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
           </div>
         </div>
-        <div class="card-row" id="basemap-card">
+        <div id="basemap-card">
           <div id="basemap-thumbs" class="thumbs" role="group" aria-label="basemap"></div>
         </div>
       </div>
