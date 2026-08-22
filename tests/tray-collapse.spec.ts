@@ -41,6 +41,35 @@ test('desktop starts expanded and the X folds it', async ({ browser }) => {
   await page.close();
 });
 
+test('a tight corner folds one of card and attribution', async ({ browser }) => {
+  // 800px: too narrow for the open card and the expanded attribution side by side.
+  const page = await open(browser, { viewport: { width: 800, height: 600 } });
+  const expanded = () =>
+    page.evaluate(() =>
+      document.querySelector('.maplibregl-ctrl-attrib')!.classList.contains('maplibregl-compact-show'),
+    );
+  await check(!(await expanded()), 'at load the open card wins the tight corner');
+  // Until every source has landed its credit the strip can be short enough to fit
+  // beside the card — no conflict, nothing to fold. Wait for the full line.
+  await page.waitForFunction(
+    () => document.querySelector('.maplibregl-ctrl-attrib')?.textContent?.includes('OpenStreetMap'),
+    null,
+    { timeout: 90000 },
+  );
+  await page.click('.maplibregl-ctrl-attrib-button');
+  // The fold lands one animation frame after the click — the geometry is unreadable
+  // inside the click itself — so poll for it rather than glancing.
+  const folded = await page
+    .waitForFunction(() => document.body.classList.contains('tray-closed'), null, { timeout: 5000 })
+    .then(() => true, () => false);
+  await check(folded, 'expanding the attribution folds the card');
+  await check(await expanded(), 'the attribution stays expanded');
+  await page.click('#tray-tile');
+  await check(await page.locator('#tray').isVisible(), 'reopening the card takes the corner back');
+  await check(!(await expanded()), 'and collapses the attribution again');
+  await page.close();
+});
+
 test('#collapsed=1 forces the fold on desktop', async ({ browser }) => {
   const page = await open(browser, { hash: '#collapsed=1' });
   await check(await page.locator('#tray-tile').isVisible(), 'the settings tile shows when forced');

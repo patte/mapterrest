@@ -282,6 +282,52 @@ slider.addEventListener('input', () => {
   writeTimer = window.setTimeout(() => write('exaggeration', exaggeration), 300);
 });
 
+/* Corner conflict ------------------------------------------------------------ */
+
+// The card and the attribution share the bottom edge. Where the viewport fits both
+// expanded they coexist; where it does not, the one just opened wins and the other
+// gives way. MapLibre's attribution is a <details> whose compact-show class is its
+// expanded state, toggled by its own ⓘ summary.
+const attrib = document.querySelector('.maplibregl-ctrl-attrib') as HTMLElement;
+const card = document.getElementById('card')!;
+const attribExpanded = (): boolean => attrib.classList.contains('maplibregl-compact-show');
+function collapseAttrib(): void {
+  if (attribExpanded()) {
+    (attrib.querySelector('.maplibregl-ctrl-attrib-button') as HTMLElement).click();
+  }
+}
+function cornerConflict(): boolean {
+  if (!tray.open() || !attribExpanded()) return false;
+  const a = card.getBoundingClientRect();
+  const b = attrib.getBoundingClientRect();
+  return a.right + 8 > b.left && a.bottom > b.top;
+}
+tray.onOpenChange(() => {
+  if (cornerConflict()) collapseAttrib();
+});
+// Only the ⓘ expresses a wish for the attribution, and there the card yields. The
+// geometry cannot be read inside the click: MapLibre's toggle drops the <details>'
+// open attribute and the browser's default action restores it only after every
+// listener has run, so a synchronous rect is the closed pill's. Hence the frame's
+// wait — and the flag, or the observer below would win the microtask race and
+// collapse what the user just opened.
+let attribClicked = false;
+attrib.querySelector('.maplibregl-ctrl-attrib-button')!.addEventListener('click', () => {
+  attribClicked = true;
+  requestAnimationFrame(() => {
+    attribClicked = false;
+    if (cornerConflict()) tray.close();
+  });
+});
+// Everything else — MapLibre auto-expanding at load, credits widening as sources
+// land, a window resize — is ambient, and there the card wins.
+new MutationObserver(() => {
+  if (!attribClicked && cornerConflict()) collapseAttrib();
+}).observe(attrib, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
+window.addEventListener('resize', () => {
+  if (cornerConflict()) collapseAttrib();
+});
+
 /* Thumbnails ----------------------------------------------------------------- */
 
 /** False until a first preview has landed — empty tiles get eagerness, not patience. */

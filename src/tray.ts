@@ -24,6 +24,8 @@ export type Tray = {
   /** False while folded down to the settings tile — only its preview stays fresh then. */
   open(): boolean;
   onOpenChange(cb: () => void): void;
+  /** Folds the tray as the X does — for neighbours that need the corner. */
+  close(): void;
   setForceCollapsed(on: boolean): void;
 };
 
@@ -128,6 +130,7 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
     onOpenChange(listener: () => void): void {
       listeners.push(listener);
     },
+    close: () => setOpen(false),
     setForceCollapsed(on: boolean): void {
       if (on === force) return;
       force = on;
