@@ -11,7 +11,7 @@ const PROBES = [
 test('DEM source, terrain, and elevation probes', async ({ browser }) => {
   // queryTerrainElevation reports the exaggerated mesh, so probe at 1x to read metres.
   // This is the case that verifies the detail=low mode itself, so it pins it.
-  const page = await open(browser, { hash: '#exaggeration=1&detail=low' });
+  const page = await open(browser, { hash: '#terrainScale=1&detail=low' });
 
   const source = await page.evaluate(() => {
     const s = window.map.getStyle().sources['mapterhorn-dem'];

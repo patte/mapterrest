@@ -46,7 +46,7 @@ A card in the lower left: a grid of basemap tiles under a row of shading tiles
 (hillshade, elevation heatmap or grey heightmap), stacked the way the layers render,
 each section led by a "none" tile that hides its layer. Once the camera settles, a hidden
 mini map re-renders every tile into a live preview of what switching to it would show.
-Above them: terrain exaggeration (0–10×, true heights by default), auto-exposure, and
+Above them: terrain scale (0–10×, true heights by default, 0 flattens), auto-exposure, and
 the debug overlays. An X folds the whole card down to a single settings tile that
 previews the current view; narrow screens and `#collapsed=1` start folded. The basemap
 follows `prefers-color-scheme` until one is picked by hand. Auto-exposure pins the
@@ -64,7 +64,7 @@ colour ramps to the elevations in view —
 Camera and every control live in the location hash, so a reload restores the view:
 
 ```
-#map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&autoExposure=0&exaggeration=3.7
+#map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&autoExposure=0&terrainScale=3.7
 ```
 
 `detail=`, `debugPivot=`, `debugPerf=`, `pivot=` and `collapsed=` join them; everything

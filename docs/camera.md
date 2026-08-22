@@ -225,7 +225,7 @@ reproduces the camera to within a few metres of DEM refinement.
 **The plane the centre rides on is the gesture's, not MapLibre's.** Left to
 `calculateCameraOptionsFromCameraLngLatAltRotation`, the distance to the centre is the
 camera's height over that plane divided by cos(pitch) — and at the view above, the camera
-flies 22 m over a wall that a 1.4× exaggeration has pushed to 5199 m. The distance collapses
+flies 22 m over a wall that a 1.4× terrain scale has pushed to 5199 m. The distance collapses
 and the zoom expressing it snaps from z14 to **z18.7**, tile LOD and all. The shift+drag
 orbit names the plane instead and holds the gesture's own, so zoom stays put through a
 turn and slides evenly through a tilt — 14.1 → 12.25 tilting up to level, 14.1 → 15.24

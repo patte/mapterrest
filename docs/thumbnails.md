@@ -8,7 +8,7 @@ grey heightmap selected, the whole basemap row honestly goes grey.
 ## The spec
 
 `scene.ts` splits what a map *shows* from which map shows it. A `SceneSpec` — basemap,
-shading, their visibilities, the exposure range, exaggeration — plus `attachScene()`
+shading, their visibilities, the exposure range, terrain scale — plus `attachScene()`
 makes any MapLibre map render that spec, owning the `style.load` re-attachment (DEM
 source, terrain, sky, backdrop, shading layer) and diffing changes onto the live map.
 The main view is one attached scene fed by the controls; every preview is another spec

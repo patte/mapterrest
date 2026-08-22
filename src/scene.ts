@@ -25,7 +25,8 @@ export type SceneSpec = {
   shadingVisible: boolean;
   /** Range the ramps are pinned to; null spans the ramp's own metres. */
   exposure: Range | null;
-  exaggeration: number;
+  /** Vertical multiplier on the DEM; 0 renders the terrain flat. */
+  terrainScale: number;
 };
 
 export type Scene = {
@@ -98,7 +99,7 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
     // the camera anchor re-settles on the 'terrain' event it fires — at most one per frame.
     terrainFrame ||= requestAnimationFrame(() => {
       terrainFrame = 0;
-      if (map.getTerrain()) map.setTerrain({ source: DEM_SOURCE, exaggeration: spec.exaggeration });
+      if (map.getTerrain()) map.setTerrain({ source: DEM_SOURCE, exaggeration: spec.terrainScale });
     });
   }
 
@@ -123,11 +124,11 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
     if (usesLodParams(detail)) {
       map.setSourceTileLodParams(MAX_ZOOM_LEVELS_ON_SCREEN, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
     }
-    map.setTerrain({ source: DEM_SOURCE, exaggeration: spec.exaggeration });
+    map.setTerrain({ source: DEM_SOURCE, exaggeration: spec.terrainScale });
     // setTerrain re-derives the centre's elevation from the just-added DEM source, whose
     // cache is still empty and answers 0 — on a basemap switch that sinks the camera by
     // the centre's height. The elevation the swap started with is still right (same DEM,
-    // same exaggeration), so it goes back. The initial load enters at 0 and skips: its
+    // same terrain scale), so it goes back. The initial load enters at 0 and skips: its
     // elevation arrives per terrain tile (cameraAnchor), and a jumpTo here would fire a
     // moveend that ends that regime early.
     if (map._camera.transform.elevation !== elevation) map.jumpTo({ elevation });
@@ -160,7 +161,7 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
         map.setStyle(BASEMAPS[spec.basemap].url);
         return;
       }
-      if (spec.exaggeration !== prev.exaggeration) scheduleTerrain();
+      if (spec.terrainScale !== prev.terrainScale) scheduleTerrain();
       if (spec.basemapVisible !== prev.basemapVisible) applyBasemapVisibility();
       if (spec.shading !== prev.shading || spec.shadingVisible !== prev.shadingVisible) {
         applyShading();

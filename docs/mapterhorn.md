@@ -36,7 +36,7 @@ Coverage past z12 exists only where a country published a high-resolution model:
 
 `maxzoom` is therefore set to 17 — above what most of the planet carries — and the misses
 404. MapLibre keeps the parent tile for an errored DEM tile, so the cost of asking is
-requests, not holes. Measured with `pnpm probe:coverage`, exaggeration at 1×:
+requests, not holes. Measured with `pnpm probe:coverage`, terrain scale at 1×:
 
 | Place | Zoom | Hits | Misses | Summit read | vs. true |
 | --- | --- | --- | --- | --- | --- |
@@ -54,7 +54,7 @@ needs.
 
 ## Accuracy
 
-Read off the rendered mesh at 1× exaggeration by `pnpm verify`:
+Read off the rendered mesh at 1× terrain scale by `pnpm verify`:
 
 | Point | Rendered | Truth |
 | --- | --- | --- |

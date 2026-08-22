@@ -18,10 +18,10 @@ import { enableShiftDragCamera } from './shiftDragCamera';
 import { onSchemeChange, prefersDark } from './theme';
 import {
   DEFAULT_DETAIL,
-  DEFAULT_EXAGGERATION,
+  DEFAULT_TERRAIN_SCALE,
   DEM_SOURCE,
   DETAIL_LEVELS,
-  MAX_EXAGGERATION,
+  MAX_TERRAIN_SCALE,
   type Detail,
 } from './terrain';
 import { has, MAP_HASH_KEY, readBoolean, readNumber, readString, write } from './urlState';
@@ -36,7 +36,7 @@ let basemapVisible = readBoolean('basemapVisible', true);
 let shadingKey = readString<ShadingKey>('shading', DEFAULT_SHADING, SHADING_KEYS);
 let shadingVisible = readBoolean('shadingVisible', true);
 let autoExposure = readBoolean('autoExposure', true);
-let exaggeration = readNumber('exaggeration', DEFAULT_EXAGGERATION, 0, MAX_EXAGGERATION);
+let terrainScale = readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE);
 const detail = readString<Detail>('detail', DEFAULT_DETAIL, DETAIL_LEVELS);
 /**
  * `#pivot=0` hands the camera back to MapLibre entirely — its own ground pin, no anchor,
@@ -66,7 +66,7 @@ const map = new MapLibreMap({
 
 const scene = attachScene(
   map,
-  { basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible, exposure: null, exaggeration },
+  { basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible, exposure: null, terrainScale },
   detail,
 );
 
@@ -259,30 +259,30 @@ exposureBox.addEventListener('change', () => {
 // the view rather than repainted after.
 applyExposure();
 
-/* Exaggeration ------------------------------------------------------------- */
+/* Terrain scale ------------------------------------------------------------- */
 
-const slider = document.getElementById('exaggeration') as HTMLInputElement;
-const sliderValue = document.getElementById('exaggeration-value')!;
-slider.max = String(MAX_EXAGGERATION);
-slider.value = String(exaggeration);
-sliderValue.textContent = exaggeration.toFixed(1) + '×';
+const slider = document.getElementById('terrain-scale') as HTMLInputElement;
+const sliderValue = document.getElementById('terrain-scale-value')!;
+slider.max = String(MAX_TERRAIN_SCALE);
+slider.value = String(terrainScale);
+sliderValue.textContent = terrainScale.toFixed(1) + '×';
 
-function setExaggeration(value: number): void {
-  if (value === exaggeration) return;
-  exaggeration = value;
+function setTerrainScale(value: number): void {
+  if (value === terrainScale) return;
+  terrainScale = value;
   slider.value = String(value);
   sliderValue.textContent = value.toFixed(1) + '×';
-  scene.set({ exaggeration: value });
+  scene.set({ terrainScale: value });
 }
 
 let writeTimer: number | undefined;
 slider.addEventListener('input', () => {
-  setExaggeration(Number(slider.value));
+  setTerrainScale(Number(slider.value));
   // MapLibre throttles its own hash writer to 300 ms; Safari refuses more than 100
   // replaceState calls per 30 s, which an unthrottled drag exceeds. Only the hash
   // trails — the terrain above is already current.
   window.clearTimeout(writeTimer);
-  writeTimer = window.setTimeout(() => write('exaggeration', exaggeration), 300);
+  writeTimer = window.setTimeout(() => write('terrainScale', terrainScale), 300);
 });
 
 /* Corner conflict ------------------------------------------------------------ */
@@ -432,7 +432,7 @@ function applyHash(): void {
   setShading(readString('shading', DEFAULT_SHADING, SHADING_KEYS));
   setShadingVisible(readBoolean('shadingVisible', true));
   setAutoExposure(readBoolean('autoExposure', true));
-  setExaggeration(readNumber('exaggeration', DEFAULT_EXAGGERATION, 0, MAX_EXAGGERATION));
+  setTerrainScale(readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE));
   setPerfDebug(readBoolean('debugPerf', false));
   setPivotDebug(readBoolean('debugPivot', false));
   tray.setForceCollapsed(readBoolean('collapsed', false));

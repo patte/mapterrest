@@ -2,17 +2,17 @@ import { test } from '@playwright/test';
 import { open, check } from './helpers';
 
 test('controls write themselves into the hash', async ({ browser }) => {
-  const page = await open(browser, { hash: '#exaggeration=1' });
+  const page = await open(browser, { hash: '#terrainScale=1' });
 
   await page.click('#shading-thumbs .tile[data-key="heatmap"]');
   await page.click('#basemap-thumbs .tile[data-key="none"]');
   await page.uncheck('#auto-exposure');
-  await page.fill('#exaggeration', '3.7');
-  await page.dispatchEvent('#exaggeration', 'input');
+  await page.fill('#terrain-scale', '3.7');
+  await page.dispatchEvent('#terrain-scale', 'input');
   await page.waitForTimeout(500);
 
   const hash = await page.evaluate(() => location.hash);
-  for (const part of ['shading=heatmap', 'basemapVisible=0', 'exaggeration=3.7', 'autoExposure=0']) {
+  for (const part of ['shading=heatmap', 'basemapVisible=0', 'terrainScale=3.7', 'autoExposure=0']) {
     await check(hash.includes(part), `hash carries ${part}`);
   }
   await check(
@@ -39,7 +39,7 @@ test('an edited hash applies without a reload', async ({ browser }) => {
   // hashchange and reloads nothing, so the marker has to survive the edit.
   await page.evaluate(() => {
     (window as any).__sameDocument = true;
-    location.hash += '&shading=heatmap&exaggeration=2.5&debugPivot=1';
+    location.hash += '&shading=heatmap&terrainScale=2.5&debugPivot=1';
   });
   // The terrain apply is coalesced to an animation frame; give it a beat.
   await page.waitForTimeout(500);
@@ -62,7 +62,7 @@ test('an edited hash applies without a reload', async ({ browser }) => {
   );
   await check(
     await page.evaluate(() => Math.abs(window.map.getTerrain().exaggeration - 2.5) < 1e-6),
-    'an edited exaggeration applies live',
+    'an edited terrain scale applies live',
   );
   // Scoped to #map: the thumbnailer keeps its own maplibre canvas offscreen.
   await check(
@@ -107,7 +107,7 @@ test('an edited hash applies without a reload', async ({ browser }) => {
 
 test('the hash restores the controls', async ({ browser }) => {
   const restored = await open(browser, {
-    hash: '#basemap=liberty&shading=heatmap&shadingVisible=0&exaggeration=2.5',
+    hash: '#basemap=liberty&shading=heatmap&shadingVisible=0&terrainScale=2.5',
   });
   await restored.waitForTimeout(1500);
   await check(
@@ -125,7 +125,7 @@ test('the hash restores the controls', async ({ browser }) => {
   );
   await check(
     await restored.evaluate(() => Math.abs(window.map.getTerrain().exaggeration - 2.5) < 1e-6),
-    'hash restores exaggeration',
+    'hash restores the terrain scale',
   );
   await restored.close();
 });
