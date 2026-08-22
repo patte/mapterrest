@@ -443,6 +443,66 @@
       body[data-theme='dark'] .maplibregl-ctrl-attrib.maplibregl-compact::after {
         filter: invert(1);
       }
+
+      /* The provider logos stack above the attribution in its corner. MapLibre floats
+         that corner's controls, which lays two of them out side by side — a flex column
+         stacks them instead, and floats are inert inside it. */
+      body .maplibregl-ctrl-bottom-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+      }
+      #logos {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        pointer-events: auto;
+        /* A touch more air toward the attribution than between the logos. */
+        margin-bottom: 6px;
+      }
+      /* MapLibre's 10px control margin-top only surfaces once the logos stack above
+         the attribution; the margin above is the whole intended gap. */
+      body .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib {
+        margin-top: 0;
+      }
+      #logos[hidden] {
+        display: none;
+      }
+      #logos a {
+        display: block;
+        line-height: 0;
+      }
+      #logos a[hidden] {
+        display: none;
+      }
+      #logos svg {
+        height: 24px;
+        width: auto;
+      }
+      /* The Mapterhorn lockup is far wider than MapTiler's; a lower height evens
+         their visual weight. */
+      #logos .mapterhorn svg {
+        height: 17px;
+      }
+      /* The wordmark is currentColor; a faint halo of the ground it displaced keeps it
+         readable over busy relief. MapTiler's logo ships its own halo. */
+      #logos .mapterhorn {
+        color: #000;
+        filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.65));
+      }
+      body[data-theme='dark'] #logos .mapterhorn {
+        color: #fff;
+        filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.65));
+      }
+      @media (max-width: 640px) {
+        #logos svg {
+          height: 18px;
+        }
+        #logos .mapterhorn svg {
+          height: 13px;
+        }
+      }
     </style>
   </head>
   <body>

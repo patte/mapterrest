@@ -11,6 +11,8 @@ export type Basemap = {
   hillshade: { shadow: string; highlight: string; exaggeration: number };
   /** Ground under the terrain while the basemap is hidden. */
   backdrop: string;
+  /** Served by MapTiler, whose free tier asks for their logo while the style shows. */
+  maptiler?: true;
 };
 
 /**
@@ -103,7 +105,7 @@ export const BASEMAPS = {
   'ofm-bright': { label: 'OpenFreeMap Bright', short: 'OFM Bright', url: openFreeMap('bright'), ...WARM_DAY },
   'ofm-positron': { label: 'OpenFreeMap Positron', short: 'OFM Positron', url: openFreeMap('positron'), ...DAY },
   'ofm-dark': { label: 'OpenFreeMap Dark', short: 'OFM Dark', url: openFreeMap('dark'), ...NIGHT },
-  satellite: { label: 'MapTiler Satellite Hybrid', short: 'MapTiler Satellite', url: maptiler('hybrid-v4'), ...SATELLITE },
+  satellite: { label: 'MapTiler Satellite Hybrid', short: 'MapTiler Satellite', url: maptiler('hybrid-v4'), maptiler: true, ...SATELLITE },
 } satisfies Record<string, Basemap>;
 
 export type BasemapKey = keyof typeof BASEMAPS;
@@ -122,3 +124,7 @@ export const defaultBasemap = (dark: boolean): BasemapKey => (dark ? 'carto-dark
 
 export const isDark = (key: BasemapKey, schemeDark: boolean): boolean =>
   BASEMAPS[key].dark ?? schemeDark;
+
+/** Widened: the inferred entry types only carry `maptiler` where it is set. */
+export const isMapTiler = (key: BasemapKey): boolean =>
+  (BASEMAPS[key] as Basemap).maptiler === true;

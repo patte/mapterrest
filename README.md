@@ -52,7 +52,8 @@ previews the current view; narrow screens and `#collapsed=1` start folded. The b
 follows `prefers-color-scheme` until one is picked by hand. Auto-exposure pins the
 colour ramps to the elevations in view —
 [docs/exposure.md](docs/exposure.md) — and shift+drag orbits the terrain in the frame —
-[docs/camera.md](docs/camera.md).
+[docs/camera.md](docs/camera.md). In the opposite corner, the Mapterhorn and MapTiler
+logos stack above the attribution while their data is on screen.
 
 | Gesture | Effect |
 | --- | --- |

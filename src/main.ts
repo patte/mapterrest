@@ -4,12 +4,13 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // maplibre resolves its worker next to its own import.meta.url, which after
 // bundling points at our chunk rather than the package. Let vite emit it.
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, type BasemapKey } from './basemaps';
+import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, isMapTiler, type BasemapKey } from './basemaps';
 import { DEFAULT_SHADING, isRamp, SHADING_KEYS, type ShadingKey } from './shading';
 import { attachScene, type SceneSpec } from './scene';
 import { createThumbnailer, type ThumbVariant } from './thumbnails';
 import { createTray, CURRENT_TILE, tileId } from './tray';
 import { enableCameraAnchor } from './cameraAnchor';
+import { setupLogos } from './logos';
 import { trackExposure, visibleRange, type Range } from './exposure';
 import { choosePivot, projectPoint } from './pivot';
 import { enablePerfDebug } from './perfDebug';
@@ -175,6 +176,7 @@ function setBasemap(key: BasemapKey): void {
   applyChrome();
   scene.set({ basemap: key });
   syncTray();
+  applyLogos();
 }
 
 function setBasemapVisible(on: boolean): void {
@@ -182,6 +184,7 @@ function setBasemapVisible(on: boolean): void {
   basemapVisible = on;
   scene.set({ basemapVisible: on });
   syncTray();
+  applyLogos();
 }
 
 onSchemeChange((dark) => {
@@ -204,6 +207,7 @@ function setShadingVisible(on: boolean): void {
   applyExposure();
   scene.set({ shadingVisible: on, exposure });
   syncTray();
+  applyLogos();
 }
 
 /* Auto-exposure ------------------------------------------------------------- */
@@ -273,6 +277,7 @@ function setTerrainScale(value: number): void {
   slider.value = String(value);
   sliderValue.textContent = value.toFixed(1) + '×';
   scene.set({ terrainScale: value });
+  applyLogos();
 }
 
 let writeTimer: number | undefined;
@@ -284,6 +289,17 @@ slider.addEventListener('input', () => {
   window.clearTimeout(writeTimer);
   writeTimer = window.setTimeout(() => write('terrainScale', terrainScale), 300);
 });
+
+/* Logos ---------------------------------------------------------------------- */
+
+const logos = setupLogos(document.querySelector('.maplibregl-ctrl-bottom-right')!);
+function applyLogos(): void {
+  logos.update({
+    mapterhorn: terrainScale > 0 || shadingVisible,
+    maptiler: isMapTiler(basemapKey) && basemapVisible,
+  });
+}
+applyLogos();
 
 /* Corner conflict ------------------------------------------------------------ */
 
