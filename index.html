@@ -892,11 +892,13 @@
 
       /* Closed — narrow screens and #collapsed=1 start this way, the X gets there from
          anywhere: card and hint fold down to one tile previewing the current view.
-         The class is set from JS, one source of truth. */
+         The class is set from JS, one source of truth. --attrib-clearance (set from
+         main.ts) lifts the folded stack clear of the expanded attribution: the tile is
+         already the yielded form, so it steps over the strip rather than folding. */
       #tray-tile {
         display: none;
         position: absolute;
-        bottom: calc(var(--edge) + env(safe-area-inset-bottom));
+        bottom: calc(var(--edge) + env(safe-area-inset-bottom) + var(--attrib-clearance, 0px));
         left: calc(var(--edge) + env(safe-area-inset-left));
         z-index: 1;
       }
@@ -906,7 +908,10 @@
       /* The About pill outlives the fold: the emptied tray hops above the settings
          tile, which now owns the corner the card held. */
       body.tray-closed #tray {
-        bottom: calc(var(--edge) + env(safe-area-inset-bottom) + var(--tile) + 12px);
+        bottom: calc(
+          var(--edge) + env(safe-area-inset-bottom) + var(--attrib-clearance, 0px) + var(--tile) +
+            12px
+        );
       }
       body.tray-closed #card,
       body.tray-closed #hint {

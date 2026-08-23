@@ -381,8 +381,28 @@ function cornerConflict(): boolean {
   const b = attrib.getBoundingClientRect();
   return a.right + 8 > b.left && a.bottom > b.top;
 }
+// The folded stack cannot yield the way the card does — the tile is already the
+// collapsed form — so where the expanded attribution would run under it (phones, where
+// MapLibre auto-expands its credits at load), a clearance lifts the tile and the pill
+// above the strip and drops them back when it collapses.
+const settingsTile = document.getElementById('tray-tile')!;
+let clearance = 0;
+function tileConflict(): boolean {
+  if (tray.open() || !attribExpanded()) return false;
+  const t = settingsTile.getBoundingClientRect();
+  const b = attrib.getBoundingClientRect();
+  // t is measured wherever the current clearance put it; compare at rest.
+  return t.right + 8 > b.left && t.bottom + clearance > b.top;
+}
+function applyClearance(): void {
+  const next = tileConflict() ? Math.round(attrib.getBoundingClientRect().height) + 12 : 0;
+  if (next === clearance) return;
+  clearance = next;
+  document.body.style.setProperty('--attrib-clearance', `${next}px`);
+}
 tray.onOpenChange(() => {
   if (cornerConflict()) collapseAttrib();
+  applyClearance();
 });
 // Only the ⓘ expresses a wish for the attribution, and there the card yields. The
 // geometry cannot be read inside the click: MapLibre's toggle drops the <details>'
@@ -402,10 +422,13 @@ attrib.querySelector('.maplibregl-ctrl-attrib-button')!.addEventListener('click'
 // land, a window resize — is ambient, and there the card wins.
 new MutationObserver(() => {
   if (!attribClicked && cornerConflict()) collapseAttrib();
+  applyClearance();
 }).observe(attrib, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
 window.addEventListener('resize', () => {
   if (cornerConflict()) collapseAttrib();
+  applyClearance();
 });
+applyClearance();
 
 /* Thumbnails ----------------------------------------------------------------- */
 

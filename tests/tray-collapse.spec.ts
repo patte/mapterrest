@@ -71,6 +71,55 @@ test('a tight corner folds one of card and attribution', async ({ browser }) => 
   await page.close();
 });
 
+test('the expanded attribution lifts the folded stack on a phone', async ({ browser }) => {
+  const phone = await open(browser, {
+    viewport: { width: 390, height: 700 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  // MapLibre auto-expands its compact attribution at load — the credits flash stays,
+  // and the settings tile steps over the strip instead of sitting under it.
+  await phone.waitForFunction(() =>
+    document
+      .querySelector('.maplibregl-ctrl-attrib')!
+      .classList.contains('maplibregl-compact-show'),
+  );
+  const lifted = await phone
+    .waitForFunction(
+      () => {
+        const t = document.getElementById('tray-tile')!.getBoundingClientRect();
+        const a = document.querySelector('.maplibregl-ctrl-attrib')!.getBoundingClientRect();
+        return t.bottom <= a.top;
+      },
+      null,
+      { timeout: 5000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  await check(lifted, 'the settings tile steps above the expanded attribution');
+  await phone.click('.maplibregl-ctrl-attrib-button');
+  const dropped = await phone
+    .waitForFunction(
+      () => {
+        const t = document.getElementById('tray-tile')!.getBoundingClientRect();
+        const edge = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--edge'),
+        );
+        return Math.abs(t.bottom - (window.innerHeight - edge)) < 2;
+      },
+      null,
+      { timeout: 5000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  await check(dropped, 'collapsing the attribution drops the tile back to the corner');
+  await phone.close();
+});
+
 test('#collapsed=1 forces the fold on desktop', async ({ browser }) => {
   const page = await open(browser, { hash: '#collapsed=1' });
   await check(await page.locator('#tray-tile').isVisible(), 'the settings tile shows when forced');
