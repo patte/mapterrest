@@ -412,6 +412,20 @@
       #exposure-dialog::backdrop {
         background: rgba(0, 0, 0, 0.4);
       }
+      /* Where the dialog covers the screen it shares the --edge inset with the chrome
+         beneath, whose own corners — other radii, other colours — peek into the
+         dialog's corner notches and read as a broken radius. The modal owns the
+         screen; the chrome sits it out. */
+      @media (max-width: 640px) {
+        body:has(dialog[open]) #tray,
+        body:has(dialog[open]) #tray-tile,
+        body:has(dialog[open]) .maplibregl-ctrl-top-left,
+        body:has(dialog[open]) .maplibregl-ctrl-top-right,
+        body:has(dialog[open]) .maplibregl-ctrl-bottom-left,
+        body:has(dialog[open]) .maplibregl-ctrl-bottom-right {
+          visibility: hidden;
+        }
+      }
       /* A one-topic explainer sets a narrower measure than the About essay. */
       #exposure-dialog {
         width: min(420px, calc(100vw - 2 * var(--edge)));
