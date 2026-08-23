@@ -103,7 +103,8 @@
         }
       }
       #tray-close,
-      #about-close {
+      #about-close,
+      #exposure-close {
         position: absolute;
         top: 6px;
         right: 6px;
@@ -120,12 +121,14 @@
         cursor: pointer;
       }
       #tray-close:hover,
-      #about-close:hover {
+      #about-close:hover,
+      #exposure-close:hover {
         background: var(--control-bg);
         color: var(--panel-fg);
       }
       #tray-close svg,
-      #about-close svg {
+      #about-close svg,
+      #exposure-close svg {
         width: 20px;
         height: 20px;
       }
@@ -158,6 +161,30 @@
       }
       #exposure-range {
         font-variant-numeric: tabular-nums;
+      }
+      #exposure-info {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        /* The hit area is wider than the glyph; hand its left padding back to the row
+           so the visual gap stays the row's 6px. */
+        margin-left: -3px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: none;
+        color: var(--panel-muted);
+        cursor: pointer;
+      }
+      #exposure-info:hover {
+        background: var(--control-bg);
+        color: var(--panel-fg);
+      }
+      #exposure-info svg {
+        width: 14px;
+        height: 14px;
       }
       input[type='range'] {
         width: 200px;
@@ -328,7 +355,8 @@
         height: 15px;
       }
 
-      #about-dialog {
+      #about-dialog,
+      #exposure-dialog {
         box-sizing: border-box;
         width: min(560px, calc(100vw - 24px));
         max-height: calc(100vh - 24px);
@@ -344,10 +372,16 @@
         line-height: 1.55;
         box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
       }
-      #about-dialog::backdrop {
+      #about-dialog::backdrop,
+      #exposure-dialog::backdrop {
         background: rgba(0, 0, 0, 0.4);
       }
-      #about-body {
+      /* A one-topic explainer sets a narrower measure than the About essay. */
+      #exposure-dialog {
+        width: min(420px, calc(100vw - 24px));
+      }
+      #about-body,
+      #exposure-body {
         box-sizing: border-box;
         /* The body scrolls, not the dialog: a scrollbar on the dialog would sit in
            the region the backdrop-close check reads as outside the content. */
@@ -355,11 +389,13 @@
         overflow-y: auto;
         padding: 16px 20px;
       }
-      #about-body h1 {
+      #about-body h1,
+      #exposure-body h1 {
         margin: 0 0 10px;
         font-size: 16px;
       }
-      #about-body p {
+      #about-body p,
+      #exposure-body p {
         margin: 0 0 10px;
       }
       /* The list is set tight, so the full paragraph margin reads as a hole above it. */
@@ -370,7 +406,8 @@
         margin: 0;
         padding-left: 20px;
       }
-      #about-body a {
+      #about-body a,
+      #exposure-body a {
         color: var(--accent);
       }
       kbd {
@@ -558,6 +595,13 @@
           <div class="row" id="auto-exposure-row">
             <input id="auto-exposure" type="checkbox" />
             <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
+            <button id="exposure-info" type="button" aria-label="what auto-exposure does" aria-haspopup="dialog" aria-controls="exposure-dialog" title="what auto-exposure does">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.25" />
+                <path d="M8 7.25v3.5" stroke-linecap="round" />
+                <circle cx="8" cy="4.75" r="1" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
           </div>
         </div>
         <div id="basemap-card">
@@ -575,6 +619,21 @@
       </button>
       <!-- Filled from src/about.md, rendered to HTML at build. -->
       <div id="about-body"></div>
+    </dialog>
+
+    <dialog id="exposure-dialog">
+      <button id="exposure-close" type="button" aria-label="close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+      <div id="exposure-body">
+        <h1>Auto-exposure</h1>
+        <p><b>TL;DR</b> Auto-exposure stretches the colour gradient to the terrain currently in view, so even very subtle, local elevation differences become clearly visible.</p>
+        <p>Spreads the colour ramp across only the elevations currently in view: the lowest visible point takes the bottom of the ramp, and the highest the top. This preserves contrast even in very flat terrain — over the Netherlands, for example, just 10 m of relief can span the full ramp instead of being compressed into a tiny sliver by a fixed scale. The trade-off is that a colour stops meaning a fixed height.</p>
+        <p>There are two caveats. First, in a tilted view the frame can extend all the way to the horizon, so either end of the ramp may be set by terrain far from the area you are looking at — or even by terrain that is not actually visible: the bottom of the ramp may be determined by a valley floor hidden behind the peaks. Second, the elevation range is only an approximation of the visible frame. It is read from elevation tiles in coarse blocks, and any block touched by the frame counts in full, so terrain just outside the view can affect the result. The discrepancy is typically tens to hundreds of metres when looking straight down in the mountains (over flat country it shrinks to metres), and can grow in tilted views because the frame covers a much larger area of terrain and uses coarser elevation tiles for distant ground, making the estimated range less precise.</p>
+        <p>For more details read <a href="https://github.com/patte/mapterrest/blob/main/docs/exposure.md">the docs</a>. The idea comes from <a href="https://tangrams.github.io/heightmapper/" target="_blank" rel="noopener">Heightmapper</a>.</p>
+      </div>
     </dialog>
 
     <script type="module" src="/src/main.ts"></script>

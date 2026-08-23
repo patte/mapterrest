@@ -40,3 +40,50 @@ test('auto-exposure pins the ramp to the view', async ({ browser }) => {
   );
   await exposed.close();
 });
+
+// Grey has nothing to lose by following the view; the heat ramp's absolute colours do —
+// so an untouched toggle follows each ramp's default, and a hand-set one sticks.
+test('exposure defaults follow the ramp until the box is toggled', async ({ browser }) => {
+  const page = await open(browser, { hash: '#shading=heatmap' });
+  await check(
+    !(await page.isChecked('#auto-exposure')),
+    'the heatmap starts with auto-exposure off',
+  );
+  const heat = await page.evaluate(() => {
+    const stops = window.map.style
+      .getLayer('terrain-shading')
+      .getPaintProperty('color-relief-color');
+    return [stops[3], stops[5]].join('–');
+  });
+  await check(heat === '0–250', 'the heat ramp sits on its own metres', heat);
+
+  await page.click('#shading-thumbs .tile[data-key="heightmap"]');
+  await check(
+    await page.isChecked('#auto-exposure'),
+    'switching to heightmap turns the untouched toggle on',
+  );
+
+  await page.uncheck('#auto-exposure');
+  await page.click('#shading-thumbs .tile[data-key="heatmap"]');
+  await page.click('#shading-thumbs .tile[data-key="heightmap"]');
+  await check(
+    !(await page.isChecked('#auto-exposure')),
+    'a hand-set toggle sticks across ramps',
+  );
+  await page.close();
+});
+
+test('the ⓘ explains auto-exposure', async ({ browser }) => {
+  const page = await open(browser, { hash: '#shading=heatmap' });
+  const dialogOpen = () =>
+    page.evaluate(() => (document.getElementById('exposure-dialog') as HTMLDialogElement).open);
+  await page.click('#exposure-info');
+  await check(await dialogOpen(), 'the ⓘ opens the explainer');
+  await check(
+    ((await page.textContent('#exposure-body')) ?? '').includes('Heightmapper'),
+    'the explainer credits Heightmapper',
+  );
+  await page.click('#exposure-close');
+  await check(!(await dialogOpen()), 'the X closes it');
+  await page.close();
+});

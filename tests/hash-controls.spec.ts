@@ -6,13 +6,13 @@ test('controls write themselves into the hash', async ({ browser }) => {
 
   await page.click('#shading-thumbs .tile[data-key="heatmap"]');
   await page.click('#basemap-thumbs .tile[data-key="none"]');
-  await page.uncheck('#auto-exposure');
+  await page.check('#auto-exposure');
   await page.fill('#terrain-scale', '3.7');
   await page.dispatchEvent('#terrain-scale', 'input');
   await page.waitForTimeout(500);
 
   const hash = await page.evaluate(() => location.hash);
-  for (const part of ['shading=heatmap', 'basemapVisible=0', 'terrainScale=3.7', 'autoExposure=0']) {
+  for (const part of ['shading=heatmap', 'basemapVisible=0', 'terrainScale=3.7', 'autoExposure=1']) {
     await check(hash.includes(part), `hash carries ${part}`);
   }
   await check(

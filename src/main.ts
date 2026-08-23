@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // bundling points at our chunk rather than the package. Let vite emit it.
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, isMapTiler, type BasemapKey } from './basemaps';
-import { DEFAULT_SHADING, isRamp, SHADING_KEYS, type ShadingKey } from './shading';
+import { DEFAULT_SHADING, defaultExposed, isRamp, SHADING_KEYS, type ShadingKey } from './shading';
 import { attachScene, type SceneSpec } from './scene';
 import { createThumbnailer, type ThumbVariant } from './thumbnails';
 import { createTray, CURRENT_TILE, tileId } from './tray';
@@ -36,7 +36,9 @@ let basemapKey = readString<BasemapKey>('basemap', defaultBasemap(prefersDark())
 let basemapVisible = readBoolean('basemapVisible', true);
 let shadingKey = readString<ShadingKey>('shading', DEFAULT_SHADING, SHADING_KEYS);
 let shadingVisible = readBoolean('shadingVisible', true);
-let autoExposure = readBoolean('autoExposure', true);
+/** Only until the box is toggled by hand — until then exposure follows each ramp's default. */
+let autoExposureChosen = has('autoExposure');
+let autoExposure = readBoolean('autoExposure', defaultExposed(shadingKey));
 let terrainScale = readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE);
 const detail = readString<Detail>('detail', DEFAULT_DETAIL, DETAIL_LEVELS);
 /**
@@ -196,6 +198,10 @@ onSchemeChange((dark) => {
 function setShading(key: ShadingKey): void {
   if (key === shadingKey) return;
   shadingKey = key;
+  if (!autoExposureChosen) {
+    autoExposure = defaultExposed(key);
+    exposureBox.checked = autoExposure;
+  }
   applyExposure();
   scene.set({ shading: key, exposure });
   syncTray();
@@ -255,8 +261,17 @@ function setAutoExposure(on: boolean): void {
 
 exposureBox.checked = autoExposure;
 exposureBox.addEventListener('change', () => {
+  autoExposureChosen = true;
   setAutoExposure(exposureBox.checked);
   write('autoExposure', autoExposure);
+});
+
+// Ephemeral, unlike About — an explainer, not a place to link into, so no hash entry.
+const exposureDialog = document.getElementById('exposure-dialog') as HTMLDialogElement;
+document.getElementById('exposure-info')!.addEventListener('click', () => exposureDialog.showModal());
+document.getElementById('exposure-close')!.addEventListener('click', () => exposureDialog.close());
+exposureDialog.addEventListener('click', (e) => {
+  if (e.target === exposureDialog) exposureDialog.close();
 });
 
 // Before the first style lands, so the initial shading layer is built already pinned to
@@ -366,13 +381,15 @@ const thumbs = createThumbnailer(map, {
  * Every tile as a SceneSpec against the current selection: the shading row over the
  * current basemap, the basemap row under the current shading. Identical specs — the
  * selected pair sits in both rows — render once and land on every tile sharing them.
- * Ramp previews freeze the exposure the main view would give them, measured once here
- * rather than tracked while the walk runs.
+ * Ramp previews freeze the exposure they would get if selected — an untouched toggle
+ * follows each ramp's default — measured once here rather than tracked while the walk runs.
  */
 function thumbVariants(): ThumbVariant[] {
   const current = scene.spec();
-  const frozen = autoExposure ? (exposure ?? visibleRange(map, DEM_SOURCE)) : null;
-  const forRamp = (key: ShadingKey): Range | null => (isRamp(key) ? frozen : null);
+  const frozen = exposure ?? visibleRange(map, DEM_SOURCE);
+  const autoFor = (key: ShadingKey): boolean =>
+    autoExposureChosen ? autoExposure : defaultExposed(key);
+  const forRamp = (key: ShadingKey): Range | null => (isRamp(key) && autoFor(key) ? frozen : null);
   const variants = new Map<string, ThumbVariant>();
   const add = (id: string, spec: SceneSpec): void => {
     const key = JSON.stringify(spec);
@@ -443,11 +460,12 @@ function applyHash(): void {
     return;
   }
   followsScheme = !has('basemap');
+  autoExposureChosen = has('autoExposure');
   setBasemap(readString('basemap', defaultBasemap(prefersDark()), BASEMAP_KEYS));
   setBasemapVisible(readBoolean('basemapVisible', true));
   setShading(readString('shading', DEFAULT_SHADING, SHADING_KEYS));
   setShadingVisible(readBoolean('shadingVisible', true));
-  setAutoExposure(readBoolean('autoExposure', true));
+  setAutoExposure(readBoolean('autoExposure', defaultExposed(shadingKey)));
   setTerrainScale(readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE));
   setPerfDebug(readBoolean('debugPerf', false));
   setPivotDebug(readBoolean('debugPivot', false));

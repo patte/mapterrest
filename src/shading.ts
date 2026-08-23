@@ -52,6 +52,12 @@ const RAMP_OPACITY: Record<RampKey, number> = { heatmap: 0.85, heightmap: 1 };
 
 export const isRamp = (key: ShadingKey): key is RampKey => key !== 'hillshade';
 
+/**
+ * Whether a ramp starts exposed. Grey has nothing to lose by following the view; the heat
+ * ramp's absolute colours do (see rampColor), so it starts pinned to its own metres.
+ */
+export const defaultExposed = (key: ShadingKey): boolean => key === 'heightmap';
+
 /** The metres a ramp spans as written, which is what it spans unexposed. */
 export const rampDomain = (key: RampKey): Range => ({
   lo: RAMPS[key][0] as number,
