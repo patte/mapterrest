@@ -1,4 +1,5 @@
 import type { MapLibreMap } from 'maplibre-gl';
+import type { CameraAnchor } from './cameraAnchor';
 import mapterhornLogo from './assets/mapterhorn.svg?raw';
 import maptilerLogo from './assets/maptiler.svg?raw';
 
@@ -20,14 +21,24 @@ const DPI = 300;
 const px = (mm: number): number => Math.round((mm / 25.4) * DPI);
 
 /**
+ * How far the capture grows the real viewport, at most — two zoom levels deeper than
+ * the screen. Tile selection follows CSS size, so this is the lever that makes tiles
+ * actually load at print resolution; past the cap, tile count and memory grow
+ * quadratically for detail a print no longer shows, and the pixel-ratio remainder
+ * merely densifies what the deeper tiles already carry.
+ */
+const MAX_VIEWPORT_SCALE = 2;
+
+/**
  * The camera pill and the framing mode behind it: a screen-fixed paper-aspect
  * rectangle the map stays live under, and a capture that re-renders the same frame at
  * print density and crops the rectangle out of it. The export carries only the map,
  * the attribution line, and whichever provider logos the frame currently owes.
  */
-export function setupScreenshot(map: MapLibreMap): void {
+export function setupScreenshot(map: MapLibreMap, anchor: CameraAnchor | null): void {
   const frame = document.getElementById('shot-frame') as HTMLElement;
   const rect = document.getElementById('shot-rect') as HTMLElement;
+  const veil = document.getElementById('shot-veil') as HTMLElement;
   const format = document.getElementById('shot-format') as HTMLSelectElement;
   const openButton = document.getElementById('shot-open') as HTMLButtonElement;
   const rotateButton = document.getElementById('shot-rotate') as HTMLButtonElement;
@@ -73,8 +84,10 @@ export function setupScreenshot(map: MapLibreMap): void {
 
   captureButton.addEventListener('click', (e) => {
     captureButton.disabled = true;
+    veil.hidden = false;
     // Shift is the hidden clean shot: no attribution, no logos, just the map.
-    capture(map, rect, paperPx(), !e.shiftKey).finally(() => {
+    capture(map, anchor, rect, paperPx(), !e.shiftKey).finally(() => {
+      veil.hidden = true;
       captureButton.disabled = false;
     });
   });
@@ -82,6 +95,7 @@ export function setupScreenshot(map: MapLibreMap): void {
 
 async function capture(
   map: MapLibreMap,
+  anchor: CameraAnchor | null,
   rect: HTMLElement,
   [tw, th]: [number, number],
   credits: boolean,
@@ -89,36 +103,72 @@ async function capture(
   const container = map.getContainer();
   const view = rect.getBoundingClientRect();
   const base = container.getBoundingClientRect();
+  const ratio = tw / view.width;
+  // Growing the container k× while adding log2(k) zoom reproduces the exact same view
+  // (~1px over the frame, probed) with tiles selected for the print's true size; the
+  // remainder of the ratio is pixel density on top. The final canvas is the same size
+  // either way — the split only decides how much of it is real tile detail.
+  const grow = Math.min(ratio, MAX_VIEWPORT_SCALE);
+  const cssWidth = container.clientWidth;
+  const cssHeight = container.clientHeight;
 
   const out = document.createElement('canvas');
   out.width = tw;
   out.height = th;
   const ctx = out.getContext('2d')!;
 
-  // Boost the density so the rectangle's crop comes out at the paper's pixel size,
-  // redraw synchronously, and copy in the same task — the WebGL buffer is only valid
-  // until the browser composites, so there is no preserveDrawingBuffer to pay for.
-  map.setPixelRatio(tw / view.width);
+  // The anchor re-settles the camera on programmatic zoom and would drag the framing
+  // hundreds of pixels off; it is built to sit out a gesture, and this is one.
+  anchor?.suspend();
+  // The full representation, elevation included: the clamp rewrites elevation and what
+  // the numbers mean, so handing the view back takes a jump to all of them at once.
+  const saved = {
+    center: map.getCenter(),
+    zoom: map.getZoom(),
+    pitch: map.getPitch(),
+    bearing: map.getBearing(),
+    elevation: (map as unknown as { _camera: { transform: { elevation: number } } })._camera
+      .transform.elevation,
+  };
+  // The pivot stack drives the camera unclamped (centre elevation 0); rendered from
+  // that representation, the grown deep-zoom frame comes out with drapeless smears —
+  // the clamped representation of the same view survives it, and MapLibre preserves
+  // the apparent view when the clamp toggles. The anchor re-settles on resume.
+  if (anchor) map.setCenterClampedToGround(true);
+  document.body.classList.add('capturing');
   try {
+    container.style.width = `${cssWidth * grow}px`;
+    container.style.height = `${cssHeight * grow}px`;
+    map.setPixelRatio(ratio / grow);
+    map.setZoom(saved.zoom + Math.log2(grow));
+    await tilesSettled(map);
+    // Redraw synchronously and copy in the same task — the WebGL buffer is only valid
+    // until the browser composites, so there is no preserveDrawingBuffer to pay for.
     map.redraw();
     const gl = map.getCanvas();
     // MapLibre clamps the ratio to the GPU's canvas limit; the canvas knows what stuck.
     const scale = gl.width / container.clientWidth;
     ctx.drawImage(
       gl,
-      (view.left - base.left) * scale,
-      (view.top - base.top) * scale,
-      view.width * scale,
-      view.height * scale,
+      (view.left - base.left) * grow * scale,
+      (view.top - base.top) * grow * scale,
+      view.width * grow * scale,
+      view.height * grow * scale,
       0,
       0,
       tw,
       th,
     );
   } finally {
+    container.style.width = '';
+    container.style.height = '';
     // Undefined hands the ratio back to devicePixelRatio tracking; the signature only
     // admits numbers but the implementation is `?? devicePixelRatio`.
     map.setPixelRatio(undefined as unknown as number);
+    if (anchor) map.setCenterClampedToGround(false);
+    map.jumpTo(saved);
+    document.body.classList.remove('capturing');
+    anchor?.resume();
   }
 
   if (credits) await drawCredits(ctx, tw, th);
@@ -135,6 +185,26 @@ async function capture(
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+}
+
+/**
+ * The tests' `settled()` from inside the page: two frames so the grown view's tile
+ * requests exist — areTilesLoaded is vacuously true before then — then every tile,
+ * then a short grace. The cap turns an offline or stalled source into a capture of
+ * what arrived instead of a veil that never lifts.
+ */
+function tilesSettled(map: MapLibreMap): Promise<void> {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    let frames = 0;
+    const check = (): void => {
+      frames += 1;
+      const done = frames > 2 && map.areTilesLoaded() && map.loaded();
+      if (done || performance.now() - start > 120000) setTimeout(resolve, 300);
+      else requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  });
 }
 
 /**

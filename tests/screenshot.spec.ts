@@ -29,6 +29,15 @@ test('framing mode captures print-density paper crops', async ({ browser }) => {
     return box.width / box.height;
   };
   await check(Math.abs((await aspect()) - 297 / 210) < 0.01, 'the rectangle starts A4 landscape');
+
+  // The capture reshapes the live camera (clamp toggle, viewport growth, zoom shift)
+  // and must hand back the exact view; measured as the Matterhorn's screen position.
+  const peak = (): Promise<[number, number]> =>
+    page.evaluate(() => {
+      const p = window.map.project([7.6586, 45.9763]);
+      return [p.x, p.y];
+    });
+  const peakBefore = await peak();
   await check(
     (await page.locator('#shot-format option').allTextContents()).join(' ') ===
       'A2 A3 A4 A5 A6 Letter Legal Tabloid',
@@ -92,6 +101,9 @@ test('framing mode captures print-density paper crops', async ({ browser }) => {
   await page.keyboard.press('Escape');
   await check(await page.isHidden('#shot-frame'), 'Escape leaves framing mode');
   await check((await visibility('#tray')) === 'visible', 'the tray returns');
+  const peakAfter = await peak();
+  const drift = Math.hypot(peakAfter[0] - peakBefore[0], peakAfter[1] - peakBefore[1]);
+  await check(drift < 5, 'the captures hand the view back', `${drift.toFixed(1)}px drift`);
   await page.close();
 });
 

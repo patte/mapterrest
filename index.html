@@ -442,6 +442,37 @@
         opacity: 0.6;
         cursor: default;
       }
+      /* While the print renders, the map is mid-shapeshift (grown viewport, shifted
+         zoom); the veil hides the contortion and blocks input until it's back. */
+      #shot-veil {
+        position: fixed;
+        inset: 0;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(18px);
+        color: #fff;
+        font-size: 13px;
+      }
+      #shot-veil[hidden] {
+        display: none;
+      }
+      #shot-veil p {
+        margin: 0;
+        animation: shot-veil-pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes shot-veil-pulse {
+        50% {
+          opacity: 0.45;
+        }
+      }
+      /* The grown map overflows the window; without this the page grows scrollbars. */
+      body.capturing {
+        overflow: hidden;
+      }
+
       /* Framing owns the screen: everything but the map and the credited corner —
          which previews what gets burned into the image — sits it out. */
       body.shot #tray,
@@ -812,6 +843,10 @@
           </svg>
         </button>
       </div>
+    </div>
+
+    <div id="shot-veil" hidden>
+      <p>rendering the print…</p>
     </div>
 
     <dialog id="about-dialog">

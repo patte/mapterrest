@@ -9,7 +9,7 @@ import { DEFAULT_SHADING, defaultExposed, isRamp, SHADING_KEYS, type ShadingKey 
 import { attachScene, type SceneSpec } from './scene';
 import { createThumbnailer, type ThumbVariant } from './thumbnails';
 import { createTray, CURRENT_TILE, tileId } from './tray';
-import { enableCameraAnchor } from './cameraAnchor';
+import { enableCameraAnchor, type CameraAnchor } from './cameraAnchor';
 import { setupLogos } from './logos';
 import { setupScreenshot } from './screenshot';
 import { trackExposure, visibleRange, type Range } from './exposure';
@@ -115,8 +115,9 @@ function setPivotDebug(on: boolean): void {
     pivotDebug = null;
   }
 }
+let anchor: CameraAnchor | null = null;
 if (pivotEnabled) {
-  const anchor = enableCameraAnchor(map);
+  anchor = enableCameraAnchor(map);
   enableShiftDragCamera(map, anchor, (pivot) => pivotDebug?.hold(pivot));
   setPivotDebug(readBoolean('debugPivot', false));
   pivotBox.addEventListener('change', () => {
@@ -323,7 +324,7 @@ applyLogos();
 
 /* Screenshots ---------------------------------------------------------------- */
 
-setupScreenshot(map);
+setupScreenshot(map, anchor);
 
 /* Corner conflict ------------------------------------------------------------ */
 
