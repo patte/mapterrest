@@ -7,9 +7,12 @@ country renders black; exposed to −10…85 m the polders, the dykes and the Ut
 Heuvelrug all separate.
 
 The cost is that a shade stops meaning a height — mid grey is 47 m in one view and 2450 m
-in another. So it is a checkbox, on by default, and it reaches both ramps but not
-hillshade, which reads the DEM's gradient and never sees an absolute elevation for the
-endpoints to move.
+in another. So it is a checkbox whose default follows the ramp: grey has nothing to lose
+by following the view, so the heightmap starts exposed; the heat ramp's sea blue and snow
+white do mean a height, so the heatmap starts on its own metres. A hand toggle then
+applies to both ramps. Hillshade offers no exposure at all — it reads the DEM's gradient
+and never sees an absolute elevation for the endpoints to move. The ⓘ beside the checkbox
+opens a short in-app version of this page.
 
 What counts as visible is the whole question. The DEM tiles behind the shading carry their
 own `dem.min`/`dem.max`, so the range is read off the data being drawn rather than sampled

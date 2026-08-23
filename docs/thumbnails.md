@@ -19,7 +19,8 @@ Each tile's spec is a variation of the current one: the overlay row varies the s
 over the current basemap, the basemap row varies the basemap under the current shading,
 the "none" tiles turn one layer off. Identical specs render once and land on every tile
 sharing them — the selected pair sits in both rows. Ramp previews freeze the exposure
-the main view would give them, measured once per walk rather than tracked.
+they would get if selected — an untouched toggle follows each ramp's default — measured
+once per walk rather than tracked.
 
 ## The walk
 
