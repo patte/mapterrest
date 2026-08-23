@@ -16,7 +16,7 @@
     "verify": "playwright test",
     "deploy": "bash scripts/deploy.sh"
   },
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.17.1",
   "devDependencies": {
     "@playwright/test": "1.62.1",

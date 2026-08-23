@@ -1,101 +1,75 @@
-# Mapterrest — Mapterhorn terrain in MapLibre 3D
+# Mapterrest
 
-Pre-baked terrarium tiles from [Mapterhorn](https://mapterhorn.com) driving MapLibre's 3D
-terrain. No key, no proxy, no transcoding: the tiles arrive ready for `raster-dem`.
+Mapterrest is a fullscreen 3D map viewer built on MapLibre. It uses pre-baked Terrarium
+tiles from [Mapterhorn](https://mapterhorn.com) for terrain, then layers on selectable
+basemaps, elevation overlays along with a set of useful tools.
+
+## Features
+
+- [x] Global elevation model from [Mapterhorn](https://mapterhorn.com)
+- [x] Subject detection for intuitive map controls
+- [x] Basemaps from: OpenFreeMap, Carto, Maptiler
+- [x] Overlays: Hillshading, Heightmap (green to white, greyscale)
+- [x] Auto-exposure: adjusts the colour gradient to the visible terrain, inspired by [Heightmapper](https://tangrams.github.io/heightmapper/)
+- [x] Screenshot export: A2–A6, Letter, Legal, Tabloid
+- [x] Permalinks: camera position, basemap, overlay, and settings are all encoded in the URL
+
+Big thanks to all geospatial contributors and generous providers for making it possible to see the world in all these interesting and beautiful ways!
+
+## Development
+
+For local development follow these steps:
 
 ```bash
 pnpm install
 pnpm dev          # http://localhost:5173
 ```
 
-Sibling of [../glo30-proto](../glo30-proto), which streams the same Copernicus GLO-30
-data live from S3 as Cloud Optimized GeoTIFFs and transcodes it in the browser. That
-prototype answers "can this be done from the raw bucket"; this one answers "what does it
-look like when someone has already done it well".
+### Testing
 
-## The source
-
-Mapterhorn is Copernicus GLO-30 worldwide, refined with national high-resolution models
-where they exist, baked to terrarium and served behind Cloudflare — no key, CORS `*`, a
-week of `cache-control`, so the browser reads it directly:
-
-```js
-{
-  type: 'raster-dem',
-  tiles: ['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],
-  encoding: 'terrarium',
-  tileSize: 256, // the tiles are 512 px — see docs/lod.md for why this says otherwise
-}
+```bash
+pnpm verify orbit             # one spec, seconds
+pnpm verify                   # whole suite, ~1 min on a Mac GPU
+GL=swiftshader pnpm verify    # the CI renderer: software GL, sequential, ~12 min
 ```
 
-Depth is uneven — z17 over Switzerland (swissALTI3D), z15 across much of Europe, the US,
-Japan and New Zealand, z12 everywhere else — so `maxzoom` sits above what most of the
-planet carries and the misses 404. MapLibre keeps the parent tile for an errored DEM
-tile, so the cost of asking is requests, not holes.
-[docs/mapterhorn.md](docs/mapterhorn.md) has the archives, the coverage probes and the
-accuracy measurements.
+`pnpm verify` runs the headless end-to-end specs in `tests/`, one file per subject. On a
+Mac it renders on the real GPU and runs fully parallel; `GL=swiftshader` switches to the
+deterministic software renderer CI uses — run that when a change could interact with
+software GL, and before a release. A full SwiftShader run takes about 12 minutes on an
+M2 Mac.
 
-`#detail=` picks how much terrain LOD to ask for: `high` pulls every lever, the default
-`medium` holds the horizon at a quarter of the traffic, `low` gives up both levers for
-metered connections and the headless checks. [docs/lod.md](docs/lod.md) is the story of
-which levers exist and what each costs.
+Provider assets (DEM and basemap tiles, styles, glyphs) are served from a gitignored
+`.tile-cache/`, so repeated runs cost the providers nothing. `rm -rf .tile-cache` clears
+it — do that when Mapterhorn republishes tiles.
 
-## Controls
+`pnpm browser:start` keeps a browser server up for verify runs to connect to instead of
+launching their own; `pnpm browser:stop` takes it down. Optional — everything works
+without it.
 
-A card in the lower left: a grid of basemap tiles under a row of shading tiles
-(hillshade, elevation heatmap or grey heightmap), stacked the way the layers render,
-each section led by a "none" tile that hides its layer. Once the camera settles, a hidden
-mini map re-renders every tile into a live preview of what switching to it would show.
-Above them: terrain scale (0–10×, true heights by default, 0 flattens), auto-exposure, and
-the debug overlays. An X folds the whole card down to a single settings tile that
-previews the current view; narrow screens and `#collapsed=1` start folded. The basemap
-follows `prefers-color-scheme` until one is picked by hand. Auto-exposure pins the
-colour ramps to the elevations in view —
-[docs/exposure.md](docs/exposure.md) — and shift+drag orbits the terrain in the frame —
-[docs/camera.md](docs/camera.md). In the opposite corner, the Mapterhorn and MapTiler
-logos stack above the attribution while their data is on screen.
+## Prod
 
-The camera pill beside the hint frames a paper-aspect screenshot — A2–A6, Letter, Legal
-or Tabloid, landscape or portrait — and exports what the rectangle shows as a 300 dpi
-PNG, re-rendered with tiles up to two zoom levels deeper than the screen. The file
-carries its credits, the view's permalink and the centre as GPS —
-[docs/screenshots.md](docs/screenshots.md).
+I currently deploy this manually with [./scripts/deploy.sh](scripts/deploy.sh) to bunny cdn. For this to work `cp .env.deploy.example .env.deploy` and set the required envs.
 
-| Gesture | Effect |
-| --- | --- |
-| drag | pan |
-| **Shift + drag** | rotate (horizontal) and tilt (vertical) |
-| right-drag, Ctrl + drag | rotate and tilt (MapLibre built-ins, kept) |
-| scroll | zoom |
+## Keys
 
-Camera and every control live in the location hash, so a reload restores the view:
+Most of the integrated providers don't require an API key and just work.
 
-```
-#map=12.6/46.005/7.7/-135/78&basemap=carto-light&shading=heatmap&shadingVisible=0&autoExposure=0&terrainScale=3.7
-```
-
-`detail=`, `debugPivot=`, `debugPerf=`, `pivot=` and `collapsed=` join them; everything
-else is written back as it changes. Hand-editing the hash applies live — except `detail=` and
-`pivot=`, construction-time choices that reload the page.
+MapTiler has a generous free tier which we use for local development and for hosting on mapterrest.com. If you want to run your own instance of Mapterrest, you create your MapTiler API key at [https://www.maptiler.com/cloud/](https://www.maptiler.com/cloud/) and set it in `.env` as `VITE_MAPTILER_API_KEY=yourkey` like shown in [.env.example](.env.example).
 
 ## Docs
 
-| | |
-| --- | --- |
-| [docs/mapterhorn.md](docs/mapterhorn.md) | The tile source: endpoints, archives, coverage depth, accuracy |
-| [docs/lod.md](docs/lod.md) | Terrain LOD: the `tileSize` lever, the horizon params, the detail levels |
-| [docs/exposure.md](docs/exposure.md) | Auto-exposure: what counts as visible, and the hillshade light |
-| [docs/camera.md](docs/camera.md) | The orbit pivot, the raycast, and how the camera is anchored |
-| [docs/thumbnails.md](docs/thumbnails.md) | Live previews: the scene spec, the hidden mini map's walk, the refresh policy |
-| [docs/screenshots.md](docs/screenshots.md) | Print exports: the grown-viewport capture, the engine's ceilings, credits and file metadata |
+- [docs/mapterhorn.md](docs/mapterhorn.md): Terrain source: endpoints, archives, coverage depth, accuracy
+- [docs/lod.md](docs/lod.md): Terrain LOD: the `tileSize` lever, horizon parameters, and detail levels
+- [docs/exposure.md](docs/exposure.md): Auto-exposure: what counts as visible, and how the hillshade light is set
+- [docs/camera.md](docs/camera.md): Camera orbit: pivot, raycast, and the anchor model
+- [docs/thumbnails.md](docs/thumbnails.md): Live previews: scene spec, hidden mini map walk, refresh policy
+- [docs/screenshots.md](docs/screenshots.md): Print exports: grown-viewport capture, renderer ceilings, credits, file metadata
 
-## Scripts
+## Contributing
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm verify` | Headless end-to-end: Playwright specs under `tests/`, one per subject — filter with `pnpm verify orbit`. ~1 min on a Mac GPU, ~7 min through software GL |
-| `pnpm probe:coverage` | What asking past Mapterhorn's depth costs, per place and zoom |
-| `pnpm browser:start` / `browser:stop` | Optional resident browser server; verify runs and probes connect to it instead of launching their own |
+All contributions are welcome! Please open an issue for questions, feature requests, bug reports or criticisms... or even better submit a pull request!
 
-[AGENTS.md](AGENTS.md) has the operational detail: GL modes, the tile cache, spike-script
-conventions.
+## License
+
+[MIT](LICENSE). If Mapterrest is useful to you, a link back to this project is appreciated.
