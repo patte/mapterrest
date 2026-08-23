@@ -6,7 +6,7 @@ Cheap oracles first: `pnpm typecheck`, `pnpm build`. Then the spec that covers t
 
 ```
 pnpm verify orbit                 # one spec, seconds
-pnpm verify                       # whole suite, ~1 min on a Mac
+pnpm verify                       # whole suite, ~3 min on a Mac
 GL=swiftshader pnpm verify        # the CI renderer, sequential, ~7 min
 ```
 
@@ -61,7 +61,7 @@ Mapterhorn republishes tiles. `probe:coverage` deliberately bypasses it: that sc
 - A full parallel run launches a browser per worker, and under machine load one of those
   launches can hang outright. It fails at the config's 60s launch timeout rather than
   stalling silently, but the real fix is the resident browser, which replaces the
-  per-worker launches with one shared server. A metal-mode run past ~2× its normal ~40s
+  per-worker launches with one shared server. A metal-mode run past ~2× its normal ~3 min
   is hung, not slow — interrupt and diagnose rather than waiting it out.
 
 ## Spike scripts

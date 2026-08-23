@@ -30,7 +30,7 @@ pnpm dev          # http://localhost:5173
 
 ```bash
 pnpm verify orbit             # one spec, seconds
-pnpm verify                   # whole suite, ~1 min on a Mac GPU
+pnpm verify                   # whole suite, ~3 min on a Mac GPU
 GL=swiftshader pnpm verify    # the CI renderer: software GL, sequential, ~12 min
 ```
 
