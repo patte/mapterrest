@@ -7,7 +7,7 @@ Cheap oracles first: `pnpm typecheck`, `pnpm build`. Then the spec that covers t
 ```
 pnpm verify orbit                 # one spec, seconds
 pnpm verify                       # whole suite, ~3 min on a Mac
-GL=swiftshader pnpm verify        # the CI renderer, sequential, ~7 min
+GL=swiftshader pnpm verify        # the CI renderer, sequential, 7–39 min (one 39-min sample; needs more)
 ```
 
 Specs live in `tests/`, one file per subject. Run the full suite only for broad changes;
@@ -27,7 +27,9 @@ wins; otherwise a Mac gets Metal and CI or Linux gets SwiftShader.
 - SwiftShader is deterministic, needs no GPU, and reproduces software-GL bugs like the
   255-tile coords-framebuffer overflow. It renders on ~5 CPU threads per page, so the
   config pins it to one worker — parallel SwiftShader workers starve each other past the
-  90s map-load budget and fail spuriously.
+  90s map-load budget and fail spuriously. The print-density screenshot spec skips
+  itself in this mode: a capture re-renders a grown viewport, minutes per capture in
+  software rendering, for a spec that guards PNG plumbing rather than GL behaviour.
 
 ## Resident browser
 

@@ -34,16 +34,20 @@ async function searchFor(page: Page, query: string): Promise<void> {
   await page.waitForSelector('#geosearch-results li');
 }
 
-/** The pill animates open and shut, so both states are waited for, not read. */
+/**
+ * The pill animates open and shut, so both states are waited for, not read. The budget
+ * is condition-based and generous because software GL starves the page's main thread —
+ * under SwiftShader the flip can trail the click by many seconds.
+ */
 async function collapsed(page: Page): Promise<boolean> {
   return page
-    .waitForSelector('#geosearch-input', { state: 'hidden', timeout: 2000 })
+    .waitForSelector('#geosearch-input', { state: 'hidden', timeout: 15_000 })
     .then(() => true)
     .catch(() => false);
 }
 async function expanded(page: Page): Promise<boolean> {
   return page
-    .waitForSelector('#geosearch-input', { state: 'visible', timeout: 2000 })
+    .waitForSelector('#geosearch-input', { state: 'visible', timeout: 15_000 })
     .then(() => true)
     .catch(() => false);
 }
@@ -163,18 +167,26 @@ test('an API error is shown in the dropdown, scoped to its cause', async ({ brow
 
 test('a MapTiler map error raises the notice, other errors do not', async ({ browser }) => {
   const page = await open(browser);
-  await page.evaluate(() => {
-    window.map.fire('error', {
-      error: Object.assign(new Error('Forbidden'), {
-        status: 403,
-        url: 'https://api.maptiler.com/maps/hybrid-v4/style.json',
-      }),
+  // This spec races the notice's 12s auto-hide: on a page still rendering its first
+  // tiles, software GL stretches each step past that whole window. Settle first.
+  await settled(page);
+  const raiseMapTilerError = () =>
+    page.evaluate(() => {
+      window.map.fire('error', {
+        error: Object.assign(new Error('Forbidden'), {
+          status: 403,
+          url: 'https://api.maptiler.com/maps/hybrid-v4/style.json',
+        }),
+      });
     });
-  });
+  await raiseMapTilerError();
   await check(await page.isVisible('#notice'), 'MapTiler failure shows the notice');
   const text = await page.textContent('#notice p');
   await check(/HTTP 403/.test(text ?? ''), 'the notice names the status', text ?? '');
   await check(/free MapTiler key/.test(text ?? ''), 'the notice explains the shared free key');
+  // Under software GL the checks above can outlast the notice's 12s auto-hide; a repeat
+  // extends the stay (by design), so the click exercises the X, not the timer.
+  await raiseMapTilerError();
   await page.click('#notice-close');
   await check(await page.isHidden('#notice'), 'the X dismisses the notice');
 

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { test } from '@playwright/test';
+import { glLaunchOptions } from '../scripts/browser.mjs';
 import { open, check, settled } from './helpers';
 
 /** Width and height straight from the IHDR chunk. */
@@ -9,6 +10,9 @@ function pngSize(file: string): [number, number] {
 }
 
 test('framing mode captures print-density paper crops', async ({ browser }) => {
+  // Two print-density captures re-render a grown viewport — minutes per capture in
+  // software rendering, against a spec that guards PNG plumbing, not GL behaviour.
+  test.skip(glLaunchOptions().mode === 'swiftshader', 'print-density capture is uneconomical in software GL');
   const page = await open(browser);
   await settled(page);
 
