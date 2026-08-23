@@ -61,6 +61,24 @@ test('framing mode captures print-density paper crops', async ({ browser }) => {
     'the file declares its print density',
     `${dpi} dpi`,
   );
+  const meta = bytes.toString('latin1');
+  await check(meta.includes('Software\0Mapterrest'), 'Software names the app');
+  await check(
+    meta.includes('Copyright\0') && meta.includes('Mapterhorn'),
+    'Copyright carries the credits',
+  );
+  await check(/Comment\0https?:\/\/\S*#/.test(meta), 'Comment holds the view permalink');
+  // The eXIf GPS position, decoded back out of the TIFF we wrote: degree fields must
+  // match the live map centre.
+  const center = await page.evaluate(() => window.map.getCenter());
+  const tiff = meta.indexOf('eXIf') + 4;
+  const latDeg = bytes.readUInt32LE(tiff + 92);
+  const lonDeg = bytes.readUInt32LE(tiff + 116);
+  await check(
+    latDeg === Math.floor(Math.abs(center.lat)) && lonDeg === Math.floor(Math.abs(center.lng)),
+    'the GPS position matches the view centre',
+    `${latDeg}°, ${lonDeg}° vs ${center.lat.toFixed(2)}, ${center.lng.toFixed(2)}`,
+  );
 
   // Decode the export in the page: a grid sample proves a real map landed (a failed
   // copy is one flat colour), and the corner shows the burned-in attribution pill.

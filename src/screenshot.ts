@@ -187,7 +187,7 @@ async function capture(
 
   const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/png'));
   if (!blob) return;
-  const png = withDpi(new Uint8Array(await blob.arrayBuffer()), DPI);
+  const png = withMetadata(new Uint8Array(await blob.arrayBuffer()), saved.center);
   const stamp = new Date();
   const pad = (n: number): string => String(n).padStart(2, '0');
   const name =
@@ -201,25 +201,132 @@ async function capture(
 }
 
 /**
- * Stamps the PNG's pHYs chunk with `dpi`: toBlob writes no physical size, viewers
- * then assume 72 dpi, and a print dialog sizes an A4 export as a metre-wide poster.
- * The chunk goes right behind IHDR, which the signature pins to the first 33 bytes.
+ * The export's metadata, spliced in right behind IHDR (which the signature pins to
+ * the first 33 bytes) — toBlob writes none of it:
+ *
+ * - pHYs declares the 300 dpi; without it viewers assume 72 and a print dialog
+ *   sizes an A4 export as a metre-wide poster.
+ * - Comment holds the view's permalink — the hash carries camera and layers, so any
+ *   export leads back to the exact view that produced it.
+ * - Copyright carries the credits even when the clean shot leaves them off the pixels.
+ * - eXIf pins the view's centre as a GPS position for photo libraries.
  */
-function withDpi(png: Uint8Array, dpi: number): Uint8Array<ArrayBuffer> {
-  const perMetre = Math.round(dpi / 0.0254);
-  const chunk = new Uint8Array(21);
-  const view = new DataView(chunk.buffer);
-  view.setUint32(0, 9);
-  chunk.set([0x70, 0x48, 0x59, 0x73], 4); // "pHYs"
-  view.setUint32(8, perMetre);
-  view.setUint32(12, perMetre);
-  chunk[16] = 1; // unit: the metre
-  view.setUint32(17, crc32(chunk.subarray(4, 17)));
-  const out = new Uint8Array(png.length + chunk.length);
+function withMetadata(
+  png: Uint8Array,
+  center: { lat: number; lng: number },
+): Uint8Array<ArrayBuffer> {
+  const chunks = [
+    pHYs(DPI),
+    textChunk('Software', 'Mapterrest (mapterrest.com)'),
+    textChunk('Creation Time', new Date().toUTCString()),
+    textChunk('Copyright', creditsLine()),
+    textChunk('Comment', location.href),
+    pngChunk('eXIf', exifGps(center.lat, center.lng)),
+  ];
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const out = new Uint8Array(png.length + total);
   out.set(png.subarray(0, 33));
-  out.set(chunk, 33);
-  out.set(png.subarray(33), 33 + chunk.length);
+  let at = 33;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.length;
+  }
+  out.set(png.subarray(33), at);
   return out;
+}
+
+/** One PNG chunk: length, type, data, CRC. */
+function pngChunk(type: string, data: Uint8Array): Uint8Array<ArrayBuffer> {
+  const chunk = new Uint8Array(12 + data.length);
+  const view = new DataView(chunk.buffer);
+  view.setUint32(0, data.length);
+  for (let i = 0; i < 4; i++) chunk[4 + i] = type.charCodeAt(i);
+  chunk.set(data, 8);
+  view.setUint32(8 + data.length, crc32(chunk.subarray(4, 8 + data.length)));
+  return chunk;
+}
+
+/**
+ * ASCII rides in tEXt; anything richer in iTXt, which is UTF-8 by definition — tEXt
+ * is Latin-1, and viewers that assume UTF-8 turn its bare © into a '?'.
+ */
+function textChunk(keyword: string, text: string): Uint8Array<ArrayBuffer> {
+  if ([...text].every((c) => c.charCodeAt(0) <= 127)) {
+    return pngChunk('tEXt', Uint8Array.from(`${keyword}\0${text}`, (c) => c.charCodeAt(0)));
+  }
+  // keyword, separator, then: uncompressed flag, method 0, empty language tag and
+  // empty translated keyword with their terminators — five zero bytes in a row.
+  const head = Uint8Array.from(`${keyword}\0\0\0\0\0`, (c) => c.charCodeAt(0));
+  const utf8 = new TextEncoder().encode(text);
+  const data = new Uint8Array(head.length + utf8.length);
+  data.set(head);
+  data.set(utf8, head.length);
+  return pngChunk('iTXt', data);
+}
+
+function pHYs(dpi: number): Uint8Array<ArrayBuffer> {
+  const perMetre = Math.round(dpi / 0.0254);
+  const data = new Uint8Array(9);
+  const view = new DataView(data.buffer);
+  view.setUint32(0, perMetre);
+  view.setUint32(4, perMetre);
+  data[8] = 1; // unit: the metre
+  return pngChunk('pHYs', data);
+}
+
+/**
+ * A minimal EXIF block — little-endian TIFF, one IFD0 entry pointing at a GPS IFD
+ * with the position in degree/minute/second rationals. The PNG eXIf chunk carries
+ * the TIFF structure bare, without JPEG's "Exif\0\0" prefix.
+ */
+function exifGps(lat: number, lng: number): Uint8Array {
+  // MapLibre hands back a longitude that may have wrapped past the antimeridian.
+  const lon = ((lng + 540) % 360) - 180;
+  const data = new Uint8Array(140);
+  const view = new DataView(data.buffer);
+  data[0] = 0x49; // "II": little-endian
+  data[1] = 0x49;
+  view.setUint16(2, 42, true);
+  view.setUint32(4, 8, true); // IFD0 at 8
+  view.setUint16(8, 1, true); // one entry: the GPS IFD pointer
+  view.setUint16(10, 0x8825, true);
+  view.setUint16(12, 4, true); // LONG
+  view.setUint32(14, 1, true);
+  view.setUint32(18, 26, true); // GPS IFD at 26
+  view.setUint32(22, 0, true); // no next IFD
+
+  view.setUint16(26, 5, true); // five entries, in tag order
+  const entry = (i: number, tag: number, type: number, count: number): number => {
+    const at = 28 + i * 12;
+    view.setUint16(at, tag, true);
+    view.setUint16(at + 2, type, true);
+    view.setUint32(at + 4, count, true);
+    return at + 8; // where the inline value or offset goes
+  };
+  data[entry(0, 0x0000, 1, 4)] = 2; // GPSVersionID 2.3.0.0
+  data[entry(0, 0x0000, 1, 4) + 1] = 3;
+  data[entry(1, 0x0001, 2, 2)] = (lat >= 0 ? 'N' : 'S').charCodeAt(0);
+  view.setUint32(entry(2, 0x0002, 5, 3), 92, true); // latitude rationals at 92
+  data[entry(3, 0x0003, 2, 2)] = (lon >= 0 ? 'E' : 'W').charCodeAt(0);
+  view.setUint32(entry(4, 0x0004, 5, 3), 116, true); // longitude rationals at 116
+  view.setUint32(88, 0, true); // no next IFD
+
+  const dms = (at: number, deg: number): void => {
+    const d = Math.floor(deg);
+    const m = Math.floor((deg - d) * 60);
+    const s = Math.round(((deg - d) * 60 - m) * 60 * 10000);
+    for (const [i, [num, den]] of [
+      [d, 1],
+      [m, 1],
+      [s, 10000],
+    ].entries()) {
+      view.setUint32(at + i * 8, num, true);
+      view.setUint32(at + i * 8 + 4, den, true);
+    }
+  };
+  dms(92, Math.abs(lat));
+  dms(116, Math.abs(lon));
+  return data;
 }
 
 /** CRC-32 as PNG chunks want it. */
@@ -259,6 +366,13 @@ function tilesSettled(map: MapLibreMap): Promise<void> {
   });
 }
 
+/** The attribution as one line — the pill's text, and the file's Copyright field. */
+function creditsLine(): string {
+  const line = document.querySelector('.maplibregl-ctrl-attrib-inner')?.textContent?.trim();
+  // A print travels without its URL bar; the last entry says where it was made.
+  return [line, 'mapterrest.com'].filter(Boolean).join(' | ');
+}
+
 /**
  * The image's corner credit: the attribution line on its pill, and above it the
  * provider logos the print still owes — read from the live DOM, so the image follows
@@ -268,9 +382,7 @@ async function drawCredits(ctx: CanvasRenderingContext2D, w: number, h: number):
   const margin = 36;
   let y = h - margin;
 
-  const line = document.querySelector('.maplibregl-ctrl-attrib-inner')?.textContent?.trim();
-  // A print travels without its URL bar; the last entry says where it was made.
-  const text = [line, 'mapterrest.com'].filter(Boolean).join(' | ');
+  const text = creditsLine();
   // ≈6.7pt on paper — legible in print, quiet on the page.
   ctx.font = '500 28px ui-sans-serif, system-ui, -apple-system, sans-serif';
   const textWidth = ctx.measureText(text).width;
