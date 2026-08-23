@@ -141,6 +141,12 @@
         width: 20px;
         height: 20px;
       }
+      /* The dialogs' X floats over scrolling text, so it carries the panel ground
+         with it; the tray's X sits in the card's own padding and stays bare. */
+      #about-close,
+      #exposure-close {
+        background: var(--panel-bg);
+      }
       #tray label {
         color: var(--panel-muted);
       }
@@ -428,7 +434,12 @@
            the region the backdrop-close check reads as outside the content. */
         max-height: calc(100vh - 2 * var(--edge));
         overflow-y: auto;
-        padding: 16px 20px;
+        /* The vertical inset is border, not padding: the scrollport is the padding
+           box, so padding scrolls away with the content and scrolled text would run
+           to the dialog's very edge. */
+        padding: 0 20px;
+        border-top: 16px solid transparent;
+        border-bottom: 16px solid transparent;
       }
       #about-body h1,
       #exposure-body h1 {
