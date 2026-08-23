@@ -798,7 +798,10 @@
            lift it or the margins are the UA's, not --edge. */
         max-width: none;
         width: min(560px, calc(100vw - 2 * var(--edge)));
-        max-height: calc(100vh - 2 * var(--edge));
+        /* dvh, not vh: on phones vh is the URL-bar-hidden viewport, taller than what is
+           on screen — a vh-sized dialog overflows the visible area, its top cut off with
+           no way to scroll to it. */
+        max-height: calc(100dvh - 2 * var(--edge));
         border: none;
         border-radius: 12px;
         /* Padding lives on the body: a click whose target is the dialog itself can
@@ -842,7 +845,7 @@
         #about-dialog,
         #exposure-dialog {
           width: calc(100vw - 2 * var(--edge));
-          height: calc(100vh - 2 * var(--edge));
+          height: calc(100dvh - 2 * var(--edge));
         }
       }
       #about-body,
@@ -850,7 +853,7 @@
         box-sizing: border-box;
         /* The body scrolls, not the dialog: a scrollbar on the dialog would sit in
            the region the backdrop-close check reads as outside the content. */
-        max-height: calc(100vh - 2 * var(--edge));
+        max-height: calc(100dvh - 2 * var(--edge));
         overflow-y: auto;
         /* The vertical inset is border, not padding: the scrollport is the padding
            box, so padding scrolls away with the content and scrolled text would run
