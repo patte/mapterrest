@@ -207,6 +207,14 @@
       #shading-card .row {
         margin-left: calc(2 * (var(--tile) + var(--tile-gap)));
       }
+      /* Below this width the shading strip scrolls, so "under the heatmap tile" is no
+         longer a place — the row hugs the card's right edge instead. */
+      @media (max-width: 640px) {
+        #shading-card .row {
+          margin-left: 0;
+          justify-content: flex-end;
+        }
+      }
       /* Gone but not collapsed: the row keeps its height so the tray never jumps as
          the selection moves between ramps and hillshade. */
       #shading-card .row[hidden] {

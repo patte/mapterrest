@@ -45,6 +45,16 @@ await page.locator('#card').screenshot({ path: `${SHOTS}exposure-row-info.png` }
 await page.click('#exposure-info');
 await page.waitForTimeout(200);
 await page.screenshot({ path: `${SHOTS}exposure-dialog.png` });
+await page.close();
+
+// Narrow, where the shading strip scrolls and the exposure row right-aligns; the
+// tray starts collapsed here, so the settings tile opens it first.
+const narrow = await browser.newPage({ viewport: { width: 390, height: 844 } });
+await narrow.goto(URL_ + '#shading=heatmap', { waitUntil: 'domcontentloaded' });
+await narrow.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
+await narrow.click('#tray-tile');
+await narrow.waitForTimeout(300);
+await narrow.locator('#card').screenshot({ path: `${SHOTS}exposure-row-narrow.png` });
 
 await browser.close();
 server?.kill();
