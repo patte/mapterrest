@@ -405,8 +405,12 @@ async function drawCredits(ctx: CanvasRenderingContext2D, w: number, h: number):
   };
   // Mapterhorn only asks for the © text (their TileJSON attribution), so on paper the
   // wordmark stays off unless another provider's mark is due anyway — then the stack
-  // keeps its screen shape. MapTiler's free tier does want the mark on the map.
-  const maptiler = shown('maptiler');
+  // keeps its screen shape. MapTiler's free tier does want the mark on the map — but
+  // only where the image shows their style: a mark up only for geosearch (searchOnly)
+  // credits nothing in the export.
+  const maptiler =
+    shown('maptiler') &&
+    document.querySelector<HTMLElement>('#logos .maptiler')?.dataset.searchOnly !== 'true';
   // Same stack as on screen: Mapterhorn holds the bottom spot, MapTiler above.
   if (maptiler && shown('mapterhorn')) {
     const img = await svgImage(mapterhornLogo, 38);

@@ -17,6 +17,8 @@ import { choosePivot, projectPoint } from './pivot';
 import { enablePerfDebug } from './perfDebug';
 import { enablePivotDebug } from './pivotDebug';
 import { enableShiftDragCamera } from './shiftDragCamera';
+import { setupGeosearch } from './geosearch';
+import { maptilerSuffix, showNotice } from './notice';
 import { onSchemeChange, prefersDark } from './theme';
 import {
   DEFAULT_DETAIL,
@@ -131,6 +133,38 @@ if (pivotEnabled) {
 map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 
 const about = setupAbout();
+
+/** Latches on the first query: attribution for the session's geocoding use. */
+let searchedMapTiler = false;
+setupGeosearch(map, () => {
+  if (searchedMapTiler) return;
+  searchedMapTiler = true;
+  applyLogos();
+});
+
+/* MapTiler errors ------------------------------------------------------------ */
+
+// A failing style fans out into an error per tile; one notice a minute is plenty.
+let mapTilerNoticeAt = 0;
+map.on('error', (e) => {
+  const err = e.error as Error & { url?: string; status?: number; body?: Blob };
+  if (typeof err?.url === 'string' && err.url.includes('api.maptiler.com')) {
+    const now = Date.now();
+    if (now - mapTilerNoticeAt < 60000) return;
+    mapTilerNoticeAt = now;
+    // The suffix reads the response body (an AJAXError carries it as a Blob) to tell
+    // an invalid key from limits — see maptilerSuffix.
+    void (async () => {
+      const body = err.body instanceof Blob ? await err.body.text().catch(() => '') : '';
+      const status = typeof err.status === 'number' ? ` (HTTP ${err.status})` : '';
+      showNotice(`the MapTiler basemap failed to load${status}${maptilerSuffix(err.status ?? 0, body)}`);
+    })();
+  } else {
+    // Subscribing to 'error' silences MapLibre's own console reporting; everything not
+    // handled here still belongs in the console.
+    console.error(e.error);
+  }
+});
 
 /* Basemap & shading tiles ---------------------------------------------------- */
 
@@ -318,6 +352,7 @@ function applyLogos(): void {
   logos.update({
     mapterhorn: terrainScale > 0 || shadingVisible,
     maptiler: isMapTiler(basemapKey) && basemapVisible,
+    maptilerSearch: searchedMapTiler,
   });
 }
 applyLogos();

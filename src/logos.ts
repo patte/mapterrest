@@ -6,6 +6,8 @@ export type LogoState = {
   mapterhorn: boolean;
   /** A MapTiler style is on screen; their free tier asks for the logo alongside it. */
   maptiler: boolean;
+  /** Geosearch has been used — their Geocoding API asks for attribution too. */
+  maptilerSearch: boolean;
 };
 
 /**
@@ -39,10 +41,22 @@ export function setupLogos(corner: Element): { update(state: LogoState): void } 
 
   return {
     update(state: LogoState): void {
+      const mt = state.maptiler || state.maptilerSearch;
       mapterhorn.hidden = !state.mapterhorn;
-      maptiler.hidden = !state.maptiler;
+      maptiler.hidden = !mt;
+      const label =
+        state.maptiler && state.maptilerSearch
+          ? 'basemap & search by MapTiler'
+          : state.maptiler
+            ? 'basemap by MapTiler'
+            : 'search by MapTiler';
+      maptiler.title = label;
+      maptiler.setAttribute('aria-label', label);
+      // Read by the print exporter: a mark owed only to geocoding credits nothing in
+      // an image, so it stays off paper.
+      maptiler.dataset.searchOnly = String(mt && !state.maptiler);
       // An empty box would still hold its corner margin open.
-      box.hidden = !state.mapterhorn && !state.maptiler;
+      box.hidden = !state.mapterhorn && !mt;
     },
   };
 }

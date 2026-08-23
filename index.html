@@ -15,6 +15,7 @@
         --panel-border: #ccc;
         --control-bg: #fff;
         --accent: #2b7de0;
+        --warn: #c05f10;
         /* MapLibre's own controls sit 10px off the edges; the card sits level with them. */
         --edge: 10px;
       }
@@ -26,6 +27,7 @@
         --panel-border: #3a4653;
         --control-bg: #222b35;
         --accent: #66a8ff;
+        --warn: #f5a742;
       }
       html,
       body {
@@ -319,6 +321,268 @@
         font-weight: 600;
       }
 
+      /* Geosearch: a magnifier pill in the otherwise free top-left corner that expands
+         into the input — collapsed it costs no space, which is the point. Hidden
+         entirely until JS confirms a MapTiler key. */
+      #geosearch {
+        position: absolute;
+        top: calc(var(--edge) + env(safe-area-inset-top));
+        left: calc(var(--edge) + env(safe-area-inset-left));
+        z-index: 3;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        color: var(--panel-fg);
+        font-size: 12px;
+        /* A fixed width the box's percentage can resolve against (against the column's
+           auto width it would collapse to the pill's). The subtraction keeps the
+           expanded box short of the nav control's corner. */
+        width: min(320px, calc(100vw - 2 * var(--edge) - env(safe-area-inset-left) - 50px));
+        /* The column spans its full width even while only the pill shows; the pieces
+           alone catch the pointer, so map drags beside them still land on the map. */
+        pointer-events: none;
+      }
+      #geosearch-box,
+      #geosearch-results {
+        pointer-events: auto;
+      }
+      #geosearch[hidden],
+      #geosearch-results[hidden] {
+        display: none;
+      }
+      /* One pill, two widths: collapsed it is exactly the magnifier button; opened it
+         widens rightward and the input and X, always laid out inside, come out from
+         under the clip. The shell matches the camera pill's. */
+      #geosearch-box {
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        width: 35px;
+        border-radius: 999px;
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+        /* clip, not hidden: a hidden-overflow box still scrolls programmatically, and
+           focusing the clipped input scrolled the magnifier out to the left. */
+        overflow: clip;
+        transition: width 0.25s ease;
+      }
+      #geosearch.open #geosearch-box {
+        width: 100%;
+      }
+      #geosearch-open {
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 999px;
+        background: none;
+        color: var(--panel-muted);
+        cursor: pointer;
+      }
+      #geosearch-open:hover {
+        color: var(--panel-fg);
+      }
+      #geosearch-open svg {
+        width: 15px;
+        height: 15px;
+      }
+      /* Kept out of the tab order and the accessibility tree while clipped away; on
+         open, visible at once so focus can land mid-slide, the fade a beat behind the
+         widening pill. */
+      #geosearch-input,
+      #geosearch-close {
+        visibility: hidden;
+        opacity: 0;
+        transition:
+          opacity 0.15s ease,
+          visibility 0s 0.25s;
+      }
+      #geosearch.open #geosearch-input,
+      #geosearch.open #geosearch-close {
+        visibility: visible;
+        opacity: 1;
+        transition:
+          opacity 0.2s ease 0.05s,
+          visibility 0s;
+      }
+      #geosearch-input {
+        flex: 1;
+        min-width: 0;
+        padding: 2px 0;
+        border: none;
+        outline: none;
+        background: none;
+        color: var(--panel-fg);
+        font: inherit;
+        font-size: 13px;
+      }
+      #geosearch-input::placeholder {
+        color: var(--panel-muted);
+      }
+      #geosearch-close {
+        flex: none;
+        margin-right: 5px;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: none;
+        color: var(--panel-muted);
+        cursor: pointer;
+      }
+      #geosearch-close:hover {
+        background: var(--control-bg);
+        color: var(--panel-fg);
+      }
+      #geosearch-close svg {
+        width: 14px;
+        height: 14px;
+      }
+      #geosearch-results {
+        box-sizing: border-box;
+        width: 100%;
+        margin: 0;
+        padding: 6px;
+        list-style: none;
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+        animation: geosearch-drop 0.18s ease;
+      }
+      /* Runs when the list goes from display:none to shown — rerenders while it stays
+         shown never flip `hidden` across a style recalc, so they don't restart it. */
+      @keyframes geosearch-drop {
+        from {
+          opacity: 0;
+          transform: translateY(-4px);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #geosearch-box,
+        #geosearch-input,
+        #geosearch-close {
+          transition: none;
+        }
+        #geosearch-results {
+          animation: none;
+        }
+      }
+      #geosearch-results li {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      #geosearch-results li:hover,
+      #geosearch-results li[aria-selected='true'] {
+        background: var(--control-bg);
+      }
+      #geosearch-results .name {
+        font-size: 13px;
+      }
+      #geosearch-results .context,
+      #geosearch-results li.note {
+        color: var(--panel-muted);
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #geosearch-results li.note {
+        cursor: default;
+        white-space: normal;
+        font-size: 12px;
+      }
+      #geosearch-results li.note:hover {
+        background: none;
+      }
+      /* An error note pops where plain notes stay muted: the warning triangle leads. */
+      #geosearch-results li.note.warn {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 7px;
+        color: var(--panel-fg);
+      }
+      #geosearch-results li.note.warn svg {
+        flex: none;
+        width: 15px;
+        height: 15px;
+        margin-top: 1px;
+        color: var(--warn);
+      }
+
+      /* Error toast: top-centered so it reads as coming from the map, not a control. */
+      #notice {
+        position: fixed;
+        top: calc(var(--edge) + env(safe-area-inset-top));
+        left: 50%;
+        transform: translateX(-50%);
+        /* Above the veil: a capture that fails mid-render must still get to say so. */
+        z-index: 6;
+        box-sizing: border-box;
+        max-width: min(440px, calc(100vw - 2 * var(--edge)));
+        display: flex;
+        align-items: flex-start;
+        gap: 2px;
+        padding: 8px 6px 8px 12px;
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        /* The amber rim and triangle make it pop off the map; the panel ground and
+           foreground text keep it in the family and readable. */
+        border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+        color: var(--panel-fg);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      #notice[hidden] {
+        display: none;
+      }
+      #notice > svg {
+        flex: none;
+        width: 16px;
+        height: 16px;
+        margin: 3px 8px 0 0;
+        color: var(--warn);
+      }
+      #notice p {
+        margin: 2px 0;
+      }
+      #notice button {
+        flex: none;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: none;
+        color: var(--panel-muted);
+        cursor: pointer;
+      }
+      #notice button:hover {
+        background: var(--control-bg);
+        color: var(--panel-fg);
+      }
+      #notice button svg {
+        width: 14px;
+        height: 14px;
+      }
+
       /* Stretched to the card's width below, so the About pill's right edge lines up
          with the card's while the hint keeps the left. */
       #hint-row {
@@ -477,6 +741,7 @@
          which previews what gets burned into the image — sits it out. */
       body.shot #tray,
       body.shot #tray-tile,
+      body.shot #geosearch,
       body.shot .maplibregl-ctrl-top-left,
       body.shot .maplibregl-ctrl-top-right {
         visibility: hidden;
@@ -557,6 +822,7 @@
       @media (max-width: 640px) {
         body:has(dialog[open]) #tray,
         body:has(dialog[open]) #tray-tile,
+        body:has(dialog[open]) #geosearch,
         body:has(dialog[open]) .maplibregl-ctrl-top-left,
         body:has(dialog[open]) .maplibregl-ctrl-top-right,
         body:has(dialog[open]) .maplibregl-ctrl-bottom-left,
@@ -748,6 +1014,50 @@
   </head>
   <body>
     <div id="map"></div>
+
+    <!-- Revealed by geosearch.ts once it has a MapTiler key to search with. -->
+    <div id="geosearch" hidden>
+      <div id="geosearch-box">
+        <button id="geosearch-open" type="button" aria-label="search places" title="search places (/)" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+        </button>
+        <input
+          id="geosearch-input"
+          type="text"
+          placeholder="search places…"
+          autocomplete="off"
+          spellcheck="false"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded="false"
+          aria-controls="geosearch-results"
+          aria-label="search places"
+        />
+        <button id="geosearch-close" type="button" aria-label="close search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+      <ul id="geosearch-results" role="listbox" aria-label="search results" hidden></ul>
+    </div>
+
+    <div id="notice" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <path d="M12 9v4" stroke-linecap="round" />
+        <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
+      </svg>
+      <p></p>
+      <button id="notice-close" type="button" aria-label="dismiss">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    </div>
 
     <button id="tray-tile" class="tile" type="button" aria-label="map settings" aria-controls="tray" aria-expanded="false" title="map settings">
       <span class="preview">
