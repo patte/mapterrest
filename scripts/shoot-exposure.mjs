@@ -55,6 +55,9 @@ await narrow.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 9000
 await narrow.click('#tray-tile');
 await narrow.waitForTimeout(300);
 await narrow.locator('#card').screenshot({ path: `${SHOTS}exposure-row-narrow.png` });
+// The whole viewport too, for the bottom-right corner: the open card must cover the
+// attribution pill and logos, not sit under them.
+await narrow.screenshot({ path: `${SHOTS}tray-narrow-corner.png` });
 
 await browser.close();
 server?.kill();

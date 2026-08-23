@@ -46,7 +46,11 @@
         position: absolute;
         bottom: calc(var(--edge) + env(safe-area-inset-bottom));
         left: calc(var(--edge) + env(safe-area-inset-left));
-        z-index: 1;
+        /* Above MapLibre's control containers (z-index 2): on narrow screens the card
+           reaches into the bottom-right corner, and the open card wins over the
+           attribution pill and the logos. The expanded attribution is negotiated in
+           main.ts rather than stacked. */
+        z-index: 3;
         display: flex;
         flex-direction: column;
         align-items: flex-start;
