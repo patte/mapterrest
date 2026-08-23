@@ -41,4 +41,15 @@ echo "==> Syncing dist/ -> s3://$BUNNY_STORAGE_ZONE/"
   --endpoint-url "$ENDPOINT" \
   --delete
 
+# Purge the pull zone so the edges refetch everything from storage. Needs the account
+# API key (dashboard → Account → API Key) and the pull zone's numeric id (in its
+# dashboard URL). Optional: without them the deploy still lands, the edges just age out.
+if [ -n "${BUNNY_API_KEY:-}" ] && [ -n "${BUNNY_PULLZONE_ID:-}" ]; then
+  echo "==> Purging Bunny pull zone $BUNNY_PULLZONE_ID"
+  curl -fsS -X POST "https://api.bunny.net/pullzone/$BUNNY_PULLZONE_ID/purgeCache" \
+    -H "AccessKey: $BUNNY_API_KEY" -H "content-length: 0"
+else
+  echo "warning: BUNNY_API_KEY / BUNNY_PULLZONE_ID not set in $ENV_FILE — skipping CDN purge" >&2
+fi
+
 echo "==> Done"
