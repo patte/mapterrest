@@ -67,6 +67,7 @@
       }
       #card,
       #hint,
+      #shot-open,
       #about {
         pointer-events: auto;
       }
@@ -346,6 +347,110 @@
           display: none;
         }
       }
+      /* The camera pill: same family as the hint and About pills, icon only. */
+      #shot-open {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 999px;
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        color: var(--panel-muted);
+        cursor: pointer;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+      }
+      #shot-open:hover {
+        color: var(--panel-fg);
+      }
+      #shot-open svg {
+        width: 15px;
+        height: 15px;
+      }
+
+      /* Framing mode: a screen-fixed paper-aspect rectangle, the map live behind it.
+         Only the controls catch the pointer — pans and zooms pass through everywhere,
+         the rectangle included. */
+      #shot-frame {
+        position: fixed;
+        inset: 0;
+        /* Above the tray (3); the tray is hidden while framing, but the scrim must
+           also win over MapLibre's controls. */
+        z-index: 4;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 16px;
+        pointer-events: none;
+      }
+      #shot-frame[hidden] {
+        display: none;
+      }
+      #shot-rect {
+        aspect-ratio: var(--shot-aspect);
+        /* Bound by the frame's width or by the height left over beside the controls
+           row (~34px) and the gap, whichever bites first. */
+        width: min(100%, calc((100vh - 96px) * var(--shot-aspect)));
+        /* The dashes cover the scrim's innermost pixels, flush with the element edge
+           both scrim and crop are cut at — one line marks one boundary. */
+        outline: 2px dashed rgba(255, 255, 255, 0.9);
+        outline-offset: 0;
+        box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.35);
+      }
+      #shot-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        pointer-events: auto;
+      }
+      #shot-controls button,
+      #shot-format {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 34px;
+        padding: 0 12px;
+        border: none;
+        border-radius: 999px;
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        color: var(--panel-fg);
+        font: inherit;
+        font-size: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+        cursor: pointer;
+      }
+      #shot-controls button:hover {
+        color: var(--accent);
+      }
+      #shot-controls svg {
+        width: 16px;
+        height: 16px;
+      }
+      #shot-capture {
+        background: var(--accent);
+        color: #fff;
+      }
+      #shot-capture:hover {
+        color: #fff;
+        filter: brightness(1.1);
+      }
+      #shot-capture:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      /* Framing owns the screen: everything but the map and the credited corner —
+         which previews what gets burned into the image — sits it out. */
+      body.shot #tray,
+      body.shot #tray-tile,
+      body.shot .maplibregl-ctrl-top-left,
+      body.shot .maplibregl-ctrl-top-right {
+        visibility: hidden;
+      }
+
       #about {
         margin-left: auto;
         display: flex;
@@ -628,6 +733,12 @@
     <div id="tray">
       <div id="hint-row">
         <p id="hint"><kbd>Shift</kbd> + drag to rotate and tilt</p>
+        <button id="shot-open" type="button" aria-label="take a screenshot" title="take a screenshot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+        </button>
         <div id="about">
           <a href="https://github.com/patte/mapterrest" target="_blank" rel="noopener" aria-label="mapterrest on GitHub" title="mapterrest on GitHub">
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -676,6 +787,30 @@
           <p class="title">basemaps</p>
           <div id="basemap-thumbs" class="thumbs" role="group" aria-label="basemaps"></div>
         </div>
+      </div>
+    </div>
+
+    <div id="shot-frame" hidden>
+      <div id="shot-rect"></div>
+      <div id="shot-controls">
+        <select id="shot-format" aria-label="paper format"></select>
+        <button id="shot-rotate" type="button" aria-label="switch landscape and portrait" title="switch landscape and portrait">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </svg>
+        </button>
+        <button id="shot-capture" type="button" aria-label="capture" title="capture">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+        </button>
+        <button id="shot-close" type="button" aria-label="leave screenshot mode" title="leave screenshot mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
       </div>
     </div>
 

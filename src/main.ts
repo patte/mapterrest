@@ -11,6 +11,7 @@ import { createThumbnailer, type ThumbVariant } from './thumbnails';
 import { createTray, CURRENT_TILE, tileId } from './tray';
 import { enableCameraAnchor } from './cameraAnchor';
 import { setupLogos } from './logos';
+import { setupScreenshot } from './screenshot';
 import { trackExposure, visibleRange, type Range } from './exposure';
 import { choosePivot, projectPoint } from './pivot';
 import { enablePerfDebug } from './perfDebug';
@@ -65,6 +66,10 @@ const map = new MapLibreMap({
   centerClampedToGround: !pivotEnabled,
   // Named so the camera occupies one hash param and leaves room for the controls.
   hash: MAP_HASH_KEY,
+  // Screenshots re-render at print density (A3 @ 300dpi needs ~5k×3.5k inside the
+  // crop); the default cap is 4096². MapLibre steps back down to what the GPU
+  // actually allocates, so this only lifts the artificial ceiling.
+  maxCanvasSize: [16384, 16384],
 });
 
 const scene = attachScene(
@@ -315,6 +320,10 @@ function applyLogos(): void {
   });
 }
 applyLogos();
+
+/* Screenshots ---------------------------------------------------------------- */
+
+setupScreenshot(map);
 
 /* Corner conflict ------------------------------------------------------------ */
 
