@@ -92,6 +92,11 @@
         margin: 0;
         color: var(--panel-muted);
       }
+      /* The exposure row already opens more air above the basemaps than the card's gap
+         puts between the upper rows, so the gap is handed back here. */
+      #basemap-card {
+        margin-top: -9px;
+      }
       /* Wrapped to the shading row's width, the whole card stays one rectangle. */
       #basemap-thumbs {
         display: grid;
