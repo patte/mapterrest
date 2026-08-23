@@ -65,6 +65,12 @@ await narrow.locator('#card').screenshot({ path: `${SHOTS}exposure-row-narrow.pn
 // share the row with) clear of the zoom controls, and the card covers the
 // bottom-right attribution and logos.
 await narrow.screenshot({ path: `${SHOTS}tray-narrow-corner.png` });
+// The dialog at full width shares the --edge margin with the controls and the card,
+// so nothing peeks past its rim toward the display edge.
+await narrow.click('#exposure-info');
+await narrow.waitForTimeout(200);
+await narrow.screenshot({ path: `${SHOTS}exposure-dialog-narrow.png` });
+await narrow.click('#exposure-close');
 // Shorter still, where the card itself reaches the zoom controls: the open card
 // covers them, and closing it hands the corner back.
 await narrow.setViewportSize({ width: 390, height: 560 });

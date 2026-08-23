@@ -383,8 +383,13 @@
       #about-dialog,
       #exposure-dialog {
         box-sizing: border-box;
-        width: min(560px, calc(100vw - 24px));
-        max-height: calc(100vh - 24px);
+        /* Margins at --edge, like the controls and the card: anything less than full
+           cover leaves slivers of them peeking past the dialog's rim. The UA sheet
+           caps dialogs at 100% − 6px − 2em a side, which overrules any width here —
+           lift it or the margins are the UA's, not --edge. */
+        max-width: none;
+        width: min(560px, calc(100vw - 2 * var(--edge)));
+        max-height: calc(100vh - 2 * var(--edge));
         border: none;
         border-radius: 12px;
         /* Padding lives on the body: a click whose target is the dialog itself can
@@ -403,14 +408,25 @@
       }
       /* A one-topic explainer sets a narrower measure than the About essay. */
       #exposure-dialog {
-        width: min(420px, calc(100vw - 24px));
+        width: min(420px, calc(100vw - 2 * var(--edge)));
+      }
+      /* On small screens the dialog is the only card: covering to the --edge line on
+         every side, so nothing behind it reaches closer to the display edge than it
+         does. Centered-and-content-sized left the card and controls peeking out
+         around it. */
+      @media (max-width: 640px) {
+        #about-dialog,
+        #exposure-dialog {
+          width: calc(100vw - 2 * var(--edge));
+          height: calc(100vh - 2 * var(--edge));
+        }
       }
       #about-body,
       #exposure-body {
         box-sizing: border-box;
         /* The body scrolls, not the dialog: a scrollbar on the dialog would sit in
            the region the backdrop-close check reads as outside the content. */
-        max-height: calc(100vh - 24px);
+        max-height: calc(100vh - 2 * var(--edge));
         overflow-y: auto;
         padding: 16px 20px;
       }
