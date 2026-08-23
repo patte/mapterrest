@@ -348,6 +348,14 @@
         padding: 2px 4px;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
       }
+      /* Where the hint is hidden the pill has the row to itself, and the left corner
+         keeps it away from the zoom controls, which short screens push the tray's top
+         edge into. */
+      @media (hover: none) {
+        #about {
+          margin-left: 0;
+        }
+      }
       #about a,
       #about-open {
         display: flex;
