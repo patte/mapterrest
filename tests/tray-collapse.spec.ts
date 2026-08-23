@@ -84,21 +84,22 @@ test('the expanded attribution lifts the folded stack on a phone', async ({ brow
       .querySelector('.maplibregl-ctrl-attrib')!
       .classList.contains('maplibregl-compact-show'),
   );
-  const lifted = await phone
-    .waitForFunction(
-      () => {
-        const t = document.getElementById('tray-tile')!.getBoundingClientRect();
-        const a = document.querySelector('.maplibregl-ctrl-attrib')!.getBoundingClientRect();
-        return t.bottom <= a.top;
-      },
-      null,
-      { timeout: 5000 },
-    )
-    .then(
-      () => true,
-      () => false,
-    );
-  await check(lifted, 'the settings tile steps above the expanded attribution');
+  const lifted = () =>
+    phone
+      .waitForFunction(
+        () => {
+          const t = document.getElementById('tray-tile')!.getBoundingClientRect();
+          const a = document.querySelector('.maplibregl-ctrl-attrib')!.getBoundingClientRect();
+          return t.bottom <= a.top;
+        },
+        null,
+        { timeout: 5000 },
+      )
+      .then(
+        () => true,
+        () => false,
+      );
+  await check(await lifted(), 'the settings tile steps above the expanded attribution');
   await phone.click('.maplibregl-ctrl-attrib-button');
   const dropped = await phone
     .waitForFunction(
@@ -117,6 +118,9 @@ test('the expanded attribution lifts the folded stack on a phone', async ({ brow
       () => false,
     );
   await check(dropped, 'collapsing the attribution drops the tile back to the corner');
+  // A later ⓘ tap reopens the credits: the tile must step up again, not sit under them.
+  await phone.click('.maplibregl-ctrl-attrib-button');
+  await check(await lifted(), 'reopening the attribution lifts the tile again');
   await phone.close();
 });
 

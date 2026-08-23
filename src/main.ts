@@ -395,7 +395,7 @@ function tileConflict(): boolean {
   return t.right + 8 > b.left && t.bottom + clearance > b.top;
 }
 function applyClearance(): void {
-  const next = tileConflict() ? Math.round(attrib.getBoundingClientRect().height) + 12 : 0;
+  const next = tileConflict() ? Math.round(attrib.getBoundingClientRect().height) + 6 : 0;
   if (next === clearance) return;
   clearance = next;
   document.body.style.setProperty('--attrib-clearance', `${next}px`);
@@ -416,6 +416,8 @@ attrib.querySelector('.maplibregl-ctrl-attrib-button')!.addEventListener('click'
   requestAnimationFrame(() => {
     attribClicked = false;
     if (cornerConflict()) tray.close();
+    // The observer's applyClearance ran before the box reopened; remeasure.
+    applyClearance();
   });
 });
 // Everything else — MapLibre auto-expanding at load, credits widening as sources
