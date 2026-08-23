@@ -24,9 +24,9 @@
     "marked": "^18.0.10",
     "playwright": "1.62.1",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1"
+    "vite": "^8.2.2"
   },
   "dependencies": {
-    "maplibre-gl": "6.3.0"
+    "maplibre-gl": "6.5.0"
   }
 }
