@@ -55,6 +55,12 @@ colour ramps to the elevations in view —
 [docs/camera.md](docs/camera.md). In the opposite corner, the Mapterhorn and MapTiler
 logos stack above the attribution while their data is on screen.
 
+The camera pill beside the hint frames a paper-aspect screenshot — A2–A6, Letter, Legal
+or Tabloid, landscape or portrait — and exports what the rectangle shows as a 300 dpi
+PNG, re-rendered with tiles up to two zoom levels deeper than the screen. The file
+carries its credits, the view's permalink and the centre as GPS —
+[docs/screenshots.md](docs/screenshots.md).
+
 | Gesture | Effect |
 | --- | --- |
 | drag | pan |
@@ -81,6 +87,7 @@ else is written back as it changes. Hand-editing the hash applies live — excep
 | [docs/exposure.md](docs/exposure.md) | Auto-exposure: what counts as visible, and the hillshade light |
 | [docs/camera.md](docs/camera.md) | The orbit pivot, the raycast, and how the camera is anchored |
 | [docs/thumbnails.md](docs/thumbnails.md) | Live previews: the scene spec, the hidden mini map's walk, the refresh policy |
+| [docs/screenshots.md](docs/screenshots.md) | Print exports: the grown-viewport capture, the engine's ceilings, credits and file metadata |
 
 ## Scripts
 
