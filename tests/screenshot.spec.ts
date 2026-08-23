@@ -52,6 +52,15 @@ test('framing mode captures print-density paper crops', async ({ browser }) => {
   await (await a4Download).saveAs(a4);
   const [w, h] = pngSize(a4);
   await check(w === 3508 && h === 2480, 'A4 landscape exports at 300 dpi', `${w}×${h}`);
+  // The pHYs chunk sits right behind IHDR; without it viewers assume 72 dpi and
+  // print dialogs size the export as a poster.
+  const bytes = readFileSync(a4);
+  const dpi = Math.round(bytes.readUInt32BE(41) * 0.0254);
+  await check(
+    bytes.toString('latin1', 37, 41) === 'pHYs' && dpi === 300,
+    'the file declares its print density',
+    `${dpi} dpi`,
+  );
 
   // Decode the export in the page: a grid sample proves a real map landed (a failed
   // copy is one flat colour), and the corner shows the burned-in attribution pill.

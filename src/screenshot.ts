@@ -187,16 +187,49 @@ async function capture(
 
   const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/png'));
   if (!blob) return;
+  const png = withDpi(new Uint8Array(await blob.arrayBuffer()), DPI);
   const stamp = new Date();
   const pad = (n: number): string => String(n).padStart(2, '0');
   const name =
     `mapterrest-${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}` +
     `-${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}.png`;
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = URL.createObjectURL(new Blob([png], { type: 'image/png' }));
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+}
+
+/**
+ * Stamps the PNG's pHYs chunk with `dpi`: toBlob writes no physical size, viewers
+ * then assume 72 dpi, and a print dialog sizes an A4 export as a metre-wide poster.
+ * The chunk goes right behind IHDR, which the signature pins to the first 33 bytes.
+ */
+function withDpi(png: Uint8Array, dpi: number): Uint8Array<ArrayBuffer> {
+  const perMetre = Math.round(dpi / 0.0254);
+  const chunk = new Uint8Array(21);
+  const view = new DataView(chunk.buffer);
+  view.setUint32(0, 9);
+  chunk.set([0x70, 0x48, 0x59, 0x73], 4); // "pHYs"
+  view.setUint32(8, perMetre);
+  view.setUint32(12, perMetre);
+  chunk[16] = 1; // unit: the metre
+  view.setUint32(17, crc32(chunk.subarray(4, 17)));
+  const out = new Uint8Array(png.length + chunk.length);
+  out.set(png.subarray(0, 33));
+  out.set(chunk, 33);
+  out.set(png.subarray(33), 33 + chunk.length);
+  return out;
+}
+
+/** CRC-32 as PNG chunks want it. */
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of data) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 /**
