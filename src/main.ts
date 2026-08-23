@@ -1,3 +1,5 @@
+// First import: error tracking must be live before anything else can throw.
+import './errors';
 import { MapLibreMap, NavigationControl, setWorkerUrl } from 'maplibre-gl';
 import { setupAbout } from './about';
 import 'maplibre-gl/dist/maplibre-gl.css';

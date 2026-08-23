@@ -27,6 +27,7 @@
     "vite": "^8.2.2"
   },
   "dependencies": {
+    "@sentry/browser": "^10.70.0",
     "maplibre-gl": "6.5.0"
   }
 }
