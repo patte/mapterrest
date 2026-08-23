@@ -25,9 +25,12 @@ const px = (mm: number): number => Math.round((mm / 25.4) * DPI);
  * the screen. Tile selection follows CSS size, so this is the lever that makes tiles
  * actually load at print resolution; past the cap, tile count and memory grow
  * quadratically for detail a print no longer shows, and the pixel-ratio remainder
- * merely densifies what the deeper tiles already carry.
+ * merely densifies what the deeper tiles already carry. Lifting the cap was tried
+ * and does not survive contact with the engine: an uncapped A2 (grow ~6) renders
+ * blank or throws inside MapLibre and can wedge the session — 4 is the measured
+ * ceiling on a strong GPU, not a taste choice.
  */
-const MAX_VIEWPORT_SCALE = 2;
+const MAX_VIEWPORT_SCALE = 4;
 
 /**
  * The camera pill and the framing mode behind it: a screen-fixed paper-aspect
@@ -85,11 +88,20 @@ export function setupScreenshot(map: MapLibreMap, anchor: CameraAnchor | null): 
   captureButton.addEventListener('click', (e) => {
     captureButton.disabled = true;
     veil.hidden = false;
+    const note = veil.querySelector('p')!;
     // Shift is the hidden clean shot: no attribution, no logos, just the map.
-    capture(map, anchor, rect, paperPx(), !e.shiftKey).finally(() => {
-      veil.hidden = true;
-      captureButton.disabled = false;
-    });
+    capture(map, anchor, rect, paperPx(), !e.shiftKey)
+      .catch(() => {
+        // Past the renderer's limits MapLibre itself gives out; the finally above
+        // already put the map back — tell the user which lever helps.
+        note.textContent = 'capture failed — try a smaller format';
+        return new Promise((r) => setTimeout(r, 3000));
+      })
+      .finally(() => {
+        veil.hidden = true;
+        note.textContent = 'rendering the print…';
+        captureButton.disabled = false;
+      });
   });
 }
 
@@ -199,7 +211,14 @@ function tilesSettled(map: MapLibreMap): Promise<void> {
     let frames = 0;
     const check = (): void => {
       frames += 1;
-      const done = frames > 2 && map.areTilesLoaded() && map.loaded();
+      let done: boolean;
+      try {
+        done = frames > 2 && map.areTilesLoaded() && map.loaded();
+      } catch {
+        // A map in trouble must not hang the veil: stop waiting and let the capture
+        // run into the error properly.
+        done = true;
+      }
       if (done || performance.now() - start > 120000) setTimeout(resolve, 300);
       else requestAnimationFrame(check);
     };
