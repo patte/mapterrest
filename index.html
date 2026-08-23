@@ -335,7 +335,9 @@
         background: var(--panel-bg);
         backdrop-filter: blur(8px);
         border-radius: 999px;
-        padding: 3px 12px;
+        /* 5px vertical lands the pill at the About pill's height (2px shell + 3px
+           button padding there), so the row's two pills read as one family. */
+        padding: 5px 12px;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
       }
       /* Shift+drag is a mouse gesture; on touch the hint is noise. */
