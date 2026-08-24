@@ -9,7 +9,8 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, isMapTiler, type BasemapKey } from './basemaps';
 import { DEFAULT_SHADING, defaultExposed, isRamp, SHADING_KEYS, type ShadingKey } from './shading';
 import { attachScene, type SceneSpec } from './scene';
-import { createThumbnailer, type ThumbVariant } from './thumbnails';
+import { bakedPlaceholder, bakedThumb } from './bakedThumbs';
+import { cameraOf, createThumbnailer, type ThumbVariant } from './thumbnails';
 import { createTray, CURRENT_TILE, tileId } from './tray';
 import { enableCameraAnchor, type CameraAnchor } from './cameraAnchor';
 import { setupLogos } from './logos';
@@ -450,14 +451,21 @@ applyClearance();
 /** False until a first preview has landed — empty tiles get eagerness, not patience. */
 let thumbsPrimed = false;
 
+/** `#bakedThumbs=0` renders every preview live — the bake script needs the real walk. */
+const useBakedThumbs = readBoolean('bakedThumbs', true);
+
+/** DEV: the bake script and the suite read delivered previews from here. */
+const thumbImages = new Map<string, string>();
+if (import.meta.env.DEV) Object.assign(window, { __thumbImages: thumbImages });
+
 const thumbs = createThumbnailer(map, {
   onImage: (id, url) => {
     thumbsPrimed = true;
     tray.setImage(id, url);
+    if (import.meta.env.DEV) thumbImages.set(id, url);
   },
-  // Folded is not invisible: the settings tile still previews the view, so only a
-  // hidden tab stops the walk.
   visible: () => !document.hidden,
+  baked: useBakedThumbs ? bakedThumb : undefined,
 });
 
 /**
@@ -466,8 +474,11 @@ const thumbs = createThumbnailer(map, {
  * selected pair sits in both rows — render once and land on every tile sharing them.
  * Ramp previews freeze the exposure they would get if selected — an untouched toggle
  * follows each ramp's default — measured once here rather than tracked while the walk runs.
+ * `all` includes the rows a folded tray would skip — the baked startup pass covers
+ * them so an opening tray finds its previews in place.
  */
-function thumbVariants(): ThumbVariant[] {
+function thumbVariants(all = false): ThumbVariant[] {
+  if (!tray.open() && !all) return [];
   const current = scene.spec();
   const frozen = exposure ?? visibleRange(map, DEM_SOURCE);
   const autoFor = (key: ShadingKey): boolean =>
@@ -480,12 +491,8 @@ function thumbVariants(): ThumbVariant[] {
     if (seen) seen.ids.push(id);
     else variants.set(key, { ids: [id], spec });
   };
-  // The settings tile previews the view itself — first because it is the cheapest
-  // (no style swap), and folded it is the only render there is.
   const shownRamp = current.shadingVisible ? forRamp(current.shading) : null;
-  add(CURRENT_TILE, { ...current, exposure: shownRamp });
-  if (!tray.open()) return [...variants.values()];
-  // The shading row next: it shares the mini map's current style, so the whole row is
+  // The shading row first: it shares the mini map's current style, so the whole row is
   // layer swaps before the basemap row starts paying a setStyle per tile.
   add(tileId('s', null), { ...current, shadingVisible: false, exposure: null });
   for (const key of SHADING_KEYS) {
@@ -498,6 +505,48 @@ function thumbVariants(): ThumbVariant[] {
   return [...variants.values()];
 }
 
+/**
+ * Baked previews land before the map's first frame wherever the hash leaves the
+ * default camera in place. The walk still confirms each one strictly — a stand-in it
+ * disowns (a ramp range off the tolerance, a stale bake) is replaced by its live render.
+ */
+if (useBakedThumbs && !has(MAP_HASH_KEY)) {
+  for (const variant of thumbVariants(true)) {
+    const url = bakedPlaceholder(variant.spec);
+    if (url) for (const id of variant.ids) tray.setImage(id, url);
+  }
+}
+
+/** CSS pixels per side of the settings tile's preview, matching the row tiles. */
+const CURRENT_TILE_SIZE = 96;
+
+/** What the settings tile currently shows; an unchanged view is not worth a redraw. */
+let currentTileKey = '';
+
+/**
+ * The settings tile previews the view itself, cut square from the frame the main map
+ * already rendered — a redraw and a copy, never a second map. The copy must follow the
+ * redraw synchronously: the WebGL buffer is only valid until the browser composites.
+ */
+function renderCurrentTile(): void {
+  // A capture is re-rendering the map at print density; forcing a frame there is
+  // expensive and the crop would show it. The restore re-settles and lands back here.
+  if (document.body.classList.contains('capturing')) return;
+  const gl = map.getCanvas();
+  const key = JSON.stringify([scene.spec(), cameraOf(map), gl.width, gl.height]);
+  if (key === currentTileKey) return;
+  map.redraw();
+  const side = Math.min(gl.width, gl.height);
+  const out = document.createElement('canvas');
+  out.width = out.height = CURRENT_TILE_SIZE * Math.min(devicePixelRatio, 2);
+  out
+    .getContext('2d')!
+    .drawImage(gl, (gl.width - side) / 2, (gl.height - side) / 2, side, side, 0, 0, out.width, out.height);
+  tray.setImage(CURRENT_TILE, out.toDataURL());
+  currentTileKey = key;
+  thumbsPrimed = true;
+}
+
 /** Seconds of stillness after the map settles before the walk spends anything. */
 const THUMB_DELAY = 3000;
 /** Opening the tray or returning to the tab asks for previews, not for patience. */
@@ -508,6 +557,7 @@ function scheduleThumbs(delay = THUMB_DELAY): void {
   window.clearTimeout(thumbTimer);
   thumbTimer = window.setTimeout(() => {
     if (document.hidden) return;
+    renderCurrentTile();
     thumbs.refresh(thumbVariants());
   }, thumbsPrimed ? delay : THUMB_QUICK);
 }

@@ -1,17 +1,39 @@
 import { test } from '@playwright/test';
 import { open, check, settled } from './helpers';
 
-test('tiles grow previews of the settled view', async ({ browser }) => {
+const ROW_TILES = '#shading-thumbs .tile, #basemap-thumbs .tile';
+
+test('a default load answers every preview from the bake, without a walk', async ({ browser }) => {
   const page = await open(browser);
   await settled(page);
-  // The hidden map walks every variant after the main map settles; each snapshot lands
-  // as a data: URL on its tile. Wait for the full walk, then compare.
+  // The walk consults the baked manifest per variant; delivery through onImage is the
+  // sign it ran and chose the bake.
   await page.waitForFunction(
-    () => {
-      const imgs = [...document.querySelectorAll<HTMLImageElement>('.tile img')];
-      return imgs.length > 0 && imgs.every((img) => img.src.startsWith('data:'));
-    },
-    null,
+    (sel) => (window.__thumbImages?.size ?? 0) >= document.querySelectorAll(sel).length,
+    ROW_TILES,
+    { timeout: 90000 },
+  );
+  await check(
+    await page.evaluate(() => !window.__mini),
+    'no mini map exists — nothing rendered, no tile requests spent',
+  );
+  await check(
+    await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLImageElement>('#shading-thumbs .tile img, #basemap-thumbs .tile img')].every(
+        (img) => img.src.length > 0,
+      ),
+    ),
+    'every row tile shows a preview',
+  );
+  // A moved camera invalidates the bake: previews grow live again, from a mini map.
+  await page.evaluate(() => window.map.jumpTo({ center: [6.8652, 45.8326], zoom: 11 }));
+  await settled(page);
+  await page.waitForFunction(
+    (sel) =>
+      [...document.querySelectorAll<HTMLImageElement>(sel)].every((tile) =>
+        tile.querySelector('img')!.src.startsWith('data:'),
+      ),
+    ROW_TILES,
     { timeout: 90000 },
   );
   const src = await page.evaluate(() => {
@@ -23,34 +45,33 @@ test('tiles grow previews of the settled view', async ({ browser }) => {
       light: at('#basemap-thumbs .tile[data-key="carto-light"]'),
     };
   });
-  await check(src.heatmap !== src.heightmap, 'the shading previews differ from each other');
-  await check(src.dark !== src.light, 'the basemap previews differ from each other');
+  await check(src.heatmap !== src.heightmap, 'the live shading previews differ from each other');
+  await check(src.dark !== src.light, 'the live basemap previews differ from each other');
   await page.close();
 });
 
-test('a folded tray renders only the settings preview', async ({ browser }) => {
+test('a folded tray costs no walk, and opening it finds the bake in place', async ({ browser }) => {
   const page = await open(browser, { hash: '#collapsed=1' });
+  // The settings tile previews the view itself, cut from the main map's own frame.
   await page.waitForFunction(
-    () => document.querySelector('#tray-tile img')?.getAttribute('src'),
+    () => document.querySelector('#tray-tile img')?.getAttribute('src')?.startsWith('data:'),
     null,
     { timeout: 90000 },
   );
   await settled(page, 2000);
   await check(
-    await page.evaluate(() =>
-      [...document.querySelectorAll('#tray .tile img')].every((img) => !img.getAttribute('src')),
-    ),
-    'the row tiles render nothing while folded',
+    await page.evaluate(() => !window.__mini),
+    'the settings preview never spends a mini map',
   );
   await page.click('#tray-tile');
   await page.waitForFunction(
-    () =>
-      document
-        .querySelector('#shading-thumbs .tile[data-key="hillshade"] img')
-        ?.getAttribute('src'),
-    null,
+    (sel) => (window.__thumbImages?.size ?? 0) >= document.querySelectorAll(sel).length,
+    ROW_TILES,
     { timeout: 90000 },
   );
-  await check(true, 'opening the tray starts the full walk');
+  await check(
+    await page.evaluate(() => !window.__mini),
+    'opening the tray needs no walk either — the bake covers the default view',
+  );
   await page.close();
 });

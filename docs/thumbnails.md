@@ -62,19 +62,62 @@ after. From there:
   stale thumbs heal on a still map, and a downed tile server is not polled forever.
 - Each tile remembers the spec + camera of its delivered snapshot, and a variant whose
   every tile already shows that render is skipped whole. What a selection change
-  re-renders, out of the 12 variants a full walk carries:
+  re-renders, out of the 11 variants a full walk carries:
 
   | Change | Renders |
   | --- | --- |
-  | basemap | ~6 — overlay row, "none" tile, settings tile; the other basemaps don't reference it |
-  | shading | ~9 — basemap row and ramps; the other shadings keep their context |
-  | camera settled again, nothing else | 12 |
+  | basemap | ~5 — overlay row and the "none" tile; the other basemaps don't reference it |
+  | shading | ~8 — the basemap row; the other shadings keep their context |
+  | camera settled again, nothing else | 11 |
   | nothing | 0 |
 
-- Folded, the tray is still not off: the settings tile previews the current view, so
-  the walk keeps exactly that one variant fresh. Only a hidden tab stops everything.
+- Folded, the tray is still not off: the settings tile previews the current view. That
+  preview never uses the walk — see below — so a folded tray costs no mini map at all.
+  Only a hidden tab stops everything.
 
 The mini map is real work on software GL — it roughly halves SwiftShader's frame
 budget, which is what surfaced the exposure ease's clamped-dt bug (see the comment at
 the `dt` in `exposure.ts`). Specs that need a fast page under SwiftShader should not
 carry a ramp through a reload.
+
+## The settings tile
+
+The settings tile previews the view itself, and the view itself is already rendered:
+the preview is a square cut from the middle of the main map's frame, redrawn and copied
+in the same task (the WebGL buffer is only valid until the browser composites, so there
+is no `preserveDrawingBuffer` to pay for — the same trick the screenshot capture uses).
+It refreshes on the walk's schedule, keyed on spec + camera + canvas size so an
+unchanged view is not worth a redraw, and never involves the mini map — which also
+means it shows the frame at its own zoom rather than the walk's `ZOOM_OUT`, arguably
+the more honest "this is your current view".
+
+## The bake
+
+A first load used to pay the full walk before the tray showed anything: the mini map,
+seven basemap styles, and all their tiles. Measured on a dev server, that walk was most
+of what a first load cost — 337 provider requests and 14.8 MiB against 113 and 3.4 MiB
+without it. `pnpm bake:thumbs` (`scripts/bake-thumbs.mjs`) renders the walk once per
+colour scheme at the default view and writes the results into `src/assets/thumbs/` —
+15 webp files and a generated manifest — and the app answers a first load's walk from
+those instead.
+
+A preview is a function of the camera, the selection, and the colour scheme, so a baked
+image is only honest for the exact render it replaces. The walk therefore asks the
+manifest per variant (`bakedThumbs.ts`), with the spec and camera it is about to
+render: a hit is delivered like any snapshot, and only the first miss creates the mini
+map. Matching is semantic rather than byte-exact — the camera anchor settles the
+default view a hair off the constructor constants, and a ramp's auto-exposure range
+follows the viewport — with tolerances a 96 px tile four zoom levels out cannot show.
+Everything fails open: a shared-link camera, a stale bake after a style change, a range
+past the tolerance each cost one live render, never a wrong image. Startup additionally
+paints the baked images as stand-ins before the map's first frame (lenient on exposure,
+whose real range needs loaded DEM tiles; gated on the hash carrying no camera); the
+walk then confirms or replaces them.
+
+The output is checked in, so a deploy never regenerates it and needs neither a GPU nor
+the tile servers. Re-run the bake when the default view or the style list changes —
+a forgotten re-run shows up as the walk quietly rendering live again, which
+`tests/thumbnails.spec.ts` would catch — or when upstream styles drift enough to notice
+at 96 px, which nothing detects. `#bakedThumbs=0` turns the bake off for a session;
+the bake script itself loads the app that way, since the walk it captures must render
+live rather than answer from the manifest being replaced.

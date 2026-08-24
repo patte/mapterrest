@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "probe:coverage": "node scripts/probe-coverage.mjs",
+    "bake:thumbs": "node scripts/bake-thumbs.mjs",
     "browser:start": "node scripts/browser-daemon.mjs start",
     "browser:stop": "node scripts/browser-daemon.mjs stop",
     "test": "playwright test",

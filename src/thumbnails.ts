@@ -22,6 +22,19 @@ const ZOOM_OUT = 4.0;
 /** A variant that cannot settle inside this forfeits its refresh — stale beats hung. */
 const SETTLE_TIMEOUT = 8000;
 
+/** The main camera as the walk keys it: lng, lat, zoom, pitch, bearing. */
+export const cameraOf = (map: MapLibreMap): number[] => {
+  const center = map.getCenter();
+  return [center.lng, center.lat, map.getZoom(), map.getPitch(), map.getBearing()];
+};
+
+/**
+ * A prerendered image for exactly this render, or null to render live. Consulted with
+ * the same spec and camera the walk would render, so a hit skips the render and its
+ * tile requests — including the mini map itself when every variant hits.
+ */
+export type BakedLookup = (spec: SceneSpec, camera: number[]) => string | null;
+
 export type Thumbnailer = {
   /** Re-renders every variant at the main camera, replacing any walk still running. */
   refresh(variants: ThumbVariant[]): void;
@@ -36,6 +49,7 @@ export function createThumbnailer(
     onImage(id: string, url: string): void;
     /** Checked between variants: a tray folded away mid-walk stops the spending. */
     visible(): boolean;
+    baked?: BakedLookup;
   },
 ): Thumbnailer {
   let mini: MapLibreMap | null = null;
@@ -114,22 +128,36 @@ export function createThumbnailer(
    * basemaps, and a settle that changed nothing renders nothing.
    */
   const rendered = new Map<string, string>();
+  if (import.meta.env.DEV) Object.assign(window, { __thumbRendered: rendered });
 
   async function walk(gen: number, variants: ThumbVariant[], retriesLeft: number): Promise<void> {
-    ensure(variants[0].spec);
-    const center = main.getCenter();
-    const camera = [center.lng, center.lat, main.getZoom(), main.getPitch(), main.getBearing()];
-    mini!.jumpTo({
-      center,
-      zoom: main.getZoom() - ZOOM_OUT,
-      pitch: main.getPitch(),
-      bearing: main.getBearing(),
-    });
+    const camera = cameraOf(main);
+    // The mini map waits for the first variant that actually renders: a walk fully
+    // answered by rendered and baked entries never creates it.
+    let aimed = false;
     let failed = 0;
     for (const variant of variants) {
       if (gen !== generation || !opts.visible()) return;
       const key = JSON.stringify([variant.spec, camera]);
       if (variant.ids.every((id) => rendered.get(id) === key)) continue;
+      const baked = opts.baked?.(variant.spec, camera);
+      if (baked) {
+        for (const id of variant.ids) {
+          opts.onImage(id, baked);
+          rendered.set(id, key);
+        }
+        continue;
+      }
+      ensure(variant.spec);
+      if (!aimed) {
+        mini!.jumpTo({
+          center: [camera[0], camera[1]],
+          zoom: camera[2] - ZOOM_OUT,
+          pitch: camera[3],
+          bearing: camera[4],
+        });
+        aimed = true;
+      }
       try {
         // setStyle fetches the incoming style before anything observable changes, and
         // until then the map still reports the old style loaded and idle — a settle
