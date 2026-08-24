@@ -14,6 +14,7 @@ basemaps, elevation overlays along with a set of useful tools.
 - [x] Geosearch: fly to any place, via the [MapTiler](https://www.maptiler.com/) Geocoding API
 - [x] Screenshot export: A2–A6, Letter, Legal, Tabloid
 - [x] Permalinks: camera position, basemap, overlay, and settings are all encoded in the URL
+- [x] Client side error reporting to [Bugsink](https://bugsink.com/)
 
 Big thanks to all geospatial contributors and generous providers for making it possible to see the world in all these interesting and beautiful ways!
 
