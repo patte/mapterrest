@@ -76,6 +76,17 @@ const map = new MapLibreMap({
   maxCanvasSize: [16384, 16384],
 });
 
+// A browser that yields no WebGL2 context (unsupported, acceleration off, blocklisted
+// GPU) gets no renderer and no handlers: MapLibre fires GPUInitializationError and
+// leaves its constructor early. Everything below would crash against that half-built
+// map, so say why and stop — the throw is what ends this module; errors.ts keeps it
+// out of Bugsink.
+if (!map.painter) {
+  document.body.dataset.theme = isDark(basemapKey, prefersDark()) ? 'dark' : 'light';
+  document.getElementById('webgl-gate')!.hidden = false;
+  throw new Error('WebGL2 unavailable: the browser did not provide a context');
+}
+
 const scene = attachScene(
   map,
   { basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible, exposure: null, terrainScale },

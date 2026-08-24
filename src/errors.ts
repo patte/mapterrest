@@ -9,6 +9,9 @@ if (import.meta.env.PROD && !navigator.webdriver) {
     release: `mapterrest@${version}`,
     sendDefaultPii: false,
     integrations: [],
+    // The WebGL2 gate's deliberate stop (main.ts): the visitor's browser lacking
+    // WebGL2 is their situation, not a bug worth an event.
+    ignoreErrors: [/^WebGL2 unavailable/],
     // Bugsink does not ingest traces.
     tracesSampleRate: 0,
   });

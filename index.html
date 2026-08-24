@@ -583,6 +583,36 @@
         height: 14px;
       }
 
+      /* Behind it sits a half-built map and controls that were never wired up, so the
+         gate covers the whole viewport rather than floating over them. */
+      #webgl-gate {
+        position: fixed;
+        inset: 0;
+        z-index: 7;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: var(--control-bg);
+        color: var(--panel-fg);
+      }
+      #webgl-gate[hidden] {
+        display: none;
+      }
+      #webgl-gate > div {
+        max-width: 26em;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      #webgl-gate h1 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+      #webgl-gate p {
+        margin: 0;
+        color: var(--panel-muted);
+      }
+
       /* Stretched to the card's width below, so the About pill's right edge lines up
          with the card's while the hint keeps the left. */
       #hint-row {
@@ -1065,6 +1095,17 @@
           <path d="M6 6l12 12M18 6L6 18" />
         </svg>
       </button>
+    </div>
+
+    <div id="webgl-gate" hidden>
+      <div>
+        <h1>This site needs WebGL2</h1>
+        <p>
+          The browser did not provide a WebGL2 context, so the 3D terrain cannot render.
+          Every current browser supports WebGL2 — when it is missing, hardware
+          acceleration is usually switched off, or the graphics driver is blocklisted.
+        </p>
+      </div>
     </div>
 
     <button id="tray-tile" class="tile" type="button" aria-label="map settings" aria-controls="tray" aria-expanded="false" title="map settings">
