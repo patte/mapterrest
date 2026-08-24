@@ -18,6 +18,9 @@ export default defineConfig({
   // Pre-bundling rewrites maplibre's worker entry into a path that 404s in dev.
   optimizeDeps: { exclude: ['maplibre-gl'] },
   build: {
+    // Maps for Bugsink (deploy.sh injects debug IDs and uploads them); 'hidden'
+    // leaves the sourceMappingURL comment out, so visitors' browsers never fetch them.
+    sourcemap: 'hidden',
     // maplibre and sentry in their own chunks: they only change on a dependency bump,
     // so a deploy of app code leaves them cached in returning visitors' browsers.
     rolldownOptions: {

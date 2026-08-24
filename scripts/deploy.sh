@@ -32,14 +32,30 @@ export AWS_DEFAULT_REGION="de"
 echo "==> Building"
 pnpm --dir "$ROOT" build
 
+# Stamp debug IDs into the built JS and its hidden source maps, then push the maps
+# to Bugsink so stack traces resolve to source. Inject must precede the sync: the
+# browser SDK reads the IDs from the shipped files. Optional: without a token the
+# deploy still lands, events just stay minified.
+if [ -n "${SENTRY_AUTH_TOKEN:-}" ]; then
+  echo "==> Uploading source maps to Bugsink"
+  SENTRY_CLI="$ROOT/node_modules/.bin/sentry-cli"
+  "$SENTRY_CLI" sourcemaps inject "$ROOT/dist/assets"
+  "$SENTRY_CLI" --url https://mapterrest.bugsink.com sourcemaps upload \
+    --org bugsinkhasnoorgs --project mapterrestcom "$ROOT/dist/assets"
+else
+  echo "warning: SENTRY_AUTH_TOKEN not set in $ENV_FILE — skipping source-map upload" >&2
+fi
+
 # Caching is pull-zone config, not object metadata: the S3 gateway discards uploaded
 # Cache-Control (verified — the storage origin serves none, and the CDN stamps the
 # zone's max-age on everything). The zone must carry an Edge Rule setting no-cache on
 # /index.html, or browsers hold a stale page that names chunks --delete has removed.
 echo "==> Syncing dist/ -> s3://$BUNNY_STORAGE_ZONE/"
+# Maps go to Bugsink above, not to the CDN.
 "${AWS[@]}" s3 sync "$ROOT/dist/" "s3://$BUNNY_STORAGE_ZONE/" \
   --endpoint-url "$ENDPOINT" \
-  --delete
+  --delete \
+  --exclude "*.map"
 
 # Purge the pull zone so the edges refetch everything from storage. Needs the account
 # API key (dashboard → Account → API Key) and the pull zone's numeric id (in its

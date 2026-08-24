@@ -18,8 +18,14 @@
   },
   "license": "MIT",
   "packageManager": "pnpm@10.17.1",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@sentry/cli"
+    ]
+  },
   "devDependencies": {
     "@playwright/test": "1.62.1",
+    "@sentry/cli": "^3.6.2",
     "@types/node": "^26.2.0",
     "marked": "^18.0.10",
     "playwright": "1.62.1",
