@@ -6,7 +6,7 @@
 // image. The output is checked in, so deploys never regenerate it — re-run when the
 // default view, the style list, or upstream tiles change.
 import { spawn } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -103,10 +103,6 @@ for (const colorScheme of ['light', 'dark']) {
   }
   await page.close();
 }
-// Closing a connected browser only disconnects; the resident server stays for the next run.
-await browser.close();
-server?.kill();
-
 // Named by the first tile the render lands on; a scheme suffix separates the renders
 // that exist per scheme (the shading row varies with the default basemap).
 const list = [...entries.values()];
@@ -116,13 +112,81 @@ for (const e of list) {
 }
 const names = new Set(list.map((e) => e.name));
 if (names.size !== list.length) throw new Error('bake produced colliding file names');
+list.sort((a, b) => a.name.localeCompare(b.name));
 
 const outDir = fileURLToPath(new URL('../src/assets/thumbs/', import.meta.url));
+
+// A render is not byte-reproducible (parallel float math, atlas packing order follows
+// tile arrival), and the webp encoder diverges on any pixel of it. Keep the checked-in
+// bytes wherever the new render shows the same image, so a re-run leaves git quiet
+// unless something actually changed; anything past the thresholds stays fresh.
+const DIFF_TOLERANCE = 8; // per channel, out of 255 — render jitter sits well under it
+// Fraction of pixels past the tolerance. Generous because jitter re-encoded at q0.85
+// moves low-contrast blocks measurably (dark styles reach ~5%) while looking identical;
+// a real change — a style redesign, another exposure, moved tiles — moves tens of %.
+const KEEP_BELOW = 0.05;
+const old = new Map();
+try {
+  for (const f of readdirSync(outDir)) {
+    if (f.endsWith('.webp')) old.set(f, readFileSync(join(outDir, f)));
+  }
+} catch {}
+let kept = 0;
+if (old.size > 0) {
+  const page = await browser.newPage();
+  for (const e of list) {
+    const previous = old.get(`${e.name}.webp`);
+    if (!previous) {
+      console.log(`  ${e.name}.webp: new`);
+      continue;
+    }
+    const fraction = await page.evaluate(
+      async ([a, b, tolerance]) => {
+        const decode = async (src) => {
+          const img = new Image();
+          img.src = src;
+          await img.decode();
+          const c = document.createElement('canvas');
+          c.width = img.width;
+          c.height = img.height;
+          const ctx = c.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(img, 0, 0);
+          return ctx.getImageData(0, 0, c.width, c.height);
+        };
+        const [ia, ib] = [await decode(a), await decode(b)];
+        if (ia.width !== ib.width || ia.height !== ib.height) return 1;
+        let past = 0;
+        for (let i = 0; i < ia.data.length; i += 4) {
+          for (let ch = 0; ch < 4; ch++) {
+            if (Math.abs(ia.data[i + ch] - ib.data[i + ch]) > tolerance) {
+              past++;
+              break;
+            }
+          }
+        }
+        return past / (ia.data.length / 4);
+      },
+      [`data:image/webp;base64,${previous.toString('base64')}`, e.webp, DIFF_TOLERANCE],
+    );
+    const percent = `${(fraction * 100).toFixed(2)}% of pixels past the tolerance`;
+    if (fraction < KEEP_BELOW) {
+      e.keep = previous;
+      kept++;
+      console.log(`  ${e.name}.webp: ${percent} — kept as checked in`);
+    } else {
+      console.log(`  ${e.name}.webp: ${percent} — updated`);
+    }
+  }
+  await page.close();
+}
+// Closing a connected browser only disconnects; the resident server stays for the next run.
+await browser.close();
+server?.kill();
+
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
-list.sort((a, b) => a.name.localeCompare(b.name));
 for (const e of list) {
-  writeFileSync(join(outDir, `${e.name}.webp`), Buffer.from(e.webp.split(',')[1], 'base64'));
+  writeFileSync(join(outDir, `${e.name}.webp`), e.keep ?? Buffer.from(e.webp.split(',')[1], 'base64'));
 }
 const imports = list.map((e, i) => `import t${i} from './${e.name}.webp';`).join('\n');
 const rows = list
@@ -142,4 +206,4 @@ ${rows}
 ];
 `,
 );
-console.log(`baked ${list.length} previews into src/assets/thumbs/`);
+console.log(`baked ${list.length} previews into src/assets/thumbs/ (${kept} unchanged, kept as checked in)`);

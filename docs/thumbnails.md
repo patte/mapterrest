@@ -115,7 +115,10 @@ whose real range needs loaded DEM tiles; gated on the hash carrying no camera); 
 walk then confirms or replaces them.
 
 The output is checked in, so a deploy never regenerates it and needs neither a GPU nor
-the tile servers. Re-run the bake when the default view or the style list changes —
+the tile servers. A re-run keeps the checked-in bytes for every render that comes out
+perceptually identical — GPU renders are not byte-reproducible, and the webp encoder
+diverges on any pixel of jitter — so git stays quiet unless an image actually changed.
+Re-run the bake when the default view or the style list changes —
 a forgotten re-run shows up as the walk quietly rendering live again, which
 `tests/thumbnails.spec.ts` would catch — or when upstream styles drift enough to notice
 at 96 px, which nothing detects. `#bakedThumbs=0` turns the bake off for a session;
