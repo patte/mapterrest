@@ -9,6 +9,8 @@ export type Basemap = {
   dark: boolean | null;
   sky: SkySpecification;
   hillshade: { shadow: string; highlight: string; exaggeration: number };
+  /** Contour lines and their elevation labels; the halo grounds the text on this style. */
+  contour: { line: string; label: string; halo: string };
   /** Ground under the terrain while the basemap is hidden. */
   backdrop: string;
   /** Served by MapTiler, whose free tier asks for their logo while the style shows. */
@@ -20,7 +22,7 @@ export type Basemap = {
  * wrong, and the shadow colour has to suit the ground it lands on. Styles pick a palette
  * by the ground they paint rather than one each.
  */
-type Palette = Pick<Basemap, 'dark' | 'sky' | 'hillshade' | 'backdrop'>;
+type Palette = Pick<Basemap, 'dark' | 'sky' | 'hillshade' | 'contour' | 'backdrop'>;
 
 const NIGHT: Palette = {
   dark: true,
@@ -33,6 +35,8 @@ const NIGHT: Palette = {
     'fog-ground-blend': 0.2,
   },
   hillshade: { shadow: '#000000', highlight: '#8fa6bd', exaggeration: 0.55 },
+  // Topo brown reads as mud on night styles; amber lifts off the blue-grey ground.
+  contour: { line: '#c9985a', label: '#e0b878', halo: '#141a21' },
   backdrop: '#39434f',
 };
 
@@ -48,6 +52,7 @@ const DAY: Palette = {
     'fog-ground-blend': 0.1,
   },
   hillshade: { shadow: '#4a5a6b', highlight: '#ffffff', exaggeration: 0.4 },
+  contour: { line: '#d7973c', label: '#ac7830', halo: '#ffffff' },
   backdrop: '#cdd6de',
 };
 
@@ -63,6 +68,7 @@ const WARM_DAY: Palette = {
     'fog-ground-blend': 0.1,
   },
   hillshade: { shadow: '#2c3a47', highlight: '#ffffff', exaggeration: 0.45 },
+  contour: { line: '#d7973c', label: '#ac7830', halo: '#ffffff' },
   backdrop: '#d6cfc4',
 };
 
@@ -83,6 +89,9 @@ const SATELLITE: Palette = {
   },
   // Imagery already carries the sun's own shadows; the shade only has to deepen them.
   hillshade: { shadow: '#000000', highlight: '#ffffff', exaggeration: 0.3 },
+  // Imagery runs dark forest to bright snow; translucent white with a dark halo
+  // survives both where any earth tone vanishes into one of them.
+  contour: { line: 'rgba(255,255,255,0.65)', label: '#ffffff', halo: 'rgba(0,0,0,0.65)' },
   backdrop: '#5c5a50',
 };
 

@@ -1,10 +1,12 @@
 import { BASEMAPS, BASEMAP_KEYS, type BasemapKey } from './basemaps';
 import { SHADINGS, SHADING_KEYS, type ShadingKey } from './shading';
 
-/** One tile per choice; `null` is the "none" tile, which hides that layer. */
+/** One tile per choice; `null` is the "none" tile, which hides that row's layers. */
 export type TrayCallbacks = {
   onBasemap(key: BasemapKey | null): void;
   onShading(key: ShadingKey | null): void;
+  /** The contour tile is additive — a toggle riding on top of the shading choice. */
+  onContours(): void;
 };
 
 export type TraySelection = {
@@ -12,6 +14,7 @@ export type TraySelection = {
   basemapVisible: boolean;
   shading: ShadingKey;
   shadingVisible: boolean;
+  contours: boolean;
 };
 
 /** Tile ids, shared with the thumbnailer: `b:carto-dark`, `b:none`, `s:heatmap`, … */
@@ -73,11 +76,12 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
   }
 
   const shadingRow = document.getElementById('shading-thumbs')!;
-  tile(shadingRow, tileId('s', null), 'no shading', 'none', () => cb.onShading(null));
+  tile(shadingRow, tileId('s', null), 'no overlays', 'none', () => cb.onShading(null));
   for (const key of SHADING_KEYS) {
     // The keys are already the short names; SHADINGS holds the spelled-out ones.
     tile(shadingRow, tileId('s', key), SHADINGS[key], key, () => cb.onShading(key));
   }
+  tile(shadingRow, tileId('s', 'contours'), 'contour lines', 'contours', () => cb.onContours());
 
   const basemapRow = document.getElementById('basemap-thumbs')!;
   tile(basemapRow, tileId('b', null), 'no basemap', 'none', () => cb.onBasemap(null));
@@ -114,10 +118,11 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
 
   return {
     select(sel: TraySelection): void {
-      const pressed = new Set([
-        tileId('s', sel.shadingVisible ? sel.shading : null),
-        tileId('b', sel.basemapVisible ? sel.basemap : null),
-      ]);
+      const pressed = new Set([tileId('b', sel.basemapVisible ? sel.basemap : null)]);
+      if (sel.shadingVisible) pressed.add(tileId('s', sel.shading));
+      if (sel.contours) pressed.add(tileId('s', 'contours'));
+      // "none" claims the row only once nothing in it is on — contours included.
+      if (!sel.shadingVisible && !sel.contours) pressed.add(tileId('s', null));
       for (const [id, button] of tiles) {
         button.setAttribute('aria-pressed', String(pressed.has(id)));
       }

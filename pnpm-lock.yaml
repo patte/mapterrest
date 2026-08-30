@@ -11,6 +11,9 @@ importers:
       '@sentry/browser':
         specifier: ^10.70.0
         version: 10.70.0
+      maplibre-contour:
+        specifier: 0.1.0
+        version: 0.1.0
       maplibre-gl:
         specifier: 6.5.0
         version: 6.5.0
@@ -483,6 +486,9 @@ packages:
     resolution: {integrity: sha512-WkUDrojuJs0xkgGf2udWxa3yGBRxPtxUkB79i6aCZLRgc7PM8fZe9TosfPDcvEpQZbuFASnHYmRLBLUbmLOIIA==}
     engines: {node: '>= 12.0.0'}
 
+  maplibre-contour@0.1.0:
+    resolution: {integrity: sha512-H8muT7JWYE4oLbFv7L2RSbIM1NOu5JxjA9P/TQqhODDnRChE8ENoDkQIWOKgfcKNU77ypLk2ggGoh4/pt4UPLA==}
+
   maplibre-gl@6.5.0:
     resolution: {integrity: sha512-kVStPz9Rw/ATjWV5tQ3iCR0tY+viz16Nh3E14iZNlBj0HloMAzFaDNtFYqPGkZSFRnv56txMh3ImjR0g6oClTw==}
     engines: {node: '>=16.14.0', npm: '>=8.1.0'}
@@ -925,6 +931,8 @@ snapshots:
       lightningcss-linux-x64-musl: 1.33.0
       lightningcss-win32-arm64-msvc: 1.33.0
       lightningcss-win32-x64-msvc: 1.33.0
+
+  maplibre-contour@0.1.0: {}
 
   maplibre-gl@6.5.0:
     dependencies:

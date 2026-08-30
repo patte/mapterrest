@@ -1,5 +1,14 @@
 import type { MapLibreMap } from 'maplibre-gl';
 import { BASEMAPS, type BasemapKey } from './basemaps';
+import {
+  CONTOUR_LINE_LAYER,
+  CONTOUR_SOURCE,
+  CONTOUR_TEXT_LAYER,
+  contourLineLayer,
+  contourSource,
+  contourTextLayer,
+  styleTextFont,
+} from './contours';
 import type { Range } from './exposure';
 import { isRamp, rampColor, rampDomain, SHADING_LAYER, shadingLayer, type ShadingKey } from './shading';
 import {
@@ -23,6 +32,10 @@ export type SceneSpec = {
   basemapVisible: boolean;
   shading: ShadingKey;
   shadingVisible: boolean;
+  /** Contour lines over whatever the shading paints. */
+  contours: boolean;
+  /** Elevation numbers along the major lines; only read while contours are on. */
+  contourLabels: boolean;
   /** Range the ramps are pinned to; null spans the ramp's own metres. */
   exposure: Range | null;
   /** Vertical multiplier on the DEM; 0 renders the terrain flat. */
@@ -51,15 +64,32 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
   /** Layer ids the current style ships with `visibility: none`, captured at style.load. */
   let styleHidden = new Set<string>();
 
+  const firstSymbolId = (): string | undefined =>
+    map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
+
   /** Relief belongs under the basemap's symbols, or place names sit behind the ramp. */
   function applyShading(): void {
     if (map.getLayer(SHADING_LAYER)) map.removeLayer(SHADING_LAYER);
     if (!spec.shadingVisible) return;
-    const firstSymbol = map.getStyle().layers.find((l) => l.type === 'symbol');
-    map.addLayer(
-      shadingLayer(spec.shading, DEM_SOURCE, BASEMAPS[spec.basemap], spec.exposure),
-      firstSymbol?.id,
-    );
+    // Under the contour lines when they are up — they trace the surface the shading paints.
+    const anchor = map.getLayer(CONTOUR_LINE_LAYER) ? CONTOUR_LINE_LAYER : firstSymbolId();
+    map.addLayer(shadingLayer(spec.shading, DEM_SOURCE, BASEMAPS[spec.basemap], spec.exposure), anchor);
+  }
+
+  function applyContours(): void {
+    if (map.getLayer(CONTOUR_TEXT_LAYER)) map.removeLayer(CONTOUR_TEXT_LAYER);
+    if (map.getLayer(CONTOUR_LINE_LAYER)) map.removeLayer(CONTOUR_LINE_LAYER);
+    if (!spec.contours) return;
+    // The source only lands once contours are asked for — adding it spins up the
+    // tracing worker — and then stays: a source no layer uses fetches nothing.
+    if (!map.getSource(CONTOUR_SOURCE)) map.addSource(CONTOUR_SOURCE, contourSource());
+    const basemap = BASEMAPS[spec.basemap];
+    const anchor = firstSymbolId();
+    map.addLayer(contourLineLayer(basemap), anchor);
+    if (spec.contourLabels) {
+      const font = styleTextFont(map);
+      if (font) map.addLayer(contourTextLayer(basemap, font), anchor);
+    }
   }
 
   /**
@@ -68,9 +98,11 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
    * pixels into grey curtains between tiles. The backdrop then replaces the style's
    * near-black or paper-white ground with a mid tone the relief reads against.
    */
+  const ownLayers = new Set([SHADING_LAYER, CONTOUR_LINE_LAYER, CONTOUR_TEXT_LAYER]);
+
   function applyBasemapVisibility(): void {
     for (const layer of map.getStyle().layers) {
-      if (layer.id === SHADING_LAYER || layer.type === 'background' || styleHidden.has(layer.id))
+      if (ownLayers.has(layer.id) || layer.type === 'background' || styleHidden.has(layer.id))
         continue;
       map.setLayoutProperty(layer.id, 'visibility', spec.basemapVisible ? 'visible' : 'none');
     }
@@ -141,6 +173,7 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
     );
 
     applyShading();
+    applyContours();
     applyBasemapVisibility();
   };
   map.on('style.load', onStyleLoad);
@@ -167,6 +200,12 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
         applyShading();
       } else if (!sameExposure(spec.exposure, prev.exposure)) {
         repaintRamp();
+      }
+      if (
+        spec.contours !== prev.contours ||
+        (spec.contours && spec.contourLabels !== prev.contourLabels)
+      ) {
+        applyContours();
       }
     },
     spec: () => ({ ...spec }),

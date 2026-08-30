@@ -42,6 +42,8 @@ let basemapKey = readString<BasemapKey>('basemap', defaultBasemap(prefersDark())
 let basemapVisible = readBoolean('basemapVisible', true);
 let shadingKey = readString<ShadingKey>('shading', DEFAULT_SHADING, SHADING_KEYS);
 let shadingVisible = readBoolean('shadingVisible', true);
+let contours = readBoolean('contours', false);
+let contourLabels = readBoolean('contourLabels', true);
 /** Only until the box is toggled by hand — until then exposure follows each ramp's default. */
 let autoExposureChosen = has('autoExposure');
 let autoExposure = readBoolean('autoExposure', defaultExposed(shadingKey));
@@ -90,7 +92,7 @@ if (!map.painter) {
 
 const scene = attachScene(
   map,
-  { basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible, exposure: null, terrainScale },
+  { basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible, contours, contourLabels, exposure: null, terrainScale },
   detail,
 );
 
@@ -200,10 +202,15 @@ const tray = createTray(readBoolean('collapsed', false), {
     write('basemap', key);
   },
   onShading(key) {
+    // The "none" tile empties the whole overlays row, contours with the shading.
     if (key === null) {
       if (shadingVisible) {
         setShadingVisible(false);
         write('shadingVisible', false);
+      }
+      if (contours) {
+        setContours(false);
+        write('contours', false);
       }
       return;
     }
@@ -214,10 +221,14 @@ const tray = createTray(readBoolean('collapsed', false), {
     setShading(key);
     write('shading', key);
   },
+  onContours() {
+    setContours(!contours);
+    write('contours', contours);
+  },
 });
 
 function syncTray(): void {
-  tray.select({ basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible });
+  tray.select({ basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible, contours });
 }
 syncTray();
 
@@ -270,10 +281,19 @@ function setShadingVisible(on: boolean): void {
   applyLogos();
 }
 
+function setContours(on: boolean): void {
+  if (on === contours) return;
+  contours = on;
+  scene.set({ contours: on });
+  applyOptionsRow();
+  syncTray();
+  applyLogos();
+}
+
 /* Auto-exposure ------------------------------------------------------------- */
 
 const exposureBox = document.getElementById('auto-exposure') as HTMLInputElement;
-const exposureRow = exposureBox.parentElement as HTMLElement;
+const exposureCluster = document.getElementById('exposure-cluster') as HTMLElement;
 const exposureRange = document.getElementById('exposure-range')!;
 
 /** The range the ramp is currently pinned to, or null while it spans its own metres. */
@@ -286,9 +306,10 @@ let stopTracking: (() => void) | null = null;
  */
 function applyExposure(): void {
   const wanted = autoExposure && shadingVisible && isRamp(shadingKey);
-  // The pill shows only while a ramp is on screen — for hillshade or no shading there
-  // is no exposure to offer, so the row disappears rather than sitting greyed out.
-  exposureRow.hidden = !(shadingVisible && isRamp(shadingKey));
+  // The pair shows only while a ramp is on screen — for hillshade or no shading there
+  // is no exposure to offer, so it disappears rather than sitting greyed out.
+  exposureCluster.hidden = !(shadingVisible && isRamp(shadingKey));
+  applyOptionsRow();
   exposureBox.title = 'spread the ramp over the elevations in view';
 
   if (wanted && !stopTracking) {
@@ -328,6 +349,32 @@ exposureDialog.addEventListener('click', (e) => {
   if (e.target === exposureDialog) exposureDialog.close();
 });
 
+/* Contour labels ------------------------------------------------------------- */
+
+const labelsBox = document.getElementById('contour-labels') as HTMLInputElement;
+const labelsCluster = document.getElementById('contour-labels-cluster') as HTMLElement;
+const optionsRow = document.getElementById('auto-exposure-row') as HTMLElement;
+
+/** The row under the overlays: each half rides its overlay, and the row keeps its
+ * height while empty (CSS) so the tray never jumps. */
+function applyOptionsRow(): void {
+  labelsCluster.hidden = !contours;
+  optionsRow.hidden = exposureCluster.hidden && labelsCluster.hidden;
+}
+
+function setContourLabels(on: boolean): void {
+  if (on === contourLabels) return;
+  contourLabels = on;
+  labelsBox.checked = on;
+  scene.set({ contourLabels: on });
+}
+
+labelsBox.checked = contourLabels;
+labelsBox.addEventListener('change', () => {
+  setContourLabels(labelsBox.checked);
+  write('contourLabels', contourLabels);
+});
+
 // Before the first style lands, so the initial shading layer is built already pinned to
 // the view rather than repainted after.
 applyExposure();
@@ -364,7 +411,7 @@ slider.addEventListener('input', () => {
 const logos = setupLogos(document.querySelector('.maplibregl-ctrl-bottom-right')!);
 function applyLogos(): void {
   logos.update({
-    mapterhorn: terrainScale > 0 || shadingVisible,
+    mapterhorn: terrainScale > 0 || shadingVisible || contours,
     maptiler: isMapTiler(basemapKey) && basemapVisible,
     maptilerSearch: searchedMapTiler,
   });
@@ -494,10 +541,11 @@ function thumbVariants(all = false): ThumbVariant[] {
   const shownRamp = current.shadingVisible ? forRamp(current.shading) : null;
   // The shading row first: it shares the mini map's current style, so the whole row is
   // layer swaps before the basemap row starts paying a setStyle per tile.
-  add(tileId('s', null), { ...current, shadingVisible: false, exposure: null });
+  add(tileId('s', null), { ...current, shadingVisible: false, contours: false, exposure: null });
   for (const key of SHADING_KEYS) {
     add(tileId('s', key), { ...current, shading: key, shadingVisible: true, exposure: forRamp(key) });
   }
+  add(tileId('s', 'contours'), { ...current, contours: true, exposure: shownRamp });
   add(tileId('b', null), { ...current, basemapVisible: false, exposure: shownRamp });
   for (const key of BASEMAP_KEYS) {
     add(tileId('b', key), { ...current, basemap: key, basemapVisible: true, exposure: shownRamp });
@@ -598,6 +646,8 @@ function applyHash(): void {
   setBasemapVisible(readBoolean('basemapVisible', true));
   setShading(readString('shading', DEFAULT_SHADING, SHADING_KEYS));
   setShadingVisible(readBoolean('shadingVisible', true));
+  setContours(readBoolean('contours', false));
+  setContourLabels(readBoolean('contourLabels', true));
   setAutoExposure(readBoolean('autoExposure', defaultExposed(shadingKey)));
   setTerrainScale(readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE));
   setPerfDebug(readBoolean('debugPerf', false));

@@ -108,12 +108,15 @@
       #basemap-card {
         margin-top: -9px;
       }
-      /* Wrapped to the shading row's width, the whole card stays one rectangle. */
+      /* Both rows wrap at the same width, so the whole card stays one rectangle;
+         contours lands alone on the overlays row's second line. */
+      #shading-thumbs,
       #basemap-thumbs {
         display: grid;
         grid-template-columns: repeat(4, var(--tile));
       }
       @media (max-width: 640px) {
+        #shading-thumbs,
         #basemap-thumbs {
           grid-template-columns: repeat(3, var(--tile));
         }
@@ -172,14 +175,24 @@
         margin: 0;
         cursor: pointer;
       }
-      .row > label {
+      .row label {
         cursor: pointer;
         white-space: nowrap;
       }
-      .row > input:disabled,
-      .row > input:disabled + label {
+      .row input:disabled,
+      .row input:disabled + label {
         cursor: default;
         opacity: 0.45;
+      }
+      /* Independently shown halves of one options row: the exposure pair rides the
+         ramps, the labels pair rides the contours. */
+      .row .cluster {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .row .cluster[hidden] {
+        display: none;
       }
       #exposure-range {
         font-variant-numeric: tabular-nums;
@@ -1166,15 +1179,21 @@
           <p class="title">overlays</p>
           <div id="shading-thumbs" class="thumbs" role="group" aria-label="overlays"></div>
           <div class="row" id="auto-exposure-row">
-            <input id="auto-exposure" type="checkbox" />
-            <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
-            <button id="exposure-info" type="button" aria-label="what auto-exposure does" aria-haspopup="dialog" aria-controls="exposure-dialog" title="what auto-exposure does">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                <circle cx="8" cy="8" r="6.25" />
-                <path d="M8 7.25v3.5" stroke-linecap="round" />
-                <circle cx="8" cy="4.75" r="1" fill="currentColor" stroke="none" />
-              </svg>
-            </button>
+            <span class="cluster" id="exposure-cluster">
+              <input id="auto-exposure" type="checkbox" />
+              <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
+              <button id="exposure-info" type="button" aria-label="what auto-exposure does" aria-haspopup="dialog" aria-controls="exposure-dialog" title="what auto-exposure does">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <circle cx="8" cy="8" r="6.25" />
+                  <path d="M8 7.25v3.5" stroke-linecap="round" />
+                  <circle cx="8" cy="4.75" r="1" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
+            </span>
+            <span class="cluster" id="contour-labels-cluster" hidden>
+              <input id="contour-labels" type="checkbox" />
+              <label for="contour-labels">elevation labels</label>
+            </span>
           </div>
         </div>
         <div id="basemap-card">

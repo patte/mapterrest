@@ -68,6 +68,7 @@ MapTiler has a generous free tier which we use for local development and for hos
 - [docs/thumbnails.md](docs/thumbnails.md): Live previews: scene spec, hidden mini map walk, refresh policy
 - [docs/screenshots.md](docs/screenshots.md): Print exports: grown-viewport capture, renderer ceilings, credits, file metadata
 - [docs/geosearch.md](docs/geosearch.md): Geosearch: the morphing pill, landing a camera on terrain, errors and credits
+- [docs/contours.md](docs/contours.md): Contour lines: traced in-browser from the DEM, intervals, detail ceiling, labels
 
 ## Contributing
 

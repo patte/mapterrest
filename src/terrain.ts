@@ -21,14 +21,19 @@ export const DEM_SOURCE = 'mapterhorn-dem';
  * same to the decimetre. This sets the whole frame's level; the decay toward the horizon
  * is shaped separately, below.
  */
+export const DEM_TILE_URL = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp';
+
+export const DEM_ATTRIBUTION =
+  '<a href="https://mapterhorn.com/attribution" target="_blank">© Mapterhorn</a>';
+
 const TERRAIN_SOURCE: RasterDEMSourceSpecification = {
   type: 'raster-dem',
-  tiles: ['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],
+  tiles: [DEM_TILE_URL],
   encoding: 'terrarium',
   tileSize: 256,
   minzoom: 0,
   maxzoom: 17,
-  attribution: '<a href="https://mapterhorn.com/attribution" target="_blank">© Mapterhorn</a>',
+  attribution: DEM_ATTRIBUTION,
 };
 
 /**
