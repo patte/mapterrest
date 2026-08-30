@@ -22,7 +22,10 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@sentry/cli"
-    ]
+    ],
+    "patchedDependencies": {
+      "maplibre-gl": "patches/maplibre-gl.patch"
+    }
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
