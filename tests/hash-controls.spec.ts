@@ -2,14 +2,17 @@ import { test } from '@playwright/test';
 import { open, check } from './helpers';
 
 test('controls write themselves into the hash', async ({ browser }) => {
-  const page = await open(browser, { hash: '#terrainScale=1' });
+  // Hillshade off: the ramp composed over it is the contour spec's subject, and under
+  // software GL the two draped layers together push this case past its budget.
+  const page = await open(browser, { hash: '#terrainScale=1&hillshade=0' });
 
   await page.click('#colour-thumbs .tile[data-key="heatmap"]');
   await page.click('#basemap-thumbs .tile[data-key="none"]');
   await page.check('#auto-exposure');
   await page.fill('#terrain-scale', '3.7');
   await page.dispatchEvent('#terrain-scale', 'input');
-  await page.waitForTimeout(500);
+  // The slider's hash write trails its input by a throttle; wait for it, not a duration.
+  await page.waitForFunction(() => location.hash.includes('terrainScale=3.7'), null, { timeout: 15000 });
 
   const hash = await page.evaluate(() => location.hash);
   for (const part of ['ramp=heatmap', 'basemapVisible=0', 'terrainScale=3.7', 'autoExposure=1']) {
@@ -18,10 +21,6 @@ test('controls write themselves into the hash', async ({ browser }) => {
   await check(
     await page.evaluate(() => window.map.getLayer('terrain-ramp')?.type === 'color-relief'),
     'heatmap adds the color-relief layer',
-  );
-  await check(
-    await page.evaluate(() => !!window.map.getLayer('terrain-hillshade')),
-    'the default hillshade stays up over it',
   );
 
   await page.click('#colour-thumbs .tile[data-key="heatmap"]');
@@ -45,12 +44,12 @@ test('controls write themselves into the hash', async ({ browser }) => {
 
   await page.click('#relief-thumbs .tile[data-key="hillshade"]');
   await check(
-    await page.evaluate(() => !window.map.getLayer('terrain-hillshade')),
-    'the pressed hillshade tile turns it off',
+    await page.evaluate(() => !!window.map.getLayer('terrain-hillshade')),
+    'the hillshade tile turns it on',
   );
   await check(
-    (await page.evaluate(() => location.hash)).includes('hillshade=0'),
-    'hash carries hillshade=0',
+    (await page.evaluate(() => location.hash)).includes('hillshade=1'),
+    'hash carries hillshade=1',
   );
   await page.close();
 });
