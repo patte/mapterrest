@@ -43,7 +43,11 @@ knowing:
 
 ## Styling
 
-Minor lines draw at 0.5 px, majors at 1 px, in per-basemap colors (`basemap.contour`).
+Minor lines draw at 0.75 px, majors at 1.5 px, in per-basemap colors (`basemap.contour`).
+No thinner: over terrain the lines are baked into a fixed 2048 px drape texture per
+terrain tile that a fractional zoom stretches up to 2× on a 2× display, and a 0.5 px
+line is one texel there, smearing into a grey band. No wider either — 1 px crowds the
+20 m lines on z14's steep faces.
 Only majors carry a label (`2 500m`); every 20 m line labelled is noise. The label font
 is whatever the active style declares on its first symbol layer — the providers all name
 their fonts differently, and shipping our own glyphs isn't worth it. A style without any

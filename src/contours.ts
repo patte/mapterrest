@@ -70,7 +70,10 @@ export function contourLineLayer(basemap: Basemap): LayerSpecification {
     'source-layer': 'contours',
     paint: {
       'line-color': basemap.contour.line,
-      'line-width': ['match', ['get', 'level'], 1, 1, 0.5],
+      // Over terrain the lines are baked into a 2048 px drape texture per terrain tile
+      // and stretched up to 2× between integer zooms; a 0.5 px minor is one texel and
+      // smears into a grey band there, 0.75 still reads as a line (1 px crowds z14).
+      'line-width': ['match', ['get', 'level'], 1, 1.5, 0.75],
     },
   };
 }
