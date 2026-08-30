@@ -19,7 +19,7 @@ test('provider logos follow what the frame shows', async ({ browser }) => {
   );
 
   // Flat and unshaded — nothing of Mapterhorn shapes the frame.
-  await page.click('#shading-thumbs .tile[data-key="none"]');
+  await page.click('#relief-thumbs .tile[data-key="none"]');
   await check(await page.isHidden('#logos'), 'flat and unshaded hides the stack');
 
   await page.fill('#terrain-scale', '2');

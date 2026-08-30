@@ -35,7 +35,7 @@ const browser = resident
   : await chromium.launch({ channel: gl.channel, args: gl.args });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 
-await page.goto(URL_ + '#shading=heightmap', { waitUntil: 'domcontentloaded' });
+await page.goto(URL_ + '#ramp=heightmap', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
 
 const settle = async () => {

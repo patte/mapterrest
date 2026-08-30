@@ -7,7 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // bundling points at our chunk rather than the package. Let vite emit it.
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, isMapTiler, type BasemapKey } from './basemaps';
-import { DEFAULT_SHADING, defaultExposed, isRamp, SHADING_KEYS, type ShadingKey } from './shading';
+import { defaultExposed, RAMP_KEYS, type RampKey } from './shading';
 import { attachScene, type SceneSpec } from './scene';
 import { bakedPlaceholder, bakedThumb } from './bakedThumbs';
 import { cameraOf, createThumbnailer, type ThumbVariant } from './thumbnails';
@@ -40,13 +40,33 @@ let followsScheme = !has('basemap');
 
 let basemapKey = readString<BasemapKey>('basemap', defaultBasemap(prefersDark()), BASEMAP_KEYS);
 let basemapVisible = readBoolean('basemapVisible', true);
-let shadingKey = readString<ShadingKey>('shading', DEFAULT_SHADING, SHADING_KEYS);
-let shadingVisible = readBoolean('shadingVisible', true);
+
+/** A ramp reads as `ramp=heatmap`, none as `ramp=none` or no key at all. */
+const readRamp = (): RampKey | null => {
+  const key = readString<RampKey | 'none'>('ramp', 'none', [...RAMP_KEYS, 'none']);
+  return key === 'none' ? null : key;
+};
+/**
+ * Hillshade and the ramp were one exclusive `shading` choice once, with a
+ * `shadingVisible` switch; links from then still render as they did: hillshade alone,
+ * or a ramp alone.
+ */
+const readOverlays = (): { ramp: RampKey | null; hillshade: boolean } => {
+  if (!has('ramp') && has('shading')) {
+    const visible = readBoolean('shadingVisible', true);
+    const shading = readString<RampKey | 'hillshade'>('shading', 'hillshade', [...RAMP_KEYS, 'hillshade']);
+    if (shading === 'hillshade') return { ramp: null, hillshade: visible };
+    return { ramp: visible ? shading : null, hillshade: false };
+  }
+  return { ramp: readRamp(), hillshade: readBoolean('hillshade', true) };
+};
+
+let { ramp: rampKey, hillshade } = readOverlays();
 let contours = readBoolean('contours', false);
 let contourLabels = readBoolean('contourLabels', true);
 /** Only until the box is toggled by hand — until then exposure follows each ramp's default. */
 let autoExposureChosen = has('autoExposure');
-let autoExposure = readBoolean('autoExposure', defaultExposed(shadingKey));
+let autoExposure = readBoolean('autoExposure', rampKey !== null && defaultExposed(rampKey));
 let terrainScale = readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE);
 const detail = readString<Detail>('detail', DEFAULT_DETAIL, DETAIL_LEVELS);
 /**
@@ -92,7 +112,7 @@ if (!map.painter) {
 
 const scene = attachScene(
   map,
-  { basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible, contours, contourLabels, exposure: null, terrainScale },
+  { basemap: basemapKey, basemapVisible, ramp: rampKey, hillshade, contours, contourLabels, exposure: null, terrainScale },
   detail,
 );
 
@@ -182,7 +202,7 @@ map.on('error', (e) => {
   }
 });
 
-/* Basemap & shading tiles ---------------------------------------------------- */
+/* Basemap & overlay tiles ---------------------------------------------------- */
 
 const tray = createTray(readBoolean('collapsed', false), {
   onBasemap(key) {
@@ -201,34 +221,34 @@ const tray = createTray(readBoolean('collapsed', false), {
     setBasemap(key);
     write('basemap', key);
   },
-  onShading(key) {
-    // The "none" tile empties the whole overlays row, contours with the shading.
-    if (key === null) {
-      if (shadingVisible) {
-        setShadingVisible(false);
-        write('shadingVisible', false);
-      }
-      if (contours) {
-        setContours(false);
-        write('contours', false);
-      }
-      return;
-    }
-    if (!shadingVisible) {
-      setShadingVisible(true);
-      write('shadingVisible', true);
-    }
-    setShading(key);
-    write('shading', key);
+  onRamp(key) {
+    // The pressed ramp's tile turns it off again, as the "none" tile does.
+    const next = key === rampKey ? null : key;
+    setRamp(next);
+    write('ramp', next ?? 'none');
+  },
+  onHillshade() {
+    setHillshade(!hillshade);
+    write('hillshade', hillshade);
   },
   onContours() {
     setContours(!contours);
     write('contours', contours);
   },
+  onNoRelief() {
+    if (hillshade) {
+      setHillshade(false);
+      write('hillshade', false);
+    }
+    if (contours) {
+      setContours(false);
+      write('contours', false);
+    }
+  },
 });
 
 function syncTray(): void {
-  tray.select({ basemap: basemapKey, basemapVisible, shading: shadingKey, shadingVisible, contours });
+  tray.select({ basemap: basemapKey, basemapVisible, ramp: rampKey, hillshade, contours });
 }
 syncTray();
 
@@ -260,23 +280,23 @@ onSchemeChange((dark) => {
   else applyChrome();
 });
 
-function setShading(key: ShadingKey): void {
-  if (key === shadingKey) return;
-  shadingKey = key;
-  if (!autoExposureChosen) {
+function setRamp(key: RampKey | null): void {
+  if (key === rampKey) return;
+  rampKey = key;
+  if (key !== null && !autoExposureChosen) {
     autoExposure = defaultExposed(key);
     exposureBox.checked = autoExposure;
   }
   applyExposure();
-  scene.set({ shading: key, exposure });
+  scene.set({ ramp: key, exposure });
   syncTray();
+  applyLogos();
 }
 
-function setShadingVisible(on: boolean): void {
-  if (on === shadingVisible) return;
-  shadingVisible = on;
-  applyExposure();
-  scene.set({ shadingVisible: on, exposure });
+function setHillshade(on: boolean): void {
+  if (on === hillshade) return;
+  hillshade = on;
+  scene.set({ hillshade: on });
   syncTray();
   applyLogos();
 }
@@ -285,7 +305,7 @@ function setContours(on: boolean): void {
   if (on === contours) return;
   contours = on;
   scene.set({ contours: on });
-  applyOptionsRow();
+  applyLabelsRow();
   syncTray();
   applyLogos();
 }
@@ -293,7 +313,6 @@ function setContours(on: boolean): void {
 /* Auto-exposure ------------------------------------------------------------- */
 
 const exposureBox = document.getElementById('auto-exposure') as HTMLInputElement;
-const exposureCluster = document.getElementById('exposure-cluster') as HTMLElement;
 const exposureRange = document.getElementById('exposure-range')!;
 
 /** The range the ramp is currently pinned to, or null while it spans its own metres. */
@@ -301,15 +320,13 @@ let exposure: Range | null = null;
 let stopTracking: (() => void) | null = null;
 
 /**
- * Only the ramps have an exposure to set. Hillshade lights the DEM's gradient and never
+ * Only a ramp has an exposure to set. Hillshade lights the DEM's gradient and never
  * reads an absolute height, so there is nothing for the endpoints to do to it.
  */
 function applyExposure(): void {
-  const wanted = autoExposure && shadingVisible && isRamp(shadingKey);
-  // The pair shows only while a ramp is on screen — for hillshade or no shading there
-  // is no exposure to offer, so it disappears rather than sitting greyed out.
-  exposureCluster.hidden = !(shadingVisible && isRamp(shadingKey));
-  applyOptionsRow();
+  const wanted = autoExposure && rampKey !== null;
+  // Without a ramp on screen there is no exposure to offer: the box greys out in place.
+  exposureBox.disabled = rampKey === null;
   exposureBox.title = 'spread the ramp over the elevations in view';
 
   if (wanted && !stopTracking) {
@@ -352,14 +369,9 @@ exposureDialog.addEventListener('click', (e) => {
 /* Contour labels ------------------------------------------------------------- */
 
 const labelsBox = document.getElementById('contour-labels') as HTMLInputElement;
-const labelsCluster = document.getElementById('contour-labels-cluster') as HTMLElement;
-const optionsRow = document.getElementById('auto-exposure-row') as HTMLElement;
-
-/** The row under the overlays: each half rides its overlay, and the row keeps its
- * height while empty (CSS) so the tray never jumps. */
-function applyOptionsRow(): void {
-  labelsCluster.hidden = !contours;
-  optionsRow.hidden = exposureCluster.hidden && labelsCluster.hidden;
+/** Without lines there are no labels to offer: the box greys out in place. */
+function applyLabelsRow(): void {
+  labelsBox.disabled = !contours;
 }
 
 function setContourLabels(on: boolean): void {
@@ -370,12 +382,13 @@ function setContourLabels(on: boolean): void {
 }
 
 labelsBox.checked = contourLabels;
+applyLabelsRow();
 labelsBox.addEventListener('change', () => {
   setContourLabels(labelsBox.checked);
   write('contourLabels', contourLabels);
 });
 
-// Before the first style lands, so the initial shading layer is built already pinned to
+// Before the first style lands, so the initial ramp layer is built already pinned to
 // the view rather than repainted after.
 applyExposure();
 
@@ -411,7 +424,7 @@ slider.addEventListener('input', () => {
 const logos = setupLogos(document.querySelector('.maplibregl-ctrl-bottom-right')!);
 function applyLogos(): void {
   logos.update({
-    mapterhorn: terrainScale > 0 || shadingVisible || contours,
+    mapterhorn: terrainScale > 0 || hillshade || rampKey !== null || contours,
     maptiler: isMapTiler(basemapKey) && basemapVisible,
     maptilerSearch: searchedMapTiler,
   });
@@ -516,21 +529,21 @@ const thumbs = createThumbnailer(map, {
 });
 
 /**
- * Every tile as a SceneSpec against the current selection: the shading row over the
- * current basemap, the basemap row under the current shading. Identical specs — the
- * selected pair sits in both rows — render once and land on every tile sharing them.
- * Ramp previews freeze the exposure they would get if selected — an untouched toggle
- * follows each ramp's default — measured once here rather than tracked while the walk runs.
- * `all` includes the rows a folded tray would skip — the baked startup pass covers
- * them so an opening tray finds its previews in place.
+ * Every tile as a SceneSpec against the current selection: each overlay tile varies
+ * its one thing over the current basemap, the basemap row varies the basemap under the
+ * current overlays. Identical specs — the selection sits in every row — render once and
+ * land on every tile sharing them. Ramp previews freeze the exposure they would get if
+ * selected — an untouched toggle follows each ramp's default — measured once here
+ * rather than tracked while the walk runs. `all` includes the rows a folded tray would
+ * skip — the baked startup pass covers them so an opening tray finds its previews in
+ * place.
  */
 function thumbVariants(all = false): ThumbVariant[] {
   if (!tray.open() && !all) return [];
   const current = scene.spec();
   const frozen = exposure ?? visibleRange(map, DEM_SOURCE);
-  const autoFor = (key: ShadingKey): boolean =>
-    autoExposureChosen ? autoExposure : defaultExposed(key);
-  const forRamp = (key: ShadingKey): Range | null => (isRamp(key) && autoFor(key) ? frozen : null);
+  const autoFor = (key: RampKey): boolean => (autoExposureChosen ? autoExposure : defaultExposed(key));
+  const forRamp = (key: RampKey | null): Range | null => (key !== null && autoFor(key) ? frozen : null);
   const variants = new Map<string, ThumbVariant>();
   const add = (id: string, spec: SceneSpec): void => {
     const key = JSON.stringify(spec);
@@ -538,14 +551,16 @@ function thumbVariants(all = false): ThumbVariant[] {
     if (seen) seen.ids.push(id);
     else variants.set(key, { ids: [id], spec });
   };
-  const shownRamp = current.shadingVisible ? forRamp(current.shading) : null;
-  // The shading row first: it shares the mini map's current style, so the whole row is
+  const shownRamp = forRamp(current.ramp);
+  // The overlay lines first: they share the mini map's current style, so they are all
   // layer swaps before the basemap row starts paying a setStyle per tile.
-  add(tileId('s', null), { ...current, shadingVisible: false, contours: false, exposure: null });
-  for (const key of SHADING_KEYS) {
-    add(tileId('s', key), { ...current, shading: key, shadingVisible: true, exposure: forRamp(key) });
+  add(tileId('r', null), { ...current, hillshade: false, contours: false, exposure: shownRamp });
+  add(tileId('r', 'hillshade'), { ...current, hillshade: true, exposure: shownRamp });
+  add(tileId('r', 'contours'), { ...current, contours: true, exposure: shownRamp });
+  add(tileId('c', null), { ...current, ramp: null, exposure: null });
+  for (const key of RAMP_KEYS) {
+    add(tileId('c', key), { ...current, ramp: key, exposure: forRamp(key) });
   }
-  add(tileId('s', 'contours'), { ...current, contours: true, exposure: shownRamp });
   add(tileId('b', null), { ...current, basemapVisible: false, exposure: shownRamp });
   for (const key of BASEMAP_KEYS) {
     add(tileId('b', key), { ...current, basemap: key, basemapVisible: true, exposure: shownRamp });
@@ -644,11 +659,12 @@ function applyHash(): void {
   autoExposureChosen = has('autoExposure');
   setBasemap(readString('basemap', defaultBasemap(prefersDark()), BASEMAP_KEYS));
   setBasemapVisible(readBoolean('basemapVisible', true));
-  setShading(readString('shading', DEFAULT_SHADING, SHADING_KEYS));
-  setShadingVisible(readBoolean('shadingVisible', true));
+  const overlays = readOverlays();
+  setRamp(overlays.ramp);
+  setHillshade(overlays.hillshade);
   setContours(readBoolean('contours', false));
   setContourLabels(readBoolean('contourLabels', true));
-  setAutoExposure(readBoolean('autoExposure', defaultExposed(shadingKey)));
+  setAutoExposure(readBoolean('autoExposure', rampKey !== null && defaultExposed(rampKey)));
   setTerrainScale(readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE));
   setPerfDebug(readBoolean('debugPerf', false));
   setPivotDebug(readBoolean('debugPivot', false));

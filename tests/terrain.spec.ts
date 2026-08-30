@@ -30,7 +30,7 @@ test('DEM source, terrain, and elevation probes', async ({ browser }) => {
   await check(!!(await page.evaluate(() => window.map.getTerrain())), 'terrain is attached');
   await check(
     (await page.evaluate(() =>
-      window.map.style.getLayer('terrain-shading').paint.get('hillshade-illumination-anchor'),
+      window.map.style.getLayer('terrain-hillshade').paint.get('hillshade-illumination-anchor'),
     )) === 'map',
     'hillshade light is anchored to the map, not the viewport',
   );

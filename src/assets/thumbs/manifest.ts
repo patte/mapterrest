@@ -11,28 +11,32 @@ import t4 from './b-ofm-bright.webp';
 import t5 from './b-ofm-dark.webp';
 import t6 from './b-ofm-positron.webp';
 import t7 from './b-satellite.webp';
-import t8 from './s-heatmap-dark.webp';
-import t9 from './s-heatmap-light.webp';
-import t10 from './s-heightmap-dark.webp';
-import t11 from './s-heightmap-light.webp';
-import t12 from './s-hillshade.webp';
-import t13 from './s-none-dark.webp';
-import t14 from './s-none-light.webp';
+import t8 from './c-heatmap-dark.webp';
+import t9 from './c-heatmap-light.webp';
+import t10 from './c-heightmap-dark.webp';
+import t11 from './c-heightmap-light.webp';
+import t12 from './r-contours-dark.webp';
+import t13 from './r-contours-light.webp';
+import t14 from './r-hillshade.webp';
+import t15 from './r-none-dark.webp';
+import t16 from './r-none-light.webp';
 
 export const BAKED_THUMBS: BakedThumb[] = [
-  { spec: {"basemap":"carto-dark","basemapVisible":true,"shading":"hillshade","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t0 },
-  { spec: {"basemap":"liberty","basemapVisible":true,"shading":"hillshade","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t1 },
-  { spec: {"basemap":"carto-dark","basemapVisible":false,"shading":"hillshade","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t2 },
-  { spec: {"basemap":"carto-light","basemapVisible":false,"shading":"hillshade","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t3 },
-  { spec: {"basemap":"ofm-bright","basemapVisible":true,"shading":"hillshade","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t4 },
-  { spec: {"basemap":"ofm-dark","basemapVisible":true,"shading":"hillshade","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t5 },
-  { spec: {"basemap":"ofm-positron","basemapVisible":true,"shading":"hillshade","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t6 },
-  { spec: {"basemap":"satellite","basemapVisible":true,"shading":"hillshade","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t7 },
-  { spec: {"basemap":"carto-dark","basemapVisible":true,"shading":"heatmap","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t8 },
-  { spec: {"basemap":"carto-light","basemapVisible":true,"shading":"heatmap","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t9 },
-  { spec: {"basemap":"carto-dark","basemapVisible":true,"shading":"heightmap","shadingVisible":true,"exposure":{"lo":223.2421875,"hi":4795.0859375},"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t10 },
-  { spec: {"basemap":"carto-light","basemapVisible":true,"shading":"heightmap","shadingVisible":true,"exposure":{"lo":223.2421875,"hi":4795.0859375},"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t11 },
-  { spec: {"basemap":"carto-light","basemapVisible":true,"shading":"hillshade","shadingVisible":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t12 },
-  { spec: {"basemap":"carto-dark","basemapVisible":true,"shading":"hillshade","shadingVisible":false,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t13 },
-  { spec: {"basemap":"carto-light","basemapVisible":true,"shading":"hillshade","shadingVisible":false,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t14 },
+  { spec: {"basemap":"carto-dark","basemapVisible":true,"ramp":null,"hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t0 },
+  { spec: {"basemap":"liberty","basemapVisible":true,"ramp":null,"hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t1 },
+  { spec: {"basemap":"carto-dark","basemapVisible":false,"ramp":null,"hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t2 },
+  { spec: {"basemap":"carto-light","basemapVisible":false,"ramp":null,"hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t3 },
+  { spec: {"basemap":"ofm-bright","basemapVisible":true,"ramp":null,"hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t4 },
+  { spec: {"basemap":"ofm-dark","basemapVisible":true,"ramp":null,"hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t5 },
+  { spec: {"basemap":"ofm-positron","basemapVisible":true,"ramp":null,"hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t6 },
+  { spec: {"basemap":"satellite","basemapVisible":true,"ramp":null,"hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t7 },
+  { spec: {"basemap":"carto-dark","basemapVisible":true,"ramp":"heatmap","hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t8 },
+  { spec: {"basemap":"carto-light","basemapVisible":true,"ramp":"heatmap","hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t9 },
+  { spec: {"basemap":"carto-dark","basemapVisible":true,"ramp":"heightmap","hillshade":true,"contours":false,"contourLabels":true,"exposure":{"lo":223.2421875,"hi":4795.0859375},"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t10 },
+  { spec: {"basemap":"carto-light","basemapVisible":true,"ramp":"heightmap","hillshade":true,"contours":false,"contourLabels":true,"exposure":{"lo":223.2421875,"hi":4795.0859375},"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t11 },
+  { spec: {"basemap":"carto-dark","basemapVisible":true,"ramp":null,"hillshade":true,"contours":true,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t12 },
+  { spec: {"basemap":"carto-light","basemapVisible":true,"ramp":null,"hillshade":true,"contours":true,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t13 },
+  { spec: {"basemap":"carto-light","basemapVisible":true,"ramp":null,"hillshade":true,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t14 },
+  { spec: {"basemap":"carto-dark","basemapVisible":true,"ramp":null,"hillshade":false,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t15 },
+  { spec: {"basemap":"carto-light","basemapVisible":true,"ramp":null,"hillshade":false,"contours":false,"contourLabels":true,"exposure":null,"terrainScale":1}, camera: [7.718276497838673,46.017693318286575,12.873741518690931,78.00000000000001,-135], url: t16 },
 ];

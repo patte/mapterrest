@@ -34,7 +34,7 @@ const browser = resident
   : await chromium.launch({ channel: gl.channel, args: gl.args });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 
-await page.goto(URL_ + '#shading=heatmap', { waitUntil: 'domcontentloaded' });
+await page.goto(URL_ + '#ramp=heatmap&hillshade=0', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
 await page.waitForFunction(() => window.map.areTilesLoaded() && window.map.loaded(), null, {
   timeout: 90000,
@@ -48,7 +48,7 @@ await page.screenshot({ path: `${SHOTS}exposure-dialog.png` });
 await page.close();
 
 // Narrow and short, as a touch device (hover: none hides the hint and sends the About
-// pill left): the shading strip scrolls, the exposure row right-aligns, and the open
+// pill left): the exposure row right-aligns, and the open
 // card contests both map-control corners and wins. The tray starts collapsed here, so
 // the settings tile opens it first.
 const narrow = await browser.newPage({
@@ -56,7 +56,7 @@ const narrow = await browser.newPage({
   isMobile: true,
   hasTouch: true,
 });
-await narrow.goto(URL_ + '#shading=heatmap', { waitUntil: 'domcontentloaded' });
+await narrow.goto(URL_ + '#ramp=heatmap&hillshade=0', { waitUntil: 'domcontentloaded' });
 await narrow.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
 await narrow.click('#tray-tile');
 await narrow.waitForTimeout(300);

@@ -1,24 +1,29 @@
 import { BASEMAPS, BASEMAP_KEYS, type BasemapKey } from './basemaps';
-import { SHADINGS, SHADING_KEYS, type ShadingKey } from './shading';
+import { RAMP_KEYS, RAMP_LABELS, type RampKey } from './shading';
 
-/** One tile per choice; `null` is the "none" tile, which hides that row's layers. */
+/**
+ * One tile per choice; `null` is a line's "none" tile. The colour line is a choice —
+ * one ramp or none, and the pressed ramp's tile is reported again to turn it off. The
+ * relief line is two toggles that compose, with a "none" that clears both.
+ */
 export type TrayCallbacks = {
   onBasemap(key: BasemapKey | null): void;
-  onShading(key: ShadingKey | null): void;
-  /** The contour tile is additive — a toggle riding on top of the shading choice. */
+  onRamp(key: RampKey | null): void;
+  onHillshade(): void;
   onContours(): void;
+  onNoRelief(): void;
 };
 
 export type TraySelection = {
   basemap: BasemapKey;
   basemapVisible: boolean;
-  shading: ShadingKey;
-  shadingVisible: boolean;
+  ramp: RampKey | null;
+  hillshade: boolean;
   contours: boolean;
 };
 
-/** Tile ids, shared with the thumbnailer: `b:carto-dark`, `b:none`, `s:heatmap`, … */
-export const tileId = (group: 'b' | 's', key: string | null): string => `${group}:${key ?? 'none'}`;
+/** Tile ids, shared with the thumbnailer: `b:carto-dark`, `b:none`, `r:hillshade`, `c:heatmap`, … */
+export const tileId = (group: 'b' | 'r' | 'c', key: string | null): string => `${group}:${key ?? 'none'}`;
 
 export type Tray = {
   /** Marks the tiles for `sel` pressed; a hidden layer presses its "none" tile. */
@@ -75,13 +80,17 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
     return preview;
   }
 
-  const shadingRow = document.getElementById('shading-thumbs')!;
-  tile(shadingRow, tileId('s', null), 'no overlays', 'none', () => cb.onShading(null));
-  for (const key of SHADING_KEYS) {
-    // The keys are already the short names; SHADINGS holds the spelled-out ones.
-    tile(shadingRow, tileId('s', key), SHADINGS[key], key, () => cb.onShading(key));
+  const reliefRow = document.getElementById('relief-thumbs')!;
+  tile(reliefRow, tileId('r', null), 'no relief', 'none', () => cb.onNoRelief());
+  tile(reliefRow, tileId('r', 'hillshade'), 'hillshade', 'hillshade', () => cb.onHillshade());
+  tile(reliefRow, tileId('r', 'contours'), 'contour lines', 'contours', () => cb.onContours());
+
+  const colourRow = document.getElementById('colour-thumbs')!;
+  tile(colourRow, tileId('c', null), 'no colour', 'none', () => cb.onRamp(null));
+  for (const key of RAMP_KEYS) {
+    // The keys are already the short names; RAMP_LABELS holds the spelled-out ones.
+    tile(colourRow, tileId('c', key), RAMP_LABELS[key], key, () => cb.onRamp(key));
   }
-  tile(shadingRow, tileId('s', 'contours'), 'contour lines', 'contours', () => cb.onContours());
 
   const basemapRow = document.getElementById('basemap-thumbs')!;
   tile(basemapRow, tileId('b', null), 'no basemap', 'none', () => cb.onBasemap(null));
@@ -118,11 +127,11 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
 
   return {
     select(sel: TraySelection): void {
-      const pressed = new Set([tileId('b', sel.basemapVisible ? sel.basemap : null)]);
-      if (sel.shadingVisible) pressed.add(tileId('s', sel.shading));
-      if (sel.contours) pressed.add(tileId('s', 'contours'));
-      // "none" claims the row only once nothing in it is on — contours included.
-      if (!sel.shadingVisible && !sel.contours) pressed.add(tileId('s', null));
+      const pressed = new Set([tileId('b', sel.basemapVisible ? sel.basemap : null), tileId('c', sel.ramp)]);
+      if (sel.hillshade) pressed.add(tileId('r', 'hillshade'));
+      if (sel.contours) pressed.add(tileId('r', 'contours'));
+      // The relief "none" claims its line only once nothing on it is on.
+      if (!sel.hillshade && !sel.contours) pressed.add(tileId('r', null));
       for (const [id, button] of tiles) {
         button.setAttribute('aria-pressed', String(pressed.has(id)));
       }

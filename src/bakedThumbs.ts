@@ -5,14 +5,16 @@ import { BAKED_THUMBS } from './assets/thumbs/manifest';
  * One entry of the checked-in bake (`pnpm bake:thumbs`): a tray preview rendered at the
  * default view, matched here against what the walk is about to render. The spec fields
  * are plain strings rather than the app's key unions so a bake that outlives a renamed
- * basemap or shading merely stops matching instead of failing the build.
+ * basemap or ramp merely stops matching instead of failing the build.
  */
 export type BakedThumb = {
   spec: {
     basemap: string;
     basemapVisible: boolean;
-    shading: string;
-    shadingVisible: boolean;
+    ramp: string | null;
+    hillshade: boolean;
+    contours: boolean;
+    contourLabels: boolean;
     exposure: { lo: number; hi: number } | null;
     terrainScale: number;
   };
@@ -49,8 +51,10 @@ const exposureClose = (a: SceneSpec['exposure'], b: BakedThumb['spec']['exposure
 const specMatches = (spec: SceneSpec, baked: BakedThumb['spec'], anyExposure: boolean): boolean =>
   spec.basemap === baked.basemap &&
   spec.basemapVisible === baked.basemapVisible &&
-  spec.shading === baked.shading &&
-  spec.shadingVisible === baked.shadingVisible &&
+  spec.ramp === baked.ramp &&
+  spec.hillshade === baked.hillshade &&
+  spec.contours === baked.contours &&
+  spec.contourLabels === baked.contourLabels &&
   spec.terrainScale === baked.terrainScale &&
   (anyExposure || exposureClose(spec.exposure, baked.exposure));
 

@@ -1,7 +1,7 @@
 import { test } from '@playwright/test';
 import { open, check, settled } from './helpers';
 
-const ROW_TILES = '#shading-thumbs .tile, #basemap-thumbs .tile';
+const ROW_TILES = '#card .thumbs .tile';
 
 test('a default load answers every preview from the bake, without a walk', async ({ browser }) => {
   const page = await open(browser);
@@ -19,7 +19,7 @@ test('a default load answers every preview from the bake, without a walk', async
   );
   await check(
     await page.evaluate(() =>
-      [...document.querySelectorAll<HTMLImageElement>('#shading-thumbs .tile img, #basemap-thumbs .tile img')].every(
+      [...document.querySelectorAll<HTMLImageElement>('#card .thumbs .tile img')].every(
         (img) => img.src.length > 0,
       ),
     ),
@@ -39,13 +39,13 @@ test('a default load answers every preview from the bake, without a walk', async
   const src = await page.evaluate(() => {
     const at = (sel: string) => document.querySelector<HTMLImageElement>(`${sel} img`)!.src;
     return {
-      heatmap: at('#shading-thumbs .tile[data-key="heatmap"]'),
-      heightmap: at('#shading-thumbs .tile[data-key="heightmap"]'),
+      heatmap: at('#colour-thumbs .tile[data-key="heatmap"]'),
+      heightmap: at('#colour-thumbs .tile[data-key="heightmap"]'),
       dark: at('#basemap-thumbs .tile[data-key="carto-dark"]'),
       light: at('#basemap-thumbs .tile[data-key="carto-light"]'),
     };
   });
-  await check(src.heatmap !== src.heightmap, 'the live shading previews differ from each other');
+  await check(src.heatmap !== src.heightmap, 'the live colour previews differ from each other');
   await check(src.dark !== src.light, 'the live basemap previews differ from each other');
   await page.close();
 });

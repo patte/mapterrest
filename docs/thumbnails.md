@@ -7,25 +7,26 @@ grey heightmap selected, the whole basemap row honestly goes grey.
 
 ## The spec
 
-`scene.ts` splits what a map *shows* from which map shows it. A `SceneSpec` — basemap,
-shading, their visibilities, the exposure range, terrain scale — plus `attachScene()`
-makes any MapLibre map render that spec, owning the `style.load` re-attachment (DEM
-source, terrain, sky, backdrop, shading layer) and diffing changes onto the live map.
-The main view is one attached scene fed by the controls; every preview is another spec
-on a second map. Anything added to the spec and the composer — contours, say — appears
-in the main view and in every preview with no thumbnail-specific code.
+`scene.ts` splits what a map *shows* from which map shows it. A `SceneSpec` — basemap
+and its visibility, the colour ramp, hillshade, contours and their labels, the exposure
+range, terrain scale — plus `attachScene()` makes any MapLibre map render that spec,
+owning the `style.load` re-attachment (DEM source, terrain, sky, backdrop, overlay
+layers) and diffing changes onto the live map. The main view is one attached scene fed
+by the controls; every preview is another spec on a second map. Anything added to the
+spec and the composer appears in the main view and in every preview with no
+thumbnail-specific code.
 
-Each tile's spec is a variation of the current one: the overlay row varies the shading
-over the current basemap, the basemap row varies the basemap under the current shading,
-the "none" tiles turn one layer off. Identical specs render once and land on every tile
-sharing them — the selected pair sits in both rows. Ramp previews freeze the exposure
+Each tile's spec is a variation of the current one: the relief line varies one toggle
+(its "none" turns both off), the colour line varies the ramp, the basemap row varies
+the basemap under the current overlays. Identical specs render once and land on every
+tile sharing them — the selection sits in every row. Ramp previews freeze the exposure
 they would get if selected — an untouched toggle follows each ramp's default — measured
 once per walk rather than tracked.
 
 ## The walk
 
 One hidden 96 px map (`thumbnails.ts`) — never one per tile, GL contexts are capped and
-each costs like a map — walks the variants: overlay row first, all layer swaps on the
+each costs like a map — walks the variants: overlay lines first, all layer swaps on the
 current style, then the basemap row at a `setStyle` per tile. Each variant settles on
 `idle` and is snapshotted off a `preserveDrawingBuffer` canvas; `fadeDuration: 0`, or
 crossfades land half-blended in the shot. The mini map runs `low` detail and a camera
@@ -62,13 +63,13 @@ after. From there:
   stale thumbs heal on a still map, and a downed tile server is not polled forever.
 - Each tile remembers the spec + camera of its delivered snapshot, and a variant whose
   every tile already shows that render is skipped whole. What a selection change
-  re-renders, out of the 11 variants a full walk carries:
+  re-renders, out of the ~12 variants a full walk carries:
 
   | Change | Renders |
   | --- | --- |
-  | basemap | ~5 — overlay row and the "none" tile; the other basemaps don't reference it |
-  | shading | ~8 — the basemap row; the other shadings keep their context |
-  | camera settled again, nothing else | 11 |
+  | basemap | ~6 — overlay lines and the "none" tile; the other basemaps don't reference it |
+  | an overlay | ~10 — the other lines and the basemap row; the line's own tiles keep their context |
+  | camera settled again, nothing else | ~12 |
   | nothing | 0 |
 
 - Folded, the tray is still not off: the settings tile previews the current view. That
@@ -98,7 +99,7 @@ seven basemap styles, and all their tiles. Measured on a dev server, that walk w
 of what a first load cost — 337 provider requests and 14.8 MiB against 113 and 3.4 MiB
 without it. `pnpm bake:thumbs` (`scripts/bake-thumbs.mjs`) renders the walk once per
 colour scheme at the default view and writes the results into `src/assets/thumbs/` —
-15 webp files and a generated manifest — and the app answers a first load's walk from
+17 webp files and a generated manifest — and the app answers a first load's walk from
 those instead.
 
 A preview is a function of the camera, the selection, and the colour scheme, so a baked

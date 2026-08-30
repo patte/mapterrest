@@ -44,10 +44,10 @@
         inset: 0;
       }
 
-      /* The tray: terrain scale and extras on top, then shading, then basemap — the rows
-         stack the way the layers render, the thing painted on top sits on top. One
-         plain card: the basemaps wrap to a grid as wide as the shading row, and the X
-         folds everything down to the settings tile. */
+      /* The tray: terrain scale and extras on top, then relief, colour, basemap — the
+         rows stack the way the layers render, the thing painted on top sits on top. One
+         plain card, three tiles wide throughout, and the X folds everything down to the
+         settings tile. */
       #tray {
         position: absolute;
         bottom: calc(var(--edge) + env(safe-area-inset-bottom));
@@ -103,23 +103,24 @@
         margin: 0;
         color: var(--panel-muted);
       }
-      /* The exposure row already opens more air above the basemaps than the card's gap
-         puts between the upper rows, so the gap is handed back here. */
+      /* The colour line's option row already opens more air above the basemaps than the
+         card's gap puts between the upper rows, so the gap is handed back here. */
       #basemap-card {
         margin-top: -9px;
       }
-      /* Both rows wrap at the same width, so the whole card stays one rectangle;
-         contours lands alone on the overlays row's second line. */
-      #shading-thumbs,
+      /* The basemaps wrap to a grid three tiles wide, the width of the overlay lines, so
+         every row of the card is one width. */
       #basemap-thumbs {
         display: grid;
-        grid-template-columns: repeat(4, var(--tile));
+        grid-template-columns: repeat(3, var(--tile));
       }
-      @media (max-width: 640px) {
-        #shading-thumbs,
-        #basemap-thumbs {
-          grid-template-columns: repeat(3, var(--tile));
-        }
+      /* One overlay line: a choice or a pair of toggles, titled like the basemaps. Each
+         line is a group of its own — relief composes, colour is one of. */
+      .line {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
       }
       #tray-close,
       #about-close,
@@ -184,16 +185,6 @@
         cursor: default;
         opacity: 0.45;
       }
-      /* Independently shown halves of one options row: the exposure pair rides the
-         ramps, the labels pair rides the contours. */
-      .row .cluster {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .row .cluster[hidden] {
-        display: none;
-      }
       #exposure-range {
         font-variant-numeric: tabular-nums;
       }
@@ -221,8 +212,12 @@
         width: 14px;
         height: 14px;
       }
+      /* The slider takes what its row has left rather than a width of its own, so the
+         tiles set the card's width and it never pushes the card wider than them. */
       input[type='range'] {
-        width: 200px;
+        flex: 1 1 0;
+        width: 0;
+        min-width: 0;
         margin: 0;
       }
       #terrain-scale-value {
@@ -232,24 +227,25 @@
       .row .name {
         color: var(--panel-muted);
       }
-      /* Only the ramps take an exposure, so the toggle appears when one is shown and
-         starts under the first of them (heatmap). */
-      #shading-card .row {
+      /* Each line's option sits under the tile it belongs to — the labels checkbox
+         under contours, auto-exposure under the first ramp (heatmap) — and is disabled
+         rather than hidden while that tile is off, so the card never shifts. */
+      .line .row {
+        align-self: stretch;
+      }
+      #contour-labels-row {
         margin-left: calc(2 * (var(--tile) + var(--tile-gap)));
       }
-      /* Below this width the shading strip scrolls, so "under the heatmap tile" is no
-         longer a place — the row hugs the card's right edge instead. */
+      #auto-exposure-row {
+        margin-left: calc(var(--tile) + var(--tile-gap));
+      }
+      /* Below this width the card is three tiles wide, so "under that tile" crowds the
+         right edge — the rows hug it instead. */
       @media (max-width: 640px) {
-        #shading-card .row {
+        .line .row {
           margin-left: 0;
           justify-content: flex-end;
         }
-      }
-      /* Gone but not collapsed: the row keeps its height so the tray never jumps as
-         the selection moves between ramps and hillshade. */
-      #shading-card .row[hidden] {
-        display: flex;
-        visibility: hidden;
       }
 
       .thumbs {
@@ -1176,10 +1172,18 @@
           </button>
         </div>
         <div id="shading-card">
-          <p class="title">overlays</p>
-          <div id="shading-thumbs" class="thumbs" role="group" aria-label="overlays"></div>
-          <div class="row" id="auto-exposure-row">
-            <span class="cluster" id="exposure-cluster">
+          <div class="line">
+            <p class="title" id="relief-label">relief</p>
+            <div id="relief-thumbs" class="thumbs" role="group" aria-labelledby="relief-label"></div>
+            <div class="row" id="contour-labels-row">
+              <input id="contour-labels" type="checkbox" />
+              <label for="contour-labels">elevation labels</label>
+            </div>
+          </div>
+          <div class="line">
+            <p class="title" id="colour-label">colour</p>
+            <div id="colour-thumbs" class="thumbs" role="group" aria-labelledby="colour-label"></div>
+            <div class="row" id="auto-exposure-row">
               <input id="auto-exposure" type="checkbox" />
               <label for="auto-exposure">auto-exposure <span id="exposure-range"></span></label>
               <button id="exposure-info" type="button" aria-label="what auto-exposure does" aria-haspopup="dialog" aria-controls="exposure-dialog" title="what auto-exposure does">
@@ -1189,11 +1193,7 @@
                   <circle cx="8" cy="4.75" r="1" fill="currentColor" stroke="none" />
                 </svg>
               </button>
-            </span>
-            <span class="cluster" id="contour-labels-cluster" hidden>
-              <input id="contour-labels" type="checkbox" />
-              <label for="contour-labels">elevation labels</label>
-            </span>
+            </div>
           </div>
         </div>
         <div id="basemap-card">

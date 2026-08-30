@@ -3,8 +3,8 @@ import { open, check, settled } from './helpers';
 
 // The lines are traced client-side from the DEM tiles, so the test is that the vector
 // source actually holds features over the Alps, not just that the layers exist.
-test('contours trace the DEM and ride above the shading', async ({ browser }) => {
-  const page = await open(browser, { hash: '#contours=1' });
+test('contours trace the DEM and ride above the relief', async ({ browser }) => {
+  const page = await open(browser, { hash: '#contours=1&ramp=heatmap' });
   await settled(page);
 
   await check(
@@ -18,9 +18,12 @@ test('contours trace the DEM and ride above the shading', async ({ browser }) =>
   await check(
     await page.evaluate(() => {
       const ids = window.map.getStyle().layers.map((l: { id: string }) => l.id);
-      return ids.indexOf('terrain-contour-lines') > ids.indexOf('terrain-shading');
+      const [ramp, hillshade, lines] = ['terrain-ramp', 'terrain-hillshade', 'terrain-contour-lines'].map(
+        (id) => ids.indexOf(id),
+      );
+      return ramp >= 0 && ramp < hillshade && hillshade < lines;
     }),
-    'the lines draw above the shading',
+    'the stack draws ramp, then hillshade, then the lines',
   );
 
   // Labels default on, set in the style's own font so its glyphs answer.
@@ -54,45 +57,71 @@ test('contours trace the DEM and ride above the shading', async ({ browser }) =>
   await page.close();
 });
 
-test('the contour tile toggles on top of the shading choice', async ({ browser }) => {
+test('the relief line composes, the colour line chooses', async ({ browser }) => {
   const page = await open(browser);
-  const pressed = (key: string) =>
-    page.getAttribute(`#shading-thumbs .tile[data-key="${key}"]`, 'aria-pressed');
+  const pressed = (line: string, key: string) =>
+    page.getAttribute(`#${line}-thumbs .tile[data-key="${key}"]`, 'aria-pressed');
   await check(
     await page.evaluate(() => !window.map.getLayer('terrain-contour-lines')),
     'contours start off',
   );
   await check(
-    !(await page.locator('#contour-labels-cluster').isVisible()),
-    'the labels checkbox hides while contours are off',
+    await page.isDisabled('#contour-labels'),
+    'the labels checkbox is disabled while contours are off',
   );
 
-  await page.click('#shading-thumbs .tile[data-key="contours"]');
+  await page.click('#relief-thumbs .tile[data-key="contours"]');
   await check(
     await page.evaluate(() => !!window.map.getLayer('terrain-contour-lines')),
     'the tile turns the lines on',
   );
   await check(
-    (await pressed('contours')) === 'true' && (await pressed('hillshade')) === 'true',
-    'contours press alongside the shading, not instead of it',
+    (await pressed('relief', 'contours')) === 'true' && (await pressed('relief', 'hillshade')) === 'true',
+    'contours press alongside the hillshade, not instead of it',
   );
   await check(
     await page.evaluate(() => location.hash.includes('contours=1')),
     'the toggle lands in the hash',
   );
   await check(
-    await page.locator('#contour-labels-cluster').isVisible(),
-    'the labels checkbox appears with the lines',
+    await page.isEnabled('#contour-labels'),
+    'the labels checkbox enables with the lines',
   );
 
-  // The "none" tile empties the whole overlays row, contours included.
-  await page.click('#shading-thumbs .tile[data-key="none"]');
+  // A ramp joins underneath; the relief stays as it was.
+  await page.click('#colour-thumbs .tile[data-key="heatmap"]');
   await check(
     await page.evaluate(
-      () => !window.map.getLayer('terrain-contour-lines') && !window.map.getLayer('terrain-shading'),
+      () =>
+        !!window.map.getLayer('terrain-ramp') &&
+        !!window.map.getLayer('terrain-hillshade') &&
+        !!window.map.getLayer('terrain-contour-lines'),
     ),
-    'the none tile clears shading and contours together',
+    'a colour choice composes with both relief toggles',
   );
-  await check((await pressed('none')) === 'true', 'and claims the row');
+  await check(
+    (await pressed('colour', 'heatmap')) === 'true' && (await pressed('colour', 'none')) === 'false',
+    'the colour line moves its one pressed tile',
+  );
+  // Over a ramp the hillshade drops the basemap's tinted highlight for a neutral one.
+  await check(
+    await page.evaluate(
+      () => window.map.getPaintProperty('terrain-hillshade', 'hillshade-highlight-color') === '#ffffff',
+    ),
+    'the hillshade goes neutral over the ramp',
+  );
+
+  // The relief "none" clears both toggles and leaves the colour alone.
+  await page.click('#relief-thumbs .tile[data-key="none"]');
+  await check(
+    await page.evaluate(
+      () =>
+        !window.map.getLayer('terrain-contour-lines') &&
+        !window.map.getLayer('terrain-hillshade') &&
+        !!window.map.getLayer('terrain-ramp'),
+    ),
+    'the none tile clears hillshade and contours together, the ramp stays',
+  );
+  await check((await pressed('relief', 'none')) === 'true', 'and claims the line');
   await page.close();
 });

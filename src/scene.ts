@@ -10,7 +10,7 @@ import {
   styleTextFont,
 } from './contours';
 import type { Range } from './exposure';
-import { isRamp, rampColor, rampDomain, SHADING_LAYER, shadingLayer, type ShadingKey } from './shading';
+import { HILLSHADE_LAYER, hillshadeLayer, RAMP_LAYER, rampColor, rampDomain, rampLayer, type RampKey } from './shading';
 import {
   DEM_SOURCE,
   demSource,
@@ -30,9 +30,11 @@ const BACKDROP_LAYER = 'terrain-backdrop';
 export type SceneSpec = {
   basemap: BasemapKey;
   basemapVisible: boolean;
-  shading: ShadingKey;
-  shadingVisible: boolean;
-  /** Contour lines over whatever the shading paints. */
+  /** Elevation painted through a colour ramp; null leaves the basemap's own ground. */
+  ramp: RampKey | null;
+  /** Relief lit from the DEM's gradient, over the ramp when both are on. */
+  hillshade: boolean;
+  /** Contour lines over whatever the ramp and hillshade paint. */
   contours: boolean;
   /** Elevation numbers along the major lines; only read while contours are on. */
   contourLabels: boolean;
@@ -67,13 +69,28 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
   const firstSymbolId = (): string | undefined =>
     map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
 
-  /** Relief belongs under the basemap's symbols, or place names sit behind the ramp. */
-  function applyShading(): void {
-    if (map.getLayer(SHADING_LAYER)) map.removeLayer(SHADING_LAYER);
-    if (!spec.shadingVisible) return;
-    // Under the contour lines when they are up — they trace the surface the shading paints.
-    const anchor = map.getLayer(CONTOUR_LINE_LAYER) ? CONTOUR_LINE_LAYER : firstSymbolId();
-    map.addLayer(shadingLayer(spec.shading, DEM_SOURCE, BASEMAPS[spec.basemap], spec.exposure), anchor);
+  /**
+   * The overlays stack under the basemap's symbols — or place names sit behind the
+   * ramp — in a fixed order: ramp, hillshade, contour lines, labels. Each one is added
+   * and removed on its own so a change to one leaves the others' drawn tiles in place.
+   */
+  const ORDER = [RAMP_LAYER, HILLSHADE_LAYER, CONTOUR_LINE_LAYER, CONTOUR_TEXT_LAYER];
+  const anchorFor = (layer: string): string | undefined =>
+    ORDER.slice(ORDER.indexOf(layer) + 1).find((id) => map.getLayer(id)) ?? firstSymbolId();
+
+  function applyRamp(): void {
+    if (map.getLayer(RAMP_LAYER)) map.removeLayer(RAMP_LAYER);
+    if (spec.ramp === null) return;
+    map.addLayer(rampLayer(spec.ramp, DEM_SOURCE, spec.exposure), anchorFor(RAMP_LAYER));
+  }
+
+  function applyHillshade(): void {
+    if (map.getLayer(HILLSHADE_LAYER)) map.removeLayer(HILLSHADE_LAYER);
+    if (!spec.hillshade) return;
+    map.addLayer(
+      hillshadeLayer(DEM_SOURCE, BASEMAPS[spec.basemap], spec.ramp !== null),
+      anchorFor(HILLSHADE_LAYER),
+    );
   }
 
   function applyContours(): void {
@@ -98,7 +115,7 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
    * pixels into grey curtains between tiles. The backdrop then replaces the style's
    * near-black or paper-white ground with a mid tone the relief reads against.
    */
-  const ownLayers = new Set([SHADING_LAYER, CONTOUR_LINE_LAYER, CONTOUR_TEXT_LAYER]);
+  const ownLayers = new Set(ORDER);
 
   function applyBasemapVisibility(): void {
     for (const layer of map.getStyle().layers) {
@@ -111,16 +128,14 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
 
   /**
    * Repainting the ramp is ~0.5 ms and leaves the layer in place; re-adding it would
-   * drop the tiles already drawn. The layer's own type has to be the test, not the
-   * mode it belongs to: an exposure can arrive before the layer is swapped, and asking
-   * a hillshade layer for a colour ramp throws.
+   * drop the tiles already drawn.
    */
   function repaintRamp(): void {
-    if (map.getLayer(SHADING_LAYER)?.type === 'color-relief' && isRamp(spec.shading)) {
+    if (spec.ramp !== null && map.getLayer(RAMP_LAYER)) {
       map.setPaintProperty(
-        SHADING_LAYER,
+        RAMP_LAYER,
         'color-relief-color',
-        rampColor(spec.shading, spec.exposure ?? rampDomain(spec.shading)),
+        rampColor(spec.ramp, spec.exposure ?? rampDomain(spec.ramp)),
       );
     }
   }
@@ -172,7 +187,8 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
       map.getStyle().layers[1]?.id,
     );
 
-    applyShading();
+    applyRamp();
+    applyHillshade();
     applyContours();
     applyBasemapVisibility();
   };
@@ -196,10 +212,11 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
       }
       if (spec.terrainScale !== prev.terrainScale) scheduleTerrain();
       if (spec.basemapVisible !== prev.basemapVisible) applyBasemapVisibility();
-      if (spec.shading !== prev.shading || spec.shadingVisible !== prev.shadingVisible) {
-        applyShading();
-      } else if (!sameExposure(spec.exposure, prev.exposure)) {
-        repaintRamp();
+      if (spec.ramp !== prev.ramp) applyRamp();
+      else if (!sameExposure(spec.exposure, prev.exposure)) repaintRamp();
+      // The hillshade's colours depend on whether a ramp sits under it.
+      if (spec.hillshade !== prev.hillshade || (spec.ramp === null) !== (prev.ramp === null)) {
+        applyHillshade();
       }
       if (
         spec.contours !== prev.contours ||

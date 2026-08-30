@@ -66,7 +66,7 @@ for (const colorScheme of ['light', 'dark']) {
   // mix behind, and the walk after it re-renders the lot.
   await page.waitForFunction(
     () => {
-      const tiles = document.querySelectorAll('#shading-thumbs .tile, #basemap-thumbs .tile').length;
+      const tiles = document.querySelectorAll('#card .thumbs .tile').length;
       const rendered = window.__thumbRendered;
       const images = window.__thumbImages;
       if (!rendered || rendered.size < tiles || !images || images.size < tiles) return false;
@@ -104,7 +104,7 @@ for (const colorScheme of ['light', 'dark']) {
   await page.close();
 }
 // Named by the first tile the render lands on; a scheme suffix separates the renders
-// that exist per scheme (the shading row varies with the default basemap).
+// that exist per scheme (the overlay lines vary with the default basemap).
 const list = [...entries.values()];
 for (const e of list) {
   const base = e.id.replace(':', '-');

@@ -4,11 +4,11 @@ import { open, check, settled } from './helpers';
 // The point of the exposure is that the ramp follows the view, so the test is that two
 // views with different relief end up pinned to different metres.
 test('auto-exposure pins the ramp to the view', async ({ browser }) => {
-  const exposed = await open(browser, { hash: '#map=12.6/46.005/7.7/-135/0&shading=heightmap' });
+  const exposed = await open(browser, { hash: '#map=12.6/46.005/7.7/-135/0&ramp=heightmap' });
   const ramp = () =>
     exposed.evaluate(() => {
       const stops = window.map.style
-        .getLayer('terrain-shading')
+        .getLayer('terrain-ramp')
         .getPaintProperty('color-relief-color');
       return [stops[3], stops[5]];
     });
@@ -27,12 +27,12 @@ test('auto-exposure pins the ramp to the view', async ({ browser }) => {
   const dutch = await ramp();
   await check(dutch[1] < 300, 'the ramp follows the view down to a flat one', dutch.join('–'));
 
-  // Hillshade lights the gradient, so there is no exposure to offer at all.
-  await exposed.click('#shading-thumbs .tile[data-key="hillshade"]');
+  // Without a ramp there is no exposure to offer at all.
+  await exposed.click('#colour-thumbs .tile[data-key="none"]');
   await exposed.waitForTimeout(500);
   await check(
-    !(await exposed.locator('#auto-exposure-row').isVisible()),
-    'auto-exposure is offered only to the ramps',
+    await exposed.isDisabled('#auto-exposure'),
+    'auto-exposure is disabled without a ramp',
   );
   await check(
     (await exposed.textContent('#exposure-range')) === '',
@@ -44,28 +44,28 @@ test('auto-exposure pins the ramp to the view', async ({ browser }) => {
 // Grey has nothing to lose by following the view; the heat ramp's absolute colours do —
 // so an untouched toggle follows each ramp's default, and a hand-set one sticks.
 test('exposure defaults follow the ramp until the box is toggled', async ({ browser }) => {
-  const page = await open(browser, { hash: '#shading=heatmap' });
+  const page = await open(browser, { hash: '#ramp=heatmap' });
   await check(
     !(await page.isChecked('#auto-exposure')),
     'the heatmap starts with auto-exposure off',
   );
   const heat = await page.evaluate(() => {
     const stops = window.map.style
-      .getLayer('terrain-shading')
+      .getLayer('terrain-ramp')
       .getPaintProperty('color-relief-color');
     return [stops[3], stops[5]].join('–');
   });
   await check(heat === '0–250', 'the heat ramp sits on its own metres', heat);
 
-  await page.click('#shading-thumbs .tile[data-key="heightmap"]');
+  await page.click('#colour-thumbs .tile[data-key="heightmap"]');
   await check(
     await page.isChecked('#auto-exposure'),
     'switching to heightmap turns the untouched toggle on',
   );
 
   await page.uncheck('#auto-exposure');
-  await page.click('#shading-thumbs .tile[data-key="heatmap"]');
-  await page.click('#shading-thumbs .tile[data-key="heightmap"]');
+  await page.click('#colour-thumbs .tile[data-key="heatmap"]');
+  await page.click('#colour-thumbs .tile[data-key="heightmap"]');
   await check(
     !(await page.isChecked('#auto-exposure')),
     'a hand-set toggle sticks across ramps',
@@ -74,7 +74,7 @@ test('exposure defaults follow the ramp until the box is toggled', async ({ brow
 });
 
 test('the ⓘ explains auto-exposure', async ({ browser }) => {
-  const page = await open(browser, { hash: '#shading=heatmap' });
+  const page = await open(browser, { hash: '#ramp=heatmap' });
   const dialogOpen = () =>
     page.evaluate(() => (document.getElementById('exposure-dialog') as HTMLDialogElement).open);
   await page.click('#exposure-info');

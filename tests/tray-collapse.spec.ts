@@ -43,8 +43,9 @@ test('desktop starts expanded and the X folds it', async ({ browser }) => {
 });
 
 test('a tight corner folds one of card and attribution', async ({ browser }) => {
-  // 800px: too narrow for the open card and the expanded attribution side by side.
-  const page = await open(browser, { viewport: { width: 800, height: 600 } });
+  // 680px: too narrow for the open card and the expanded attribution side by side,
+  // and still above the phone breakpoint that would start the tray folded.
+  const page = await open(browser, { viewport: { width: 680, height: 600 } });
   const expanded = () =>
     page.evaluate(() =>
       document.querySelector('.maplibregl-ctrl-attrib')!.classList.contains('maplibregl-compact-show'),

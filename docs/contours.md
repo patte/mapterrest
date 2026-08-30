@@ -56,10 +56,21 @@ current basemaps is in that position.
 
 ## Controls
 
-The contour tile in the tray is additive — a toggle riding on top of the exclusive
-shading choice — and the row's "none" tile clears both. While contours are on, an
-"elevation labels" checkbox appears. Both survive in the hash: `contours=1`,
-`contourLabels=0` (labels default on).
+The tray's overlays are two lines. *Relief* — hillshade and contours — is a pair of
+toggles that compose, with a "none" tile that clears both; *colour* is a choice of one
+ramp or none, and clicking the pressed ramp turns it off again. Each line's option —
+elevation labels under contours, auto-exposure under a ramp — sits in a row of its own
+under the line, disabled rather than hidden while its tile is off, so the tray never
+shifts. Relief draws over colour: a hillshade over the heat ramp is the classic
+terrain look, and contours sit over both. While contours are on, an "elevation labels"
+checkbox appears. Everything survives in the hash: `hillshade=0` (default on),
+`ramp=heatmap` (default none), `contours=1`, `contourLabels=0` (labels default on).
+Links from before the split — `shading=heatmap`, `shadingVisible=0` — still render
+what they showed.
+
+Over a ramp the hillshade drops the basemap's tinted shadow and highlight for plain
+black and white: the tint exists to marry the shade to the basemap's ground, and a ramp
+is not that ground.
 
 ## Verifying
 

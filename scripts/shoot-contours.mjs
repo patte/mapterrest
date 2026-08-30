@@ -1,6 +1,7 @@
 // Renders the contour overlay into shots/: the default pitched view, a top-down z14
 // where the 20 m lines and labels carry the picture, the amber palette on a night
-// style, and the card with the contour tile pressed and the labels row out.
+// style, the classic hillshade-over-heatmap composition on a light and a dark style,
+// and the card with the contour tile pressed and the labels row out.
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 import { glLaunchOptions, residentServer } from './browser.mjs';
@@ -52,6 +53,11 @@ await shoot('#map=14/45.9764/7.6586/0/0&contours=1&basemap=carto-dark', 'contour
 await shoot('#map=10/46.0/7.7/0/0&contours=1', 'contours-z10.png');
 await shoot('#map=8/46.1/7.9/0/0&contours=1', 'contours-z8.png');
 await shoot('#map=6/46.3/9/0/0&contours=1', 'contours-z6.png');
+// Relief composed over colour: hillshade and contours on the heat ramp.
+await shoot('#ramp=heatmap&contours=1', 'overlays-heatmap-hillshade-contours.png');
+await page.locator('#card').screenshot({ path: `${SHOTS}overlays-card-composed.png` });
+await shoot('#ramp=heatmap&contours=1&basemap=carto-dark', 'overlays-heatmap-hillshade-contours-dark.png');
+await shoot('#ramp=heatmap&hillshade=0', 'overlays-heatmap-alone.png');
 
 await page.close();
 await browser.close();

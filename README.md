@@ -9,7 +9,7 @@ basemaps, elevation overlays along with a set of useful tools.
 - [x] Global elevation model from [Mapterhorn](https://mapterhorn.com)
 - [x] Subject detection for intuitive map controls
 - [x] Basemaps from: OpenFreeMap, Carto, Maptiler
-- [x] Overlays: Hillshading, Heightmap (green to white, greyscale)
+- [x] Overlays: hillshade and contour lines composed over an elevation heatmap or grey heightmap
 - [x] Auto-exposure: adjusts the colour gradient to the visible terrain, inspired by [Heightmapper](https://tangrams.github.io/heightmapper/)
 - [x] Geosearch: fly to any place, via the [MapTiler](https://www.maptiler.com/) Geocoding API
 - [x] Screenshot export: A2–A6, Letter, Legal, Tabloid

@@ -2,7 +2,8 @@ import type { ExpressionSpecification, LayerSpecification } from 'maplibre-gl';
 import type { Basemap } from './basemaps';
 import type { Range } from './exposure';
 
-export const SHADING_LAYER = 'terrain-shading';
+export const RAMP_LAYER = 'terrain-ramp';
+export const HILLSHADE_LAYER = 'terrain-hillshade';
 
 /**
  * Hypsometric heat ramp in metres: sea level blue, green lowlands, warm mid
@@ -28,19 +29,17 @@ const HEATMAP_RAMP: (number | string)[] = [
  */
 const HEIGHTMAP_RAMP: (number | string)[] = [0, '#000000', 6000, '#ffffff'];
 
-export type ShadingKey = 'hillshade' | 'heatmap' | 'heightmap';
+/**
+ * The colour overlays paint elevation through a ramp, as against hillshade, which reads
+ * the DEM's gradient and never sees an absolute height at all. The two compose: a
+ * hillshade over a hypsometric tint is the classic terrain look.
+ */
+export type RampKey = 'heatmap' | 'heightmap';
 
-export const SHADINGS: Record<ShadingKey, string> = {
-  hillshade: 'hillshade',
+export const RAMP_LABELS: Record<RampKey, string> = {
   heatmap: 'elevation heatmap',
   heightmap: 'grey heightmap',
 };
-
-/**
- * The modes that paint elevation through a ramp, as against hillshade, which reads the
- * DEM's gradient and never sees an absolute height at all.
- */
-export type RampKey = Exclude<ShadingKey, 'hillshade'>;
 
 const RAMPS: Record<RampKey, (number | string)[]> = {
   heatmap: HEATMAP_RAMP,
@@ -50,13 +49,11 @@ const RAMPS: Record<RampKey, (number | string)[]> = {
 /** The heat ramp tints the ground under it; grey is the whole picture, so it covers it. */
 const RAMP_OPACITY: Record<RampKey, number> = { heatmap: 0.85, heightmap: 1 };
 
-export const isRamp = (key: ShadingKey): key is RampKey => key !== 'hillshade';
-
 /**
  * Whether a ramp starts exposed. Grey has nothing to lose by following the view; the heat
  * ramp's absolute colours do (see rampColor), so it starts pinned to its own metres.
  */
-export const defaultExposed = (key: ShadingKey): boolean => key === 'heightmap';
+export const defaultExposed = (key: RampKey): boolean => key === 'heightmap';
 
 /** The metres a ramp spans as written, which is what it spans unexposed. */
 export const rampDomain = (key: RampKey): Range => ({
@@ -88,29 +85,27 @@ export function rampColor(key: RampKey, range: Range): ExpressionSpecification {
   return ['interpolate', ['linear'], ['elevation'], ...stops] as ExpressionSpecification;
 }
 
-export const DEFAULT_SHADING: ShadingKey = 'hillshade';
+export const RAMP_KEYS = Object.keys(RAMP_LABELS) as RampKey[];
 
-export const SHADING_KEYS = Object.keys(SHADINGS) as ShadingKey[];
-
-export function shadingLayer(
-  key: ShadingKey,
-  source: string,
-  basemap: Basemap,
-  range: Range | null,
-): LayerSpecification {
-  if (isRamp(key)) {
-    return {
-      id: SHADING_LAYER,
-      type: 'color-relief',
-      source,
-      paint: {
-        'color-relief-color': rampColor(key, range ?? rampDomain(key)),
-        'color-relief-opacity': RAMP_OPACITY[key],
-      },
-    };
-  }
+export function rampLayer(key: RampKey, source: string, range: Range | null): LayerSpecification {
   return {
-    id: SHADING_LAYER,
+    id: RAMP_LAYER,
+    type: 'color-relief',
+    source,
+    paint: {
+      'color-relief-color': rampColor(key, range ?? rampDomain(key)),
+      'color-relief-opacity': RAMP_OPACITY[key],
+    },
+  };
+}
+
+/** Neutral over a ramp: the basemap's tinted shade would muddy the ramp's colours. */
+const NEUTRAL_HILLSHADE = { shadow: '#000000', highlight: '#ffffff' };
+
+export function hillshadeLayer(source: string, basemap: Basemap, overRamp: boolean): LayerSpecification {
+  const colors = overRamp ? NEUTRAL_HILLSHADE : basemap.hillshade;
+  return {
+    id: HILLSHADE_LAYER,
     type: 'hillshade',
     source,
     paint: {
@@ -122,8 +117,8 @@ export function shadingLayer(
       // compass bearing, which is what a sun position would have to be.
       'hillshade-illumination-anchor': 'map',
       'hillshade-exaggeration': basemap.hillshade.exaggeration,
-      'hillshade-shadow-color': basemap.hillshade.shadow,
-      'hillshade-highlight-color': basemap.hillshade.highlight,
+      'hillshade-shadow-color': colors.shadow,
+      'hillshade-highlight-color': colors.highlight,
     },
   };
 }
