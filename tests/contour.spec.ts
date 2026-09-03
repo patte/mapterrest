@@ -102,6 +102,23 @@ test('the tuning steppers re-trace the lines', async ({ browser }) => {
   await page.close();
 });
 
+// A z1 contour tile asks for the DEM two levels up, which patches/maplibre-contour.patch
+// floors at z0; unpatched, the fetch fails and the zoom-out traces nothing.
+test('the zoom-out traces lines from the z0 DEM', async ({ browser }) => {
+  const page = await open(browser, { hash: '#contours=1&map=1/20/0/0/0' });
+  await settled(page, 1500);
+  const levels = await page.evaluate(
+    () =>
+      new Set(
+        window.map
+          .querySourceFeatures('mapterhorn-contours', { sourceLayer: 'contours' })
+          .map((f: { properties: { ele: number } }) => f.properties.ele),
+      ).size,
+  );
+  await check(levels > 1, 'z1 traces sea level and the high plateaus', `${levels} levels`);
+  await page.close();
+});
+
 test('the relief line composes, the colour line chooses', async ({ browser }) => {
   const page = await open(browser);
   const pressed = (line: string, key: string) =>

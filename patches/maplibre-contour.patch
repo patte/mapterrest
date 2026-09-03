@@ -1,0 +1,52 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 5ec8829bcc314b032e67d85d6684112778a3036d..13a9413e75b3d8acf91b47528d9525e937dc1718 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -2014,7 +2014,7 @@ class LocalDemManager {
+     }
+     fetchDem(z, x, y, options, abortController, timer) {
+         return __awaiter(this, void 0, void 0, function* () {
+-            const zoom = Math.min(z - (options.overzoom || 0), this.maxzoom);
++            const zoom = Math.max(0, Math.min(z - (options.overzoom || 0), this.maxzoom));
+             const subZ = z - zoom;
+             const div = 1 << subZ;
+             const newX = Math.floor(x / div);
+diff --git a/dist/index.js b/dist/index.js
+index af9a4e4abb5d29174b5e2045fd42e644739e48e3..546344ef2109bdde38566506e9a02b9aa81a7704 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -2018,7 +2018,7 @@
+         }
+         fetchDem(z, x, y, options, abortController, timer) {
+             return __awaiter(this, void 0, void 0, function* () {
+-                const zoom = Math.min(z - (options.overzoom || 0), this.maxzoom);
++                const zoom = Math.max(0, Math.min(z - (options.overzoom || 0), this.maxzoom));
+                 const subZ = z - zoom;
+                 const div = 1 << subZ;
+                 const newX = Math.floor(x / div);
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 6e19b7ef05bad4ef49e7b6fd1dd955f3b0ae2024..094b8aad9ceb3bd0feb116fee76886a41f483eb7 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -2012,7 +2012,7 @@ class LocalDemManager {
+     }
+     fetchDem(z, x, y, options, abortController, timer) {
+         return __awaiter(this, void 0, void 0, function* () {
+-            const zoom = Math.min(z - (options.overzoom || 0), this.maxzoom);
++            const zoom = Math.max(0, Math.min(z - (options.overzoom || 0), this.maxzoom));
+             const subZ = z - zoom;
+             const div = 1 << subZ;
+             const newX = Math.floor(x / div);
+diff --git a/dist/staging/shared.js b/dist/staging/shared.js
+index 90ba05d437210d08a491a14c10ff6670ea49ffd5..d2f44de4d17f3663e45b1acb3a35e401f46bb38d 100644
+--- a/dist/staging/shared.js
++++ b/dist/staging/shared.js
+@@ -1982,7 +1982,7 @@ class LocalDemManager {
+     }
+     fetchDem(z, x, y, options, abortController, timer) {
+         return __awaiter(this, void 0, void 0, function* () {
+-            const zoom = Math.min(z - (options.overzoom || 0), this.maxzoom);
++            const zoom = Math.max(0, Math.min(z - (options.overzoom || 0), this.maxzoom));
+             const subZ = z - zoom;
+             const div = 1 << subZ;
+             const newX = Math.floor(x / div);

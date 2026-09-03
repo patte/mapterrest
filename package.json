@@ -24,7 +24,8 @@
       "@sentry/cli"
     ],
     "patchedDependencies": {
-      "maplibre-gl": "patches/maplibre-gl.patch"
+      "maplibre-gl": "patches/maplibre-gl.patch",
+      "maplibre-contour": "patches/maplibre-contour.patch"
     }
   },
   "devDependencies": {

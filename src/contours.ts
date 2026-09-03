@@ -18,14 +18,15 @@ let demSource: InstanceType<typeof mlcontour.DemSource> | null = null;
 
 /**
  * The elevation gap between lines, minor and major, by tile zoom; a zoom without an
- * entry takes the next lower one, and below the lowest there are none at all. The two
+ * entry takes the next lower one, so the z0 rung covers the whole zoom-out. The two
  * finest rungs are Mapterhorn's own contour example; above them the interval roughly
  * doubles every two zooms, so zoomed-out views and the far reaches of a pitched one
- * keep their lines without drowning in them. z4's single value means no major lines —
- * at that scale every line is a landmark, and 10 000 m majors would never occur.
+ * keep their lines without drowning in them. The coarsest rung's single value means no
+ * major lines — at that scale every line is a landmark, and 10 000 m majors would
+ * never occur.
  */
 const THRESHOLDS: Record<number, number[]> = {
-  4: [2000],
+  0: [2000],
   6: [1000, 5000],
   8: [500, 2000],
   10: [200, 1000],

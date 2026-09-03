@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  maplibre-contour:
+    hash: 5b2a5375205e825271588a5bb5160612e2c3c95708382193a9d6199a42ebd559
+    path: patches/maplibre-contour.patch
   maplibre-gl:
     hash: d53ade6cfb4909920af48263c65cb74048cf2ef2c60bf93a0f98c57f44d62583
     path: patches/maplibre-gl.patch
@@ -18,7 +21,7 @@ importers:
         version: 10.70.0
       maplibre-contour:
         specifier: 0.1.0
-        version: 0.1.0
+        version: 0.1.0(patch_hash=5b2a5375205e825271588a5bb5160612e2c3c95708382193a9d6199a42ebd559)
       maplibre-gl:
         specifier: 6.5.0
         version: 6.5.0(patch_hash=d53ade6cfb4909920af48263c65cb74048cf2ef2c60bf93a0f98c57f44d62583)
@@ -937,7 +940,7 @@ snapshots:
       lightningcss-win32-arm64-msvc: 1.33.0
       lightningcss-win32-x64-msvc: 1.33.0
 
-  maplibre-contour@0.1.0: {}
+  maplibre-contour@0.1.0(patch_hash=5b2a5375205e825271588a5bb5160612e2c3c95708382193a9d6199a42ebd559): {}
 
   maplibre-gl@6.5.0(patch_hash=d53ade6cfb4909920af48263c65cb74048cf2ef2c60bf93a0f98c57f44d62583):
     dependencies:
