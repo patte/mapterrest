@@ -42,6 +42,33 @@ test('desktop starts expanded and the X folds it', async ({ browser }) => {
   await page.close();
 });
 
+// The card gives up height before it climbs past the geosearch pill: on a short screen
+// it scrolls inside, and the last basemap is reachable at the bottom.
+test('a short screen scrolls the card instead of growing past the top', async ({ browser }) => {
+  const page = await open(browser, { viewport: { width: 1000, height: 600 }, hash: '#contours=1&ramp=heatmap' });
+  const m = await page.evaluate(() => {
+    const card = document.getElementById('card')!;
+    const r = card.getBoundingClientRect();
+    const search = document.getElementById('geosearch')!.getBoundingClientRect();
+    return { top: r.top, searchBottom: search.bottom, scrolls: card.scrollHeight > card.clientHeight };
+  });
+  await check(m.top >= m.searchBottom, 'the card stays below the geosearch pill', JSON.stringify(m));
+  await check(m.scrolls, 'the card scrolls inside', JSON.stringify(m));
+  const last = await page.evaluate(() => {
+    const card = document.getElementById('card')!;
+    card.scrollTop = card.scrollHeight;
+    const c = card.getBoundingClientRect();
+    const t = card.querySelector('#basemap-thumbs .tile:last-child')!.getBoundingClientRect();
+    return { tileBottom: t.bottom, cardBottom: c.bottom, tileTop: t.top, cardTop: c.top };
+  });
+  await check(
+    last.tileBottom <= last.cardBottom + 1 && last.tileTop >= last.cardTop,
+    'scrolled to the end, the last basemap sits inside the card',
+    JSON.stringify(last),
+  );
+  await page.close();
+});
+
 test('a tight corner folds one of card and attribution', async ({ browser }) => {
   // 680px: too narrow for the open card and the expanded attribution side by side,
   // and still above the phone breakpoint that would start the tray folded.

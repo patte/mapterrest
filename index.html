@@ -72,6 +72,12 @@
         /* The tray's box reaches past the card — only the visible pieces catch the
            pointer, so drags that start beside them still reach the map. */
         pointer-events: none;
+        /* Never taller than the room under the geosearch pill (27px tall, plus the
+           tray's own 8px gap): on a short screen the card gives up height and scrolls
+           inside rather than climbing into the top-left corner. */
+        max-height: calc(
+          100dvh - 2 * var(--edge) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 35px
+        );
       }
       #card,
       #hint,
@@ -83,6 +89,9 @@
         position: relative;
         box-sizing: border-box;
         max-width: 100%;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
         display: flex;
         flex-direction: column;
         gap: 9px;
@@ -778,6 +787,7 @@
       /* Stretched to the card's width below, so the About pill's right edge lines up
          with the card's while the hint keeps the left. */
       #hint-row {
+        flex: none;
         align-self: stretch;
         display: flex;
         align-items: center;
