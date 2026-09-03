@@ -24,8 +24,8 @@
       "@sentry/cli"
     ],
     "patchedDependencies": {
-      "maplibre-gl": "patches/maplibre-gl.patch",
-      "maplibre-contour": "patches/maplibre-contour.patch"
+      "maplibre-gl": "patches/maplibre-gl-stale-drape-after-zoom.patch",
+      "maplibre-contour": "patches/maplibre-contour-dem-zoom-floor.patch"
     }
   },
   "devDependencies": {

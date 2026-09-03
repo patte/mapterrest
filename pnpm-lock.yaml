@@ -7,10 +7,10 @@ settings:
 patchedDependencies:
   maplibre-contour:
     hash: 5b2a5375205e825271588a5bb5160612e2c3c95708382193a9d6199a42ebd559
-    path: patches/maplibre-contour.patch
+    path: patches/maplibre-contour-dem-zoom-floor.patch
   maplibre-gl:
     hash: d53ade6cfb4909920af48263c65cb74048cf2ef2c60bf93a0f98c57f44d62583
-    path: patches/maplibre-gl.patch
+    path: patches/maplibre-gl-stale-drape-after-zoom.patch
 
 importers:
 

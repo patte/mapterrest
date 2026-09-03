@@ -35,7 +35,7 @@ A contour tile at zoom `z` traces the DEM tile at `max(0, min(z − 2, 12))`: `o
 asks maplibre-contour for a parent tile two levels up (cheaper on neighbours), and the
 source's `maxzoom: 12` caps the DEM outright — deeper levels sharpen lines less than
 they cost, and much of the world carries nothing deeper anyway. The floor at 0 is ours
-(`patches/maplibre-contour.patch`): unpatched, a z0 or z1 contour tile asks for the DEM
+(`patches/maplibre-contour-dem-zoom-floor.patch`): unpatched, a z0 or z1 contour tile asks for the DEM
 at a negative zoom, the fetch fails and those zooms trace nothing. Three consequences
 worth knowing:
 

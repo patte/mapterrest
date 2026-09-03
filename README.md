@@ -69,7 +69,7 @@ MapTiler has a generous free tier which we use for local development and for hos
 - [docs/screenshots.md](docs/screenshots.md): Print exports: grown-viewport capture, renderer ceilings, credits, file metadata
 - [docs/geosearch.md](docs/geosearch.md): Geosearch: the morphing pill, landing a camera on terrain, errors and credits
 - [docs/contours.md](docs/contours.md): Contour lines: traced in-browser from the DEM, intervals, detail ceiling, labels
-- [docs/maplibre-patches.md](docs/maplibre-patches.md): Local maplibre-gl patches and their upstream issues/PRs
+- [docs/maplibre-patches.md](docs/maplibre-patches.md): Local maplibre-gl and maplibre-contour patches and their upstream issues/PRs
 
 ## Contributing
 

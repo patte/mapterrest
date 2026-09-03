@@ -1,4 +1,4 @@
-// Oracle for patches/maplibre-gl.patch (stale drape textures after a zoom animation):
+// Oracle for patches/maplibre-gl-stale-drape-after-zoom.patch (stale drape textures after a zoom animation):
 // ease to a camera, then force a re-bake of every drape texture at that same camera.
 // With the patch the settled arrival must be pixel-identical to the fresh bake.
 import { spawn } from 'node:child_process';
