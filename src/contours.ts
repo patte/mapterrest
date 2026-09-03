@@ -33,7 +33,56 @@ const THRESHOLDS: Record<number, number[]> = {
   14: [20, 100],
 };
 
-export function contourSource(): VectorSourceSpecification {
+/** Detents of the two tuning knobs, inclusive; 0 is the table as written. The top
+ * end is what flat country needs: a fine rung below 5 m before any lines show, and
+ * the DEM still traces ground there. */
+export const DENSITY_RANGE = [-2, 3] as const;
+export const FALLOFF_RANGE = [-2, 3] as const;
+
+/**
+ * Contours at "every 37 m" are cartographic nonsense: every computed interval lands on
+ * the 1-2-5 ladder, to the nearest rung in log space.
+ */
+const snap125 = (x: number): number => {
+  const decade = 10 ** Math.floor(Math.log10(x));
+  let out = x;
+  let best = Infinity;
+  for (const mantissa of [1, 2, 5, 10]) {
+    const rung = mantissa * decade;
+    const distance = Math.abs(Math.log(rung / x));
+    if (distance < best) {
+      best = distance;
+      out = rung;
+    }
+  }
+  return out;
+};
+
+/**
+ * The table under the two steppers, as one exponent per knob. `density` lifts or
+ * lowers the whole curve: each detent halves or doubles every interval. `falloff` is
+ * the exponent on the table's own slope — the deliberate thinning of lines on the
+ * coarser rungs that keeps zoomed-out and far-field tiles from drowning:
+ *
+ *   interval(z) = table(z14) / 2^density × (table(z) / table(z14))^(1 + falloff/2)
+ *
+ * At detent −2 the exponent is 0 — a flat table, every tile traces the fine rung's
+ * interval; at +3 it is 2.5 — the thinning past squared, lines a close-up-only affair. The
+ * fine rung itself only ever moves with `density`. Both at 0 return the table bit for
+ * bit — every value already sits on the 1-2-5 ladder the snap targets.
+ */
+export function contourThresholds(density: number, falloff: number): Record<number, number[]> {
+  const fine = THRESHOLDS[14][0];
+  const out: Record<number, number[]> = {};
+  for (const [zoom, intervals] of Object.entries(THRESHOLDS)) {
+    const slope = intervals[0] / fine;
+    const factor = 2 ** density * slope ** (-falloff / 2);
+    out[Number(zoom)] = intervals.map((metres) => snap125(metres / factor));
+  }
+  return out;
+}
+
+export function contourSource(density: number, falloff: number): VectorSourceSpecification {
   if (!demSource) {
     // maxzoom caps the DEM fetched for tracing at z12 — deeper levels sharpen lines
     // less than they cost, and much of the world carries nothing deeper anyway.
@@ -49,7 +98,7 @@ export function contourSource(): VectorSourceSpecification {
     type: 'vector',
     tiles: [
       demSource.contourProtocolUrl({
-        thresholds: THRESHOLDS,
+        thresholds: contourThresholds(density, falloff),
         elevationKey: 'ele',
         levelKey: 'level',
         contourLayer: 'contours',

@@ -72,6 +72,35 @@ Over a ramp the hillshade drops the basemap's tinted shadow and highlight for pl
 black and white: the tint exists to marry the shade to the basemap's ground, and a ramp
 is not that ground.
 
+## Tuning
+
+Two settings fold open under the relief tiles while contours is on, in an inset well
+whose notch points at the contours tile ("lines", "falloff", detents −2…+3, hash
+`contourDensity` / `contourFalloff`, 0/0 default), each a row of six dots between ⊖
+and ⊕: the filled dot is the current detent, a tap on any dot jumps to it. They reshape the interval table
+rather than replace it, one exponent per knob: each "lines" detent halves or doubles
+every interval. "Falloff" is the exponent on the table's own slope — the deliberate
+thinning that keeps zoomed-out and far-field tiles (a pitched view is a mosaic of tile
+zooms) from drowning in lines. Each detent halves or adds half of that slope: at −2 the
+table is flat, every tile traces the fine rung's interval; at +3 the thinning is past
+squared and lines are a close-up-only affair. Computed
+intervals snap to the 1-2-5 ladder (lines at "every 37 m" are cartographic nonsense),
+and 0/0 reproduces the table bit for bit. A change lands in the source's tile URL, so
+it replaces the source and re-traces.
+
+The knob is the interval, not a line count: lines per screen follow the terrain's
+steepness. Over flat country lines +3 with falloff −2 makes invisible
+relief appear and keeps it visible zoomed out; the same corner over the Alps is a wall
+of ink — reversible, and the trade is the user's. The default is tuned for the Alps.
+The range runs one detent further up than down because flat country needs it: the
+Po valley holds a few tens of metres of relief, so at the 20 m the table gives z12 tiles
+even lines +2 traces two or three levels, and the count of lines is relief over
+interval — each detent there is the difference between some contours and none. Falloff
+cannot help: intervals snap to the 1-2-5 ladder, which has no rung between 10 and 20,
+so a finer falloff step would only move which zoom flips, not how far. At lines +3 the
+z12 rung is 5 m, and the DEM still traces the Po's terraces coherently rather than
+noise (`shots/density-spike-po-3.png`).
+
 ## Verifying
 
 `pnpm verify contour` covers the tracing and the tray toggle; `scripts/shoot-contours.mjs`

@@ -38,6 +38,9 @@ export type SceneSpec = {
   contours: boolean;
   /** Elevation numbers along the major lines; only read while contours are on. */
   contourLabels: boolean;
+  /** Stepper detents on the interval table (contours.ts); 0/0 is the table as written. */
+  contourDensity: number;
+  contourFalloff: number;
   /** Range the ramps are pinned to; null spans the ramp's own metres. */
   exposure: Range | null;
   /** Vertical multiplier on the DEM; 0 renders the terrain flat. */
@@ -93,13 +96,22 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
     );
   }
 
+  /** The tuning the attached source was built with — a change means a re-trace. */
+  let contourTuning = '';
+
   function applyContours(): void {
     if (map.getLayer(CONTOUR_TEXT_LAYER)) map.removeLayer(CONTOUR_TEXT_LAYER);
     if (map.getLayer(CONTOUR_LINE_LAYER)) map.removeLayer(CONTOUR_LINE_LAYER);
     if (!spec.contours) return;
     // The source only lands once contours are asked for — adding it spins up the
-    // tracing worker — and then stays: a source no layer uses fetches nothing.
-    if (!map.getSource(CONTOUR_SOURCE)) map.addSource(CONTOUR_SOURCE, contourSource());
+    // tracing worker — and then stays: a source no layer uses fetches nothing. The
+    // thresholds live in its tile URL, so a tuning change replaces it wholesale.
+    const tuning = `${spec.contourDensity}/${spec.contourFalloff}`;
+    if (map.getSource(CONTOUR_SOURCE) && contourTuning !== tuning) map.removeSource(CONTOUR_SOURCE);
+    if (!map.getSource(CONTOUR_SOURCE)) {
+      map.addSource(CONTOUR_SOURCE, contourSource(spec.contourDensity, spec.contourFalloff));
+      contourTuning = tuning;
+    }
     const basemap = BASEMAPS[spec.basemap];
     const anchor = firstSymbolId();
     map.addLayer(contourLineLayer(basemap), anchor);
@@ -220,7 +232,10 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
       }
       if (
         spec.contours !== prev.contours ||
-        (spec.contours && spec.contourLabels !== prev.contourLabels)
+        (spec.contours &&
+          (spec.contourLabels !== prev.contourLabels ||
+            spec.contourDensity !== prev.contourDensity ||
+            spec.contourFalloff !== prev.contourFalloff))
       ) {
         applyContours();
       }

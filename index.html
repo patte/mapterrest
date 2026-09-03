@@ -18,6 +18,7 @@
         --panel-muted: #555;
         --panel-border: #ccc;
         --control-bg: #fff;
+        --well-bg: rgba(0, 0, 0, 0.05);
         --accent: #2b7de0;
         --warn: #c05f10;
         /* MapLibre's own controls sit 10px off the edges; the card sits level with them. */
@@ -30,6 +31,7 @@
         --panel-muted: #9aa8b6;
         --panel-border: #3a4653;
         --control-bg: #222b35;
+        --well-bg: rgba(255, 255, 255, 0.07);
         --accent: #66a8ff;
         --warn: #f5a742;
       }
@@ -227,22 +229,168 @@
       .row .name {
         color: var(--panel-muted);
       }
-      /* Each line's option sits under the tile it belongs to — the labels checkbox
-         under contours, auto-exposure under the first ramp (heatmap) — and is disabled
-         rather than hidden while that tile is off, so the card never shifts. */
+      /* Auto-exposure sits under the tile it belongs to (the first ramp, heatmap) and is
+         disabled rather than hidden while that tile is off, so the card never shifts. */
       .line .row {
         align-self: stretch;
       }
-      #contour-labels-row {
-        margin-left: calc(2 * (var(--tile) + var(--tile-gap)));
+      /* The contour settings fold open under the relief tiles while contours is on: a
+         0fr→1fr grid row animates the height, visibility hidden takes the folded
+         controls out of the tab order. The negative margin swallows the line's gap
+         while folded and the well's top margin gives it back when open; the clip
+         between them carries no padding, so folded really is zero height. */
+      #contour-settings {
+        display: grid;
+        grid-template-rows: 0fr;
+        align-self: stretch;
+        margin-top: -6px;
+        visibility: hidden;
+        transition:
+          grid-template-rows 0.2s ease,
+          visibility 0s linear 0.2s;
+      }
+      /* inherit, not visible: an explicit visible would override a hidden ancestor —
+         the tray in shot mode, the whole chrome behind a dialog on small screens. */
+      #contour-settings.open {
+        grid-template-rows: 1fr;
+        visibility: inherit;
+        transition: grid-template-rows 0.2s ease;
+      }
+      #contour-settings-clip {
+        min-height: 0;
+        overflow: hidden;
+      }
+      /* The settings sit in an inset well whose notch points at the contours tile,
+         the third in its row — a popover's silhouette, docked in the card. */
+      #contour-settings-body {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 12px;
+        padding: 8px 10px 10px;
+        border-radius: 10px;
+        background: var(--well-bg);
+      }
+      #contour-settings-body::before {
+        content: '';
+        position: absolute;
+        top: -7px;
+        left: calc(2 * (var(--tile) + var(--tile-gap)) + var(--tile) / 2 - 7px);
+        border: 7px solid transparent;
+        border-top: 0;
+        border-bottom-color: var(--well-bg);
+      }
+      #contour-settings-title {
+        margin: 0 0 2px;
+        font-size: 12px;
+        color: var(--panel-muted);
+      }
+      /* One setting per row: the name, then ⊖, the detent dots as one tight group, ⊕,
+         with the well's spare width split around the group so ⊕ sits on the right
+         edge; the fixed-width name keeps the two rows' controls in columns. The dots
+         are radios drawn as rings, the chosen one filled; the tap target is the whole
+         box. */
+      .detents {
+        gap: 0;
+        justify-content: space-between;
+      }
+      .detents .dots {
+        display: flex;
+      }
+      .detents .name {
+        width: 54px;
+      }
+      .detents button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: none;
+        color: var(--panel-muted);
+        cursor: pointer;
+      }
+      .detents button:hover:not(:disabled) {
+        background: var(--control-bg);
+        color: var(--panel-fg);
+      }
+      .detents button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .detents button svg {
+        width: 20px;
+        height: 20px;
+      }
+      /* The dots grow to the right, so the row reads as a scale from less to more. */
+      .detents input[type='radio'] {
+        --r: 5px;
+        appearance: none;
+        flex: none;
+        width: 26px;
+        height: 26px;
+        margin: 0;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          transparent calc(var(--r) - 1.5px),
+          var(--panel-muted) calc(var(--r) - 1px),
+          var(--panel-muted) var(--r),
+          transparent calc(var(--r) + 0.5px)
+        );
+        cursor: pointer;
+      }
+      .detents input[type='radio']:nth-of-type(1) {
+        --r: 3px;
+      }
+      .detents input[type='radio']:nth-of-type(2) {
+        --r: 4px;
+      }
+      .detents input[type='radio']:nth-of-type(4) {
+        --r: 6px;
+      }
+      .detents input[type='radio']:nth-of-type(5) {
+        --r: 7px;
+      }
+      .detents input[type='radio']:nth-of-type(6) {
+        --r: 8px;
+      }
+      .detents input[type='radio']:hover {
+        background-color: var(--control-bg);
+      }
+      .detents input[type='radio']:checked {
+        background: radial-gradient(circle, var(--panel-fg) var(--r), transparent calc(var(--r) + 0.5px));
+      }
+      /* Thumb-sized targets on touch, sized so the six-dot row with its buttons and
+         name still fits the well inside the card's three tiles. */
+      @media (hover: none) {
+        #contour-settings-body {
+          padding: 8px 8px 10px;
+        }
+        .detents .name {
+          width: 44px;
+        }
+        .detents button,
+        .detents input[type='radio'] {
+          width: 28px;
+          height: 28px;
+        }
+        .detents button svg {
+          width: 22px;
+          height: 22px;
+        }
       }
       #auto-exposure-row {
         margin-left: calc(var(--tile) + var(--tile-gap));
       }
       /* Below this width the card is three tiles wide, so "under that tile" crowds the
-         right edge — the rows hug it instead. */
+         right edge — the row hugs it instead. */
       @media (max-width: 640px) {
-        .line .row {
+        #auto-exposure-row {
           margin-left: 0;
           justify-content: flex-end;
         }
@@ -480,6 +628,7 @@
         }
       }
       @media (prefers-reduced-motion: reduce) {
+        #contour-settings,
         #geosearch-box,
         #geosearch-input,
         #geosearch-close {
@@ -1175,9 +1324,50 @@
           <div class="line">
             <p class="title" id="relief-label">relief</p>
             <div id="relief-thumbs" class="thumbs" role="group" aria-labelledby="relief-label"></div>
-            <div class="row" id="contour-labels-row">
-              <input id="contour-labels" type="checkbox" />
-              <label for="contour-labels">elevation labels</label>
+            <div id="contour-settings">
+              <div id="contour-settings-clip">
+                <div id="contour-settings-body" role="group" aria-labelledby="contour-settings-title">
+                  <p id="contour-settings-title">contours</p>
+                  <div class="row">
+                    <input id="contour-labels" type="checkbox" />
+                    <label for="contour-labels">elevation labels</label>
+                  </div>
+                  <div class="row detents" role="radiogroup" aria-labelledby="contour-density-label">
+                    <span class="name" id="contour-density-label" title="more or fewer contour lines everywhere">lines</span>
+                    <button id="contour-density-down" type="button" aria-label="fewer contour lines">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /><path d="M4.75 8h6.5" stroke-linecap="round" /></svg>
+                    </button>
+                    <span class="dots">
+                      <input type="radio" name="contour-density" value="-2" aria-label="1 of 6" />
+                      <input type="radio" name="contour-density" value="-1" aria-label="2 of 6" />
+                      <input type="radio" name="contour-density" value="0" aria-label="3 of 6" />
+                      <input type="radio" name="contour-density" value="1" aria-label="4 of 6" />
+                      <input type="radio" name="contour-density" value="2" aria-label="5 of 6" />
+                      <input type="radio" name="contour-density" value="3" aria-label="6 of 6" />
+                    </span>
+                    <button id="contour-density-up" type="button" aria-label="more contour lines">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /><path d="M4.75 8h6.5M8 4.75v6.5" stroke-linecap="round" /></svg>
+                    </button>
+                  </div>
+                  <div class="row detents" role="radiogroup" aria-labelledby="contour-falloff-label">
+                    <span class="name" id="contour-falloff-label" title="how much the lines thin out with distance — at the bottom step every tile traces the same interval">falloff</span>
+                    <button id="contour-falloff-down" type="button" aria-label="less falloff — lines more alike close and far">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /><path d="M4.75 8h6.5" stroke-linecap="round" /></svg>
+                    </button>
+                    <span class="dots">
+                      <input type="radio" name="contour-falloff" value="-2" aria-label="1 of 6" />
+                      <input type="radio" name="contour-falloff" value="-1" aria-label="2 of 6" />
+                      <input type="radio" name="contour-falloff" value="0" aria-label="3 of 6" />
+                      <input type="radio" name="contour-falloff" value="1" aria-label="4 of 6" />
+                      <input type="radio" name="contour-falloff" value="2" aria-label="5 of 6" />
+                      <input type="radio" name="contour-falloff" value="3" aria-label="6 of 6" />
+                    </span>
+                    <button id="contour-falloff-up" type="button" aria-label="more falloff — lines thin out faster with distance">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /><path d="M4.75 8h6.5M8 4.75v6.5" stroke-linecap="round" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="line">

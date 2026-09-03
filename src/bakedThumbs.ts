@@ -15,6 +15,8 @@ export type BakedThumb = {
     hillshade: boolean;
     contours: boolean;
     contourLabels: boolean;
+    contourDensity: number;
+    contourFalloff: number;
     exposure: { lo: number; hi: number } | null;
     terrainScale: number;
   };
@@ -55,6 +57,8 @@ const specMatches = (spec: SceneSpec, baked: BakedThumb['spec'], anyExposure: bo
   spec.hillshade === baked.hillshade &&
   spec.contours === baked.contours &&
   spec.contourLabels === baked.contourLabels &&
+  spec.contourDensity === baked.contourDensity &&
+  spec.contourFalloff === baked.contourFalloff &&
   spec.terrainScale === baked.terrainScale &&
   (anyExposure || exposureClose(spec.exposure, baked.exposure));
 

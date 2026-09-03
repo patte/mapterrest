@@ -9,6 +9,7 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, isMapTiler, type BasemapKey } from './basemaps';
 import { defaultExposed, RAMP_KEYS, type RampKey } from './shading';
 import { attachScene, type SceneSpec } from './scene';
+import { DENSITY_RANGE, FALLOFF_RANGE } from './contours';
 import { bakedPlaceholder, bakedThumb } from './bakedThumbs';
 import { cameraOf, createThumbnailer, type ThumbVariant } from './thumbnails';
 import { createTray, CURRENT_TILE, tileId } from './tray';
@@ -64,6 +65,8 @@ const readOverlays = (): { ramp: RampKey | null; hillshade: boolean } => {
 let { ramp: rampKey, hillshade } = readOverlays();
 let contours = readBoolean('contours', false);
 let contourLabels = readBoolean('contourLabels', true);
+let contourDensity = readNumber('contourDensity', 0, ...DENSITY_RANGE);
+let contourFalloff = readNumber('contourFalloff', 0, ...FALLOFF_RANGE);
 /** Only until the box is toggled by hand — until then exposure follows each ramp's default. */
 let autoExposureChosen = has('autoExposure');
 let autoExposure = readBoolean('autoExposure', rampKey !== null && defaultExposed(rampKey));
@@ -112,7 +115,7 @@ if (!map.painter) {
 
 const scene = attachScene(
   map,
-  { basemap: basemapKey, basemapVisible, ramp: rampKey, hillshade, contours, contourLabels, exposure: null, terrainScale },
+  { basemap: basemapKey, basemapVisible, ramp: rampKey, hillshade, contours, contourLabels, contourDensity, contourFalloff, exposure: null, terrainScale },
   detail,
 );
 
@@ -305,7 +308,7 @@ function setContours(on: boolean): void {
   if (on === contours) return;
   contours = on;
   scene.set({ contours: on });
-  applyLabelsRow();
+  applyContourSettings();
   syncTray();
   applyLogos();
 }
@@ -366,12 +369,20 @@ exposureDialog.addEventListener('click', (e) => {
   if (e.target === exposureDialog) exposureDialog.close();
 });
 
-/* Contour labels ------------------------------------------------------------- */
+/* Contour settings ----------------------------------------------------------- */
 
+const settings = document.getElementById('contour-settings') as HTMLDivElement;
 const labelsBox = document.getElementById('contour-labels') as HTMLInputElement;
-/** Without lines there are no labels to offer: the box greys out in place. */
-function applyLabelsRow(): void {
-  labelsBox.disabled = !contours;
+/** The settings fold open with the lines; a stepper's button greys at its end of the
+ * range, the dot of the current detent fills. */
+function applyContourSettings(): void {
+  settings.classList.toggle('open', contours);
+  densityDown.disabled = contourDensity <= DENSITY_RANGE[0];
+  densityUp.disabled = contourDensity >= DENSITY_RANGE[1];
+  falloffDown.disabled = contourFalloff <= FALLOFF_RANGE[0];
+  falloffUp.disabled = contourFalloff >= FALLOFF_RANGE[1];
+  for (const dot of densityDots) dot.checked = Number(dot.value) === contourDensity;
+  for (const dot of falloffDots) dot.checked = Number(dot.value) === contourFalloff;
 }
 
 function setContourLabels(on: boolean): void {
@@ -382,11 +393,45 @@ function setContourLabels(on: boolean): void {
 }
 
 labelsBox.checked = contourLabels;
-applyLabelsRow();
 labelsBox.addEventListener('change', () => {
   setContourLabels(labelsBox.checked);
   write('contourLabels', contourLabels);
 });
+
+/* Contour tuning ------------------------------------------------------------- */
+
+const densityDown = document.getElementById('contour-density-down') as HTMLButtonElement;
+const densityUp = document.getElementById('contour-density-up') as HTMLButtonElement;
+const falloffDown = document.getElementById('contour-falloff-down') as HTMLButtonElement;
+const falloffUp = document.getElementById('contour-falloff-up') as HTMLButtonElement;
+const densityDots = document.querySelectorAll<HTMLInputElement>('input[name="contour-density"]');
+const falloffDots = document.querySelectorAll<HTMLInputElement>('input[name="contour-falloff"]');
+
+function setContourTuning(density: number, falloff: number): void {
+  if (density === contourDensity && falloff === contourFalloff) return;
+  contourDensity = density;
+  contourFalloff = falloff;
+  applyContourSettings();
+  scene.set({ contourDensity: density, contourFalloff: falloff });
+}
+
+function tune(which: 'density' | 'falloff', to: number): void {
+  const [min, max] = which === 'density' ? DENSITY_RANGE : FALLOFF_RANGE;
+  const next = Math.min(max, Math.max(min, to));
+  setContourTuning(
+    which === 'density' ? next : contourDensity,
+    which === 'falloff' ? next : contourFalloff,
+  );
+  write('contourDensity', contourDensity);
+  write('contourFalloff', contourFalloff);
+}
+densityDown.addEventListener('click', () => tune('density', contourDensity - 1));
+densityUp.addEventListener('click', () => tune('density', contourDensity + 1));
+falloffDown.addEventListener('click', () => tune('falloff', contourFalloff - 1));
+falloffUp.addEventListener('click', () => tune('falloff', contourFalloff + 1));
+for (const dot of densityDots) dot.addEventListener('change', () => tune('density', Number(dot.value)));
+for (const dot of falloffDots) dot.addEventListener('change', () => tune('falloff', Number(dot.value)));
+applyContourSettings();
 
 // Before the first style lands, so the initial ramp layer is built already pinned to
 // the view rather than repainted after.
@@ -664,6 +709,10 @@ function applyHash(): void {
   setHillshade(overlays.hillshade);
   setContours(readBoolean('contours', false));
   setContourLabels(readBoolean('contourLabels', true));
+  setContourTuning(
+    readNumber('contourDensity', 0, ...DENSITY_RANGE),
+    readNumber('contourFalloff', 0, ...FALLOFF_RANGE),
+  );
   setAutoExposure(readBoolean('autoExposure', rampKey !== null && defaultExposed(rampKey)));
   setTerrainScale(readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE));
   setPerfDebug(readBoolean('debugPerf', false));

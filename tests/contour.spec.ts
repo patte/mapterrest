@@ -57,6 +57,51 @@ test('contours trace the DEM and ride above the relief', async ({ browser }) => 
   await page.close();
 });
 
+// The steppers reshape the interval table: "lines" (density) scales every rung, so a
+// step up must land more distinct elevations in the same view; both write the hash
+// and default to absent.
+test('the tuning steppers re-trace the lines', async ({ browser }) => {
+  const page = await open(browser, { hash: '#contours=1&map=13/45.9764/7.6586/0/0' });
+  await settled(page);
+  const levels = () =>
+    page.evaluate(
+      () =>
+        new Set(
+          window.map
+            .querySourceFeatures('mapterhorn-contours', { sourceLayer: 'contours' })
+            .map((f: { properties: { ele: number } }) => f.properties.ele),
+        ).size,
+    );
+  const before = await levels();
+  await check(before > 0, 'the default tuning traces lines', `${before} levels`);
+  await check(await page.isVisible('#contour-density-up'), 'the settings unfold with contours');
+  await check(
+    await page.isChecked('input[name="contour-density"][value="0"]'),
+    'the middle dot marks the default',
+  );
+
+  await page.click('#contour-density-up');
+  await page.click('#contour-density-up');
+  await page.click('#contour-density-up');
+  await check(
+    await page.isDisabled('#contour-density-up'),
+    'the top of the range greys its button',
+  );
+  await check(
+    await page.isChecked('input[name="contour-density"][value="3"]'),
+    'the dot follows the detent',
+  );
+  // Each press replaces the source; wait for the re-trace to land.
+  await settled(page, 1500);
+  const after = await levels();
+  await check(after > before, 'three detents up traces finer intervals', `${before} → ${after}`);
+  await check(
+    await page.evaluate(() => location.hash.includes('contourDensity=3')),
+    'the tuning lands in the hash',
+  );
+  await page.close();
+});
+
 test('the relief line composes, the colour line chooses', async ({ browser }) => {
   const page = await open(browser);
   const pressed = (line: string, key: string) =>
@@ -66,8 +111,8 @@ test('the relief line composes, the colour line chooses', async ({ browser }) =>
     'contours start off',
   );
   await check(
-    await page.isDisabled('#contour-labels'),
-    'the labels checkbox is disabled while contours are off',
+    await page.isHidden('#contour-labels'),
+    'the settings stay folded while contours are off',
   );
 
   await page.click('#relief-thumbs .tile[data-key="contours"]');
@@ -84,8 +129,8 @@ test('the relief line composes, the colour line chooses', async ({ browser }) =>
     'the toggle lands in the hash',
   );
   await check(
-    await page.isEnabled('#contour-labels'),
-    'the labels checkbox enables with the lines',
+    await page.isVisible('#contour-labels'),
+    'the settings unfold with the lines',
   );
 
   // A ramp joins underneath; the relief stays as it was.
@@ -123,5 +168,15 @@ test('the relief line composes, the colour line chooses', async ({ browser }) =>
     'the none tile clears hillshade and contours together, the ramp stays',
   );
   await check((await pressed('relief', 'none')) === 'true', 'and claims the line');
+
+  // The unfolded settings hide with the tray: an open fold must not out-vote an
+  // ancestor's hidden. Framing is entered by dispatch, not pointer: with the settings
+  // and a ramp the card is tall enough to push the camera pill under the geosearch box.
+  await page.click('#relief-thumbs .tile[data-key="contours"]');
+  await page.evaluate(() => document.getElementById('shot-open')!.click());
+  await check(
+    (await page.evaluate(() => getComputedStyle(document.getElementById('contour-labels')!).visibility)) === 'hidden',
+    'framing mode hides the unfolded settings with the tray',
+  );
   await page.close();
 });
