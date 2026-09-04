@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { test } from '@playwright/test';
+import { test, type Page } from '@playwright/test';
 import { glLaunchOptions } from '../scripts/browser.mjs';
 import { open, check, settled } from './helpers';
 
@@ -9,8 +9,25 @@ function pngSize(file: string): [number, number] {
   return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
 }
 
+/** Clicks capture and saves the download under `name` in the case's output folder. */
+async function captureTo(page: Page, name: string, modifiers: 'Shift'[] = []): Promise<string> {
+  const download = page.waitForEvent('download');
+  await page.click('#shot-capture', { modifiers });
+  // saveAs, not path(): against the resident browser the page is a remote connection,
+  // and there a download's temp path is not exposed.
+  const file = test.info().outputPath(name);
+  await (await download).saveAs(file);
+  return file;
+}
+
+/** The framing rectangle's aspect as laid out. */
+async function aspect(page: Page): Promise<number> {
+  const box = (await page.locator('#shot-rect').boundingBox())!;
+  return box.width / box.height;
+}
+
 test('framing mode captures print-density paper crops', async ({ browser }) => {
-  // Two print-density captures re-render a grown viewport — minutes per capture in
+  // Print-density captures re-render a grown viewport — minutes per capture in
   // software rendering, against a spec that guards PNG plumbing, not GL behaviour.
   test.skip(glLaunchOptions().mode === 'swiftshader', 'print-density capture is uneconomical in software GL');
   const page = await open(browser);
@@ -27,12 +44,22 @@ test('framing mode captures print-density paper crops', async ({ browser }) => {
     (await visibility('.maplibregl-ctrl-bottom-right')) === 'visible',
     'the credited corner stays on screen',
   );
+  await check(
+    (await page.locator('#shot-format option').allTextContents()).join(' ') ===
+      'screen A2 A3 A4 A5 A6 Letter Legal Tabloid',
+    'the dropdown offers the screen, the A series and the US trio',
+  );
+  await check(await page.isHidden('#shot-rotate'), 'the screen format has no orientation');
+  await check(await page.isDisabled('#shot-detail'), 'ultra quality sits out the screen format');
 
-  const aspect = async (): Promise<number> => {
-    const box = (await page.locator('#shot-rect').boundingBox())!;
-    return box.width / box.height;
-  };
-  await check(Math.abs((await aspect()) - 297 / 210) < 0.01, 'the rectangle starts A4 landscape');
+  await page.selectOption('#shot-format', 'a4');
+  await check(Math.abs((await aspect(page)) - 297 / 210) < 0.01, 'A4 frames landscape');
+  await check(await page.isVisible('#shot-rotate'), 'paper can rotate');
+  await check(await page.isEnabled('#shot-detail'), 'paper can choose its detail');
+  await check(
+    (await page.getAttribute('#shot-detail', 'aria-pressed')) === 'true',
+    'ultra quality starts on',
+  );
 
   // The capture reshapes the live camera (clamp toggle, viewport growth, zoom shift)
   // and must hand back the exact view; measured as the Matterhorn's screen position.
@@ -42,20 +69,21 @@ test('framing mode captures print-density paper crops', async ({ browser }) => {
       return [p.x, p.y];
     });
   const peakBefore = await peak();
-  await check(
-    (await page.locator('#shot-format option').allTextContents()).join(' ') ===
-      'A2 A3 A4 A5 A6 Letter Legal Tabloid',
-    'the dropdown offers the A series and the US trio',
-  );
+  // Detail loads deeper tiles by zooming the grown viewport; without it the zoom must
+  // not move at all — that is what keeps the screen's contour rungs in the export.
+  // Counted while the capture owns the map: the anchor re-settles once it is handed back.
+  await page.evaluate(() => {
+    (window as any).__zooms = 0;
+    window.map.on('zoom', () => {
+      if (document.body.classList.contains('capturing')) (window as any).__zooms++;
+    });
+  });
+  const zooms = (): Promise<number> => page.evaluate(() => (window as any).__zooms);
 
-  const a4Download = page.waitForEvent('download');
-  await page.click('#shot-capture');
-  // saveAs, not path(): against the resident browser the page is a remote connection,
-  // and there a download's temp path is not exposed.
-  const a4 = test.info().outputPath('a4.png');
-  await (await a4Download).saveAs(a4);
+  const a4 = await captureTo(page, 'a4.png');
   const [w, h] = pngSize(a4);
   await check(w === 3508 && h === 2480, 'A4 landscape exports at 300 dpi', `${w}×${h}`);
+  await check((await zooms()) > 0, 'ultra quality zooms the grown viewport for deeper tiles');
   // The pHYs chunk sits right behind IHDR; without it viewers assume 72 dpi and
   // print dialogs size the export as a poster.
   const bytes = readFileSync(a4);
@@ -114,18 +142,26 @@ test('framing mode captures print-density paper crops', async ({ browser }) => {
     stats.pill.join(','),
   );
 
+  await page.click('#shot-detail');
+  await check(
+    (await page.getAttribute('#shot-detail', 'aria-pressed')) === 'false',
+    'the pill toggles ultra quality off',
+  );
+  await page.evaluate(() => ((window as any).__zooms = 0));
+  const plain = await captureTo(page, 'a4-plain.png');
+  const [pw, ph] = pngSize(plain);
+  await check(pw === 3508 && ph === 2480, 'without detail the export keeps its size', `${pw}×${ph}`);
+  await check((await zooms()) === 0, 'without detail the capture never zooms — the screen\'s own tiles');
+
   await page.click('#shot-rotate');
-  await check(Math.abs((await aspect()) - 210 / 297) < 0.01, 'rotate flips to portrait');
+  await check(Math.abs((await aspect(page)) - 210 / 297) < 0.01, 'rotate flips to portrait');
 
   await page.selectOption('#shot-format', 'letter');
   await check(
-    Math.abs((await aspect()) - 215.9 / 279.4) < 0.01,
+    Math.abs((await aspect(page)) - 215.9 / 279.4) < 0.01,
     'the format dropdown reshapes the rectangle',
   );
-  const letterDownload = page.waitForEvent('download');
-  await page.click('#shot-capture');
-  const letter = test.info().outputPath('letter.png');
-  await (await letterDownload).saveAs(letter);
+  const letter = await captureTo(page, 'letter.png');
   const [lw, lh] = pngSize(letter);
   await check(lw === 2550 && lh === 3300, 'Letter portrait exports at 300 dpi', `${lw}×${lh}`);
 
@@ -135,6 +171,70 @@ test('framing mode captures print-density paper crops', async ({ browser }) => {
   const peakAfter = await peak();
   const drift = Math.hypot(peakAfter[0] - peakBefore[0], peakAfter[1] - peakBefore[1]);
   await check(drift < 5, 'the captures hand the view back', `${drift.toFixed(1)}px drift`);
+  await page.close();
+});
+
+test('the screen format exports the canvas as it is', async ({ browser }) => {
+  const page = await open(browser);
+  await settled(page);
+  await page.click('#shot-open');
+
+  const rect = (await page.locator('#shot-rect').boundingBox())!;
+  const map = (await page.locator('#map').boundingBox())!;
+  await check(
+    Math.abs(rect.width - map.width) < 1 && Math.abs(rect.height - map.height) < 1,
+    'the screen format frames the whole map',
+    `${rect.width}×${rect.height} vs ${map.width}×${map.height}`,
+  );
+  await check(
+    (await page.locator('#shot-controls').boundingBox())!.y + 34 < map.y + map.height,
+    'the controls float over the map',
+  );
+
+  // The oracle for "exactly what is on screen": the clean shot must equal the live
+  // canvas pixel for pixel — same tiles, same lines, same labels.
+  const live = await page.evaluate(() => {
+    window.map.redraw();
+    const gl = window.map.getCanvas() as HTMLCanvasElement;
+    return { w: gl.width, h: gl.height, png: gl.toDataURL() };
+  });
+  const shot = await captureTo(page, 'screen.png', ['Shift']);
+  const [w, h] = pngSize(shot);
+  await check(w === live.w && h === live.h, 'the export has the canvas\'s pixels', `${w}×${h}`);
+  const bytes = readFileSync(shot);
+  await check(bytes.toString('latin1', 37, 41) !== 'pHYs', 'a screen capture declares no print density');
+
+  const differing = await page.evaluate(
+    async ([a, b]) => {
+      const decode = async (src: string): Promise<Uint8ClampedArray> => {
+        const img = new Image();
+        img.src = src;
+        await img.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        return ctx.getImageData(0, 0, img.width, img.height).data;
+      };
+      const [x, y] = await Promise.all([decode(a), decode(b)]);
+      // Two GPU redraws are not bit-identical: a few dozen pixels drift by a count or
+      // two. A different tile set redraws whole lines, far past this.
+      let n = 0;
+      for (let i = 0; i < x.length; i += 4) {
+        if (Math.max(Math.abs(x[i] - y[i]), Math.abs(x[i + 1] - y[i + 1]), Math.abs(x[i + 2] - y[i + 2])) > 8) n++;
+      }
+      return n / (x.length / 4);
+    },
+    [live.png, `data:image/png;base64,${bytes.toString('base64')}`],
+  );
+  await check(
+    differing === 0,
+    'the clean screen shot matches the live canvas pixel for pixel',
+    `${(differing * 100).toFixed(3)}% of pixels differ`,
+  );
+
+  await page.keyboard.press('Escape');
   await page.close();
 });
 

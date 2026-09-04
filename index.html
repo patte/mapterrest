@@ -908,6 +908,49 @@
         opacity: 0.6;
         cursor: default;
       }
+      #shot-controls button[hidden] {
+        display: none;
+      }
+      /* The native chevron sits flush at the box edge, ignoring the pill's padding;
+         drawn here it keeps the same 12px inset as the text. */
+      #shot-format {
+        appearance: none;
+        padding-right: 30px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 11px center;
+        background-size: 12px;
+      }
+      #shot-detail {
+        gap: 6px;
+      }
+      #shot-detail[aria-pressed='false'] {
+        color: color-mix(in srgb, var(--panel-fg) 55%, transparent);
+      }
+      #shot-detail[aria-pressed='false'] svg {
+        display: none;
+      }
+      #shot-detail:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      /* The screen format frames the whole map: the dashes sit just inside the window
+         edge, and the controls float over the map instead of below the rectangle. */
+      body.shot-screen #shot-frame {
+        padding: 0;
+      }
+      body.shot-screen #shot-rect {
+        width: 100%;
+        height: 100%;
+        aspect-ratio: auto;
+        /* No scrim to stand out from: the dashes ride a dark band along the edge. */
+        outline-offset: -3px;
+        box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.4);
+      }
+      body.shot-screen #shot-controls {
+        position: absolute;
+        bottom: 16px;
+      }
       /* While the print renders, the map is mid-shapeshift (grown viewport, shifted
          zoom); the veil hides the contortion and blocks input until it's back. */
       #shot-veil {
@@ -1412,6 +1455,12 @@
             <polyline points="23 4 23 10 17 10" />
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
           </svg>
+        </button>
+        <button id="shot-detail" type="button" aria-pressed="true" title="load finer tiles for the export — off keeps exactly what is on screen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          ultra quality
         </button>
         <button id="shot-capture" type="button" aria-label="capture" title="capture">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">

@@ -15,6 +15,8 @@ const PAPERS = {
   tabloid: { label: 'Tabloid', mm: [431.8, 279.4] },
 } as const;
 type PaperKey = keyof typeof PAPERS;
+/** The whole map at its device pixels, or a paper size at print density. */
+type FormatKey = 'screen' | PaperKey;
 
 /** Print density the export targets; the GPU's canvas limit may cap it on the way. */
 const DPI = 300;
@@ -33,10 +35,11 @@ const px = (mm: number): number => Math.round((mm / 25.4) * DPI);
 const MAX_VIEWPORT_SCALE = 4;
 
 /**
- * The camera pill and the framing mode behind it: a screen-fixed paper-aspect
- * rectangle the map stays live under, and a capture that re-renders the same frame at
- * print density and crops the rectangle out of it. The export carries only the map,
- * the attribution line, and whichever provider logos the frame currently owes.
+ * The camera pill and the framing mode behind it: a screen-fixed rectangle the map
+ * stays live under — the whole map, or a paper aspect — and a capture that re-renders
+ * the same frame at the export's density and crops the rectangle out of it. The export
+ * carries only the map, the attribution line, and whichever provider logos the frame
+ * currently owes.
  */
 export function setupScreenshot(map: MapLibreMap, anchor: CameraAnchor | null): void {
   const frame = document.getElementById('shot-frame') as HTMLElement;
@@ -45,34 +48,68 @@ export function setupScreenshot(map: MapLibreMap, anchor: CameraAnchor | null): 
   const format = document.getElementById('shot-format') as HTMLSelectElement;
   const openButton = document.getElementById('shot-open') as HTMLButtonElement;
   const rotateButton = document.getElementById('shot-rotate') as HTMLButtonElement;
+  const detailButton = document.getElementById('shot-detail') as HTMLButtonElement;
   const captureButton = document.getElementById('shot-capture') as HTMLButtonElement;
   const closeButton = document.getElementById('shot-close') as HTMLButtonElement;
 
-  for (const key of Object.keys(PAPERS) as PaperKey[]) {
+  const addOption = (value: FormatKey, label: string): void => {
     const option = document.createElement('option');
-    option.value = key;
-    option.textContent = PAPERS[key].label;
+    option.value = value;
+    option.textContent = label;
     format.appendChild(option);
-  }
-  format.value = 'a4' satisfies PaperKey;
+  };
+  addOption('screen', 'screen');
+  for (const key of Object.keys(PAPERS) as PaperKey[]) addOption(key, PAPERS[key].label);
+  format.value = 'screen' satisfies FormatKey;
 
   let landscape = true;
+  const isScreen = (): boolean => format.value === 'screen';
 
-  /** Target pixel size of the export, oriented. */
-  function paperPx(): [number, number] {
+  /** Target pixel size of the export: the canvas as is, or the paper, oriented. */
+  function targetPx(): [number, number] {
+    if (isScreen()) {
+      const gl = map.getCanvas();
+      return [gl.width, gl.height];
+    }
     const [long, short] = PAPERS[format.value as PaperKey].mm;
     return landscape ? [px(long), px(short)] : [px(short), px(long)];
   }
 
-  function applyAspect(): void {
-    const [w, h] = paperPx();
+  // A select is as wide as its widest option, which leaves "A4" swimming in the room
+  // "Tabloid" needs; the pill fits the chosen label instead, measured in its own font.
+  const measure = document.createElement('canvas').getContext('2d')!;
+  function fitFormat(): void {
+    const style = getComputedStyle(format);
+    measure.font = style.font;
+    const label = format.selectedOptions[0]?.textContent ?? '';
+    // A select's box is border-box by default: the padding lives inside the width.
+    const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    format.style.width = `${Math.ceil(measure.measureText(label).width + padding)}px`;
+  }
+
+  function applyFormat(): void {
+    fitFormat();
+    const screen = isScreen();
+    document.body.classList.toggle('shot-screen', screen);
+    // Orientation and ultra quality are paper affairs: the screen has one orientation,
+    // and it already shows the tiles a screen capture gets.
+    rotateButton.hidden = screen;
+    detailButton.disabled = screen;
+    if (screen) return;
+    const [w, h] = targetPx();
     frame.style.setProperty('--shot-aspect', String(w / h));
   }
-  applyAspect();
-  format.addEventListener('change', applyAspect);
+  applyFormat();
+  format.addEventListener('change', applyFormat);
   rotateButton.addEventListener('click', () => {
     landscape = !landscape;
-    applyAspect();
+    applyFormat();
+  });
+  detailButton.addEventListener('click', () => {
+    detailButton.setAttribute(
+      'aria-pressed',
+      detailButton.getAttribute('aria-pressed') === 'true' ? 'false' : 'true',
+    );
   });
 
   function setOpen(open: boolean): void {
@@ -90,7 +127,12 @@ export function setupScreenshot(map: MapLibreMap, anchor: CameraAnchor | null): 
     veil.hidden = false;
     const note = veil.querySelector('p')!;
     // Shift is the hidden clean shot: no attribution, no logos, just the map.
-    capture(map, anchor, rect, paperPx(), !e.shiftKey)
+    capture(map, anchor, rect, {
+      size: targetPx(),
+      dpi: isScreen() ? null : DPI,
+      detail: !isScreen() && detailButton.getAttribute('aria-pressed') === 'true',
+      credits: !e.shiftKey,
+    })
       .catch(() => {
         // Past the renderer's limits MapLibre itself gives out; the finally above
         // already put the map back — tell the user which lever helps.
@@ -105,12 +147,24 @@ export function setupScreenshot(map: MapLibreMap, anchor: CameraAnchor | null): 
   });
 }
 
+type Export = {
+  /** Pixel size of the image. */
+  size: [number, number];
+  /** Density the file declares; null for a screen capture, which has no paper size. */
+  dpi: number | null;
+  /**
+   * Load tiles for the export's true size instead of densifying the screen's: deeper
+   * tiles, so finer contour rungs and sharper relief than the screen shows.
+   */
+  detail: boolean;
+  credits: boolean;
+};
+
 async function capture(
   map: MapLibreMap,
   anchor: CameraAnchor | null,
   rect: HTMLElement,
-  [tw, th]: [number, number],
-  credits: boolean,
+  { size: [tw, th], dpi, detail, credits }: Export,
 ): Promise<void> {
   const container = map.getContainer();
   const view = rect.getBoundingClientRect();
@@ -119,8 +173,10 @@ async function capture(
   // Growing the container k× while adding log2(k) zoom reproduces the exact same view
   // (~1px over the frame, probed) with tiles selected for the print's true size; the
   // remainder of the ratio is pixel density on top. The final canvas is the same size
-  // either way — the split only decides how much of it is real tile detail.
-  const grow = Math.min(ratio, MAX_VIEWPORT_SCALE);
+  // either way — the split only decides how much of it is real tile detail. Without
+  // detail the whole ratio is density: the screen's own tiles, rendered denser.
+  const grow = detail ? Math.min(ratio, MAX_VIEWPORT_SCALE) : 1;
+  const grown = grow > 1;
   const cssWidth = container.clientWidth;
   const cssHeight = container.clientHeight;
 
@@ -146,13 +202,15 @@ async function capture(
   // that representation, the grown deep-zoom frame comes out with drapeless smears —
   // the clamped representation of the same view survives it, and MapLibre preserves
   // the apparent view when the clamp toggles. The anchor re-settles on resume.
-  if (anchor) map.setCenterClampedToGround(true);
+  if (anchor && grown) map.setCenterClampedToGround(true);
   document.body.classList.add('capturing');
   try {
-    container.style.width = `${cssWidth * grow}px`;
-    container.style.height = `${cssHeight * grow}px`;
+    if (grown) {
+      container.style.width = `${cssWidth * grow}px`;
+      container.style.height = `${cssHeight * grow}px`;
+      map.setZoom(saved.zoom + Math.log2(grow));
+    }
     map.setPixelRatio(ratio / grow);
-    map.setZoom(saved.zoom + Math.log2(grow));
     await tilesSettled(map);
     // Redraw synchronously and copy in the same task — the WebGL buffer is only valid
     // until the browser composites, so there is no preserveDrawingBuffer to pay for.
@@ -177,8 +235,10 @@ async function capture(
     // Undefined hands the ratio back to devicePixelRatio tracking; the signature only
     // admits numbers but the implementation is `?? devicePixelRatio`.
     map.setPixelRatio(undefined as unknown as number);
-    if (anchor) map.setCenterClampedToGround(false);
-    map.jumpTo(saved);
+    if (grown) {
+      if (anchor) map.setCenterClampedToGround(false);
+      map.jumpTo(saved);
+    }
     document.body.classList.remove('capturing');
     anchor?.resume();
   }
@@ -187,7 +247,7 @@ async function capture(
 
   const blob = await new Promise<Blob | null>((r) => out.toBlob(r, 'image/png'));
   if (!blob) return;
-  const png = withMetadata(new Uint8Array(await blob.arrayBuffer()), saved.center);
+  const png = withMetadata(new Uint8Array(await blob.arrayBuffer()), saved.center, dpi);
   const stamp = new Date();
   const pad = (n: number): string => String(n).padStart(2, '0');
   const name =
@@ -204,8 +264,9 @@ async function capture(
  * The export's metadata, spliced in right behind IHDR (which the signature pins to
  * the first 33 bytes) — toBlob writes none of it:
  *
- * - pHYs declares the 300 dpi; without it viewers assume 72 and a print dialog
- *   sizes an A4 export as a metre-wide poster.
+ * - pHYs declares the print density; without it viewers assume 72 dpi and a print
+ *   dialog sizes an A4 export as a metre-wide poster. A screen capture has no paper
+ *   size and declares nothing.
  * - Comment holds the view's permalink — the hash carries camera and layers, so any
  *   export leads back to the exact view that produced it.
  * - Copyright carries the credits even when the clean shot leaves them off the pixels.
@@ -214,9 +275,10 @@ async function capture(
 function withMetadata(
   png: Uint8Array,
   center: { lat: number; lng: number },
+  dpi: number | null,
 ): Uint8Array<ArrayBuffer> {
   const chunks = [
-    pHYs(DPI),
+    ...(dpi === null ? [] : [pHYs(dpi)]),
     textChunk('Software', 'Mapterrest (mapterrest.com)'),
     textChunk('Creation Time', new Date().toUTCString()),
     textChunk('Copyright', creditsLine()),
