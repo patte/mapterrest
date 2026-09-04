@@ -1,9 +1,10 @@
 # Screenshots: the print is a bigger map, not denser pixels
 
-The camera pill beside the hint opens framing mode: a screen-fixed, paper-aspect
-rectangle with the map fully live behind it. A dropdown picks the paper (A2–A6, Letter,
-Legal, Tabloid), a rotate button flips the orientation, and capture downloads a PNG of
-exactly what the rectangle framed, at 300 dpi for that paper — A4 landscape is
+The camera pill beside the hint opens framing mode: a screen-fixed rectangle with the
+map fully live behind it. A dropdown picks the format — **screen**, the default, frames
+the whole map and exports it at the canvas's own device pixels; a paper (A2–A6, Letter,
+Legal, Tabloid) frames a paper-aspect rectangle, a rotate button flips its orientation,
+and the export is what the rectangle framed at 300 dpi for that paper — A4 landscape is
 3508×2480. Shift+capture is the clean shot: no attribution or logos on the pixels (the
 file's metadata still carries the credits, see below). Escape or the X leaves the mode.
 
@@ -33,15 +34,29 @@ real tile detail. The cap is measured, not taste:
 | 2× / 4× | clean captures, A4 through A2 |
 | ~6× (uncapped A2) | a blank white export, or an exception inside MapLibre's render loop, and a session that can wedge |
 
-An "ultra" toggle lifting the cap was built and abandoned on that evidence. The engine
-has real ceilings up there — among them a terrain coords framebuffer that indexes at
-most 255 terrain tiles per frame — and past them the failure is not a graceful glitch.
-A capture that does die restores the map, lifts the veil and says so, rather than
-hanging.
+A toggle lifting the cap was built and abandoned on that evidence. The engine has real
+ceilings up there — among them a terrain coords framebuffer that indexes at most 255
+terrain tiles per frame — and past them the failure is not a graceful glitch. A capture
+that does die restores the map, lifts the veil and says so, rather than hanging.
 
 Capture takes seconds now, not milliseconds: the veil covers the shapeshifting map
 while the deeper tiles settle. Repeat captures of the same view are nearly free — the
 tiles carry a week of HTTP cache.
+
+## Ultra quality, and exactly what is on screen
+
+Deeper tiles are not only sharper: the contour source picks its interval by tile zoom,
+so a grown capture draws a finer rung — more lines than the screen showed — and the
+basemap surfaces towns the screen's zoom kept hidden. For a print that is the point;
+for a shot of *this* view it is a surprise. The **ultra quality** pill, on by default,
+is the grown viewport described above. Off, the viewport and zoom stay untouched and the
+whole ratio becomes pixel density: the screen's own tiles, rungs and labels, rendered
+denser to the paper's size. The spec holds this with a zoom oracle — a capture without
+ultra quality fires no zoom event while it owns the map.
+
+The screen format sits out the pill (it is disabled there): a screen capture is one
+redraw of the canvas at its current pixel ratio, and the spec compares the clean shot
+against the live canvas pixel for pixel.
 
 ## The camera, handled with tongs
 
@@ -74,7 +89,7 @@ Every export also carries metadata, spliced in as PNG chunks behind IHDR (canvas
 
 | Chunk | Carries | Why |
 | --- | --- | --- |
-| `pHYs` | 300 dpi | without it viewers assume 72 and a print dialog sizes an A4 as a metre-wide poster |
+| `pHYs` | 300 dpi, paper formats only | without it viewers assume 72 and a print dialog sizes an A4 as a metre-wide poster; a screen capture has no paper size and declares none |
 | `tEXt Comment` | the view's permalink | the hash holds camera and layers — any export leads back to the exact view that made it |
 | `iTXt Copyright` | the attribution line | rides along even in the clean shot; iTXt because tEXt is Latin-1 and UTF-8-minded viewers turn its bare © into `?` |
 | `tEXt Software`, `Creation Time` | provenance | |
