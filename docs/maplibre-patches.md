@@ -37,4 +37,4 @@ matter what the interval table says. The patch floors the zoom at 0 in every rea
 build (`index.mjs`, `index.js`, `index.cjs`, `staging/shared.js`); z0 and z1 then trace
 the z0 tile, split into quarters for z1. Oracle: the z1 case in `tests/contour.spec.ts`.
 
-- upstream PR: to be opened
+- upstream PR: https://github.com/onthegomap/maplibre-contour/pull/435
