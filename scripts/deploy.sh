@@ -51,11 +51,13 @@ fi
 # zone's max-age on everything). The zone must carry an Edge Rule setting no-cache on
 # /index.html, or browsers hold a stale page that names chunks --delete has removed.
 echo "==> Syncing dist/ -> s3://$BUNNY_STORAGE_ZONE/"
-# Maps go to Bugsink above, not to the CDN.
+# Maps go to Bugsink above, not to the CDN. wip/ holds hand-uploaded demo pages
+# that are not part of dist, so --delete must leave it alone.
 "${AWS[@]}" s3 sync "$ROOT/dist/" "s3://$BUNNY_STORAGE_ZONE/" \
   --endpoint-url "$ENDPOINT" \
   --delete \
-  --exclude "*.map"
+  --exclude "*.map" \
+  --exclude "wip/*"
 
 # Purge the pull zone so the edges refetch everything from storage. Needs the account
 # API key (dashboard → Account → API Key) and the pull zone's numeric id (in its
