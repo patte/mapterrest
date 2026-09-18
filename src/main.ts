@@ -106,6 +106,11 @@ try {
     // crop); the default cap is 4096². MapLibre steps back down to what the GPU
     // actually allocates, so this only lifts the artificial ceiling.
     maxCanvasSize: [16384, 16384],
+    // Off-screen tiles retained per source, as multiples of a flat viewport's tile
+    // count. Each raster-dem tile held keeps its DEM texture and hillshade framebuffer
+    // on the GPU, and the GPU is what runs out first here; the browser's HTTP cache
+    // still makes a returning tile a decode, not a download.
+    maxTileCacheZoomLevels: 1,
   });
 } catch (e) {
   // A browser that yields no WebGL2 context (unsupported, acceleration off, blocklisted
