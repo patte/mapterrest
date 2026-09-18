@@ -14,8 +14,8 @@ import { HILLSHADE_LAYER, hillshadeLayer, RAMP_LAYER, rampColor, rampDomain, ram
 import {
   DEM_SOURCE,
   demSource,
-  MAX_ZOOM_LEVELS_ON_SCREEN,
   TILE_COUNT_MAX_MIN_RATIO,
+  levelsOnScreen,
   usesLodParams,
   type Detail,
 } from './terrain';
@@ -71,6 +71,24 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
 
   const firstSymbolId = (): string | undefined =>
     map.getStyle().layers.find((l) => l.type === 'symbol')?.id;
+
+  /** Levels on screen the DEM source currently has; null before the source exists. */
+  let appliedLevels: number | null = null;
+  // Re-applied as the camera's height over its ground crosses a step: the terrain's
+  // covering tiles read the source's zoom function live, so this is all a new value
+  // needs. Before any DEM tile has loaded the ground reads 0 and the camera is high.
+  const applyLod = (): void => {
+    if (!usesLodParams(detail) || !map.getSource(DEM_SOURCE)) return;
+    const tr = map._camera.transform;
+    const ground = map.terrain?.getElevationForLngLatZoom(tr.getCameraLngLat(), tr.tileZoom) ?? 0;
+    const levels = levelsOnScreen(tr.getCameraAltitude() - ground);
+    if (levels === appliedLevels) return;
+    appliedLevels = levels;
+    map.setSourceTileLodParams(levels, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
+  };
+  // 'idle' catches the ground arriving under a camera that has not moved since load.
+  map.on('move', applyLod);
+  map.on('idle', applyLod);
 
   /**
    * The overlays stack under the basemap's symbols — or place names sit behind the
@@ -180,9 +198,8 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
     );
 
     map.addSource(DEM_SOURCE, demSource(detail));
-    if (usesLodParams(detail)) {
-      map.setSourceTileLodParams(MAX_ZOOM_LEVELS_ON_SCREEN, TILE_COUNT_MAX_MIN_RATIO, DEM_SOURCE);
-    }
+    appliedLevels = null;
+    applyLod();
     map.setTerrain({ source: DEM_SOURCE, exaggeration: spec.terrainScale });
     // setTerrain re-derives the centre's elevation from the just-added DEM source, whose
     // cache is still empty and answers 0 — on a basemap switch that sinks the camera by
@@ -242,6 +259,8 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
     },
     spec: () => ({ ...spec }),
     destroy(): void {
+      map.off('move', applyLod);
+      map.off('idle', applyLod);
       map.off('style.load', onStyleLoad);
       if (terrainFrame) cancelAnimationFrame(terrainFrame);
     },

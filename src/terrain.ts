@@ -77,9 +77,33 @@ export const usesLodParams = (detail: Detail): boolean => detail !== 'low';
  * Tighter is available and not worth it. 3.0/100 reaches z11 at the horizon but wants
  * 714 tiles, and the view takes 161 s and 1.1 GB of heap to settle, against 23 s and
  * 273 MB here.
+ *
+ * Zoomed in, the same cap turns against itself. Levels on screen bound how far below
+ * the foreground the horizon may fall, and past z17 the foreground is pinned at the
+ * source's maxzoom, so at z20 the cap pins the horizon at z15: hundreds of z12–z14
+ * tiles over land the near slope hides, each with a 2048² drape texture. Measured at
+ * z20, pitch 80 over Zermatt: 5 levels held 18 GiB on the GPU across 393 drapes and
+ * took 2.4 s a frame; 7 levels held 2.1 GiB across 44 at 20 ms, with the same
+ * foreground tiles in both. So the cap loosens as the camera comes down to the ground:
+ * the tuned 5 from 1600 m up (the default view flies 2170 m over its valley), 7 from
+ * 200 m down, log-linear between. Height over the ground under the camera rather than
+ * zoom, because zoom here is the distance to the axis crossing (cameraAnchor.ts) — the
+ * same camera reads z14.5 or z21.7 depending on which slope the axis meets first. The
+ * ratio stays put, since lowering it sheds foreground zoom too.
  */
 export const MAX_ZOOM_LEVELS_ON_SCREEN = 5.0;
 export const TILE_COUNT_MAX_MIN_RATIO = 100;
+
+const LOD_HIGH_METRES = 1600;
+const LOD_LOW_METRES = 200;
+const LOD_LOW_LEVELS = 7;
+
+/** Levels on screen for a camera this far over its ground, in half-level steps. */
+export const levelsOnScreen = (heightAboveGround: number): number => {
+  const t = Math.log2(LOD_HIGH_METRES / Math.max(1, heightAboveGround)) / Math.log2(LOD_HIGH_METRES / LOD_LOW_METRES);
+  const levels = MAX_ZOOM_LEVELS_ON_SCREEN + (LOD_LOW_LEVELS - MAX_ZOOM_LEVELS_ON_SCREEN) * Math.min(1, Math.max(0, t));
+  return Math.round(levels * 2) / 2;
+};
 
 /** True heights. The slider goes to 10 for anyone who wants the relief pushed, 0 flattens. */
 export const DEFAULT_TERRAIN_SCALE = 1;

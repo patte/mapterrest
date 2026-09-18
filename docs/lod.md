@@ -32,8 +32,29 @@ the far end:
 | **5.0 / 100** | 319 | 118 MiB | z9 | z14 |
 | 3.0 / 100 | 714 | 249 MiB | z11 | z14 |
 
-5.0 / 100 is what is set. 3.0 / 100 buys two more levels at the horizon and is not worth
-it: that view takes 161 s and 1.1 GB of heap to settle, against 23 s and 273 MB.
+5.0 / 100 is what is set up to z14. 3.0 / 100 buys two more levels at the horizon and is
+not worth it: that view takes 161 s and 1.1 GB of heap to settle, against 23 s and 273 MB
+here.
+
+Close to the ground, the cap loosens: `levelsOnScreen` in [terrain.ts](../src/terrain.ts)
+runs from 5 with the camera 1600 m or more over the ground beneath it to 7 at 200 m and
+below, log-linear in half-level steps, re-applied on `move` and `idle`. Height rather than
+zoom, because zoom here is the distance to where the view axis meets the terrain
+([camera anchor](camera.md)) and the same camera reads z14.5 or z21.7 depending on which
+slope that is. Levels on screen bound how far below the foreground the horizon may fall,
+and near the ground the foreground is pinned at the source's maxzoom, so a fixed 5 pins
+the horizon at z15 from a camera a few metres up — hundreds of z12–z14 tiles over land
+the near slope hides, each carrying a 2048² drape texture. Measured at z20, pitch 80 over Zermatt (GPU bytes from the `#debugPerf=1`
+overlay, `scripts/probe-gpu-memory.mjs`):
+
+| levels on screen | GPU | drapes (RTT tiles) | DEM tiles in view | frame |
+| --- | --- | --- | --- | --- |
+| 5 | 18.1 GiB | 393 | 469 | 2.4 s |
+| 7 | 2.1 GiB | 44 | 46 | 20 ms |
+| 9.314 (MapLibre's default) | 2.0 GiB | 39 | 38 | 18 ms |
+
+The foreground tiles are the same set in each; only the far field coarsens. 5 levels at
+that camera was the GPU process running out of memory after a few minutes of moving.
 
 `#detail=` picks how much of this to ask for. `high` pulls both levers as described
 above. The default, `medium`, keeps the LOD params but declares the tiles at their real
@@ -49,8 +70,9 @@ strands render-to-texture tiles and paints blank bands over the relief.
 Nothing else moves terrain LOD. `TerrainTileManager.deltaZoom` is documented for exactly
 this ("raster-dem tiles will load the actualZoom - deltaZoom zoom-level") and is a no-op
 in 6.3: 1 and 0 request byte-identical tile sets, and -1 throws
-`targetZ > this.overscaledZ`. `qualityFactor` and the render-to-texture tile size are
-fixed once `setTerrain()` has run, and mutating them afterwards changes nothing.
+`targetZ > this.overscaledZ`. `qualityFactor` (2) is hardcoded in MapLibre; the drape size
+it sets — `painter.renderToTexture.rttSize`, 2048 px for a 512 px source — is read live
+by the pool, but halving it is a drape-sharpness trade, not an LOD lever.
 
 A rebuilt source is not the same as a declared one. Swapping `tileSize` on a live map —
 `setTerrain(null)`, `removeSource`, `addSource`, `setTerrain` — leaves stale
