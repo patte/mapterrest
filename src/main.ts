@@ -1,5 +1,6 @@
 // First import: error tracking must be live before anything else can throw.
 import './errors';
+import * as Sentry from '@sentry/browser';
 import { GPUInitializationError, MapLibreMap, NavigationControl, setWorkerUrl } from 'maplibre-gl';
 import { setupAbout } from './about';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -683,6 +684,17 @@ function scheduleThumbs(delay = THUMB_DELAY): void {
 // 'idle' covers every trigger there is: a camera that settles, a control that changed
 // the scene, an exposure ease that finished — each dirties the map and idles after.
 map.on('idle', () => scheduleThumbs());
+// The GPU process ran out of memory (its usual cause here: a long wander at high zoom
+// and pitch) and the browser took the context; MapLibre restores only on the browser
+// restoring, which after an OOM it does not do promptly. The hash carries the view, so a
+// reload is the whole recovery. Reported so the frequency out there is known.
+map.on('webglcontextlost', () => {
+  window.clearTimeout(thumbTimer);
+  thumbs.cancel();
+  showNotice('The graphics context was lost — the GPU ran out of memory. Reloading the view.');
+  Sentry.captureMessage('WebGL context lost', 'warning');
+  window.setTimeout(() => location.reload(), 1500);
+});
 // A moving camera takes it all back: the pending refresh, the walk in flight, the
 // retry — nothing renders or fetches against a view that is already gone.
 map.on('movestart', () => {

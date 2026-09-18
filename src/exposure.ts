@@ -186,7 +186,8 @@ function collect(
  * for drawing.
  */
 export function visibleRange(map: MapLibreMap, source: string): Range | null {
-  const tiles = map.style.tileManagers[source];
+  // A lost WebGL context takes the style with it; the walk's timers can still land here.
+  const tiles = map.style?.tileManagers[source];
   if (!tiles) return null;
   const transform = map._camera.transform;
   const frustum = transform.getCameraFrustum() as Frustum;
