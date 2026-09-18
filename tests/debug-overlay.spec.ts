@@ -34,3 +34,20 @@ test('without the param there is no overlay', async ({ browser }) => {
   );
   await plain.close();
 });
+
+test('#debugPerf=1 counts what the page holds on the GPU', async ({ browser }) => {
+  const page = await open(browser, { viewport: { width: 800, height: 600 }, hash: '#debugPerf=1' });
+  await settled(page, 1200);
+  const line = await page.evaluate(
+    () =>
+      [...document.querySelectorAll('#map div')]
+        .map((el) => el.textContent ?? '')
+        .find((t) => t.includes('gpu ')) ?? '',
+  );
+  const m = /gpu (\d+) MiB in (\d+) textures/.exec(line);
+  await check(!!m, 'the overlay has a gpu line', line.slice(0, 200));
+  // A loaded terrain view is hundreds of MiB across hundreds of textures, never zero:
+  // the counter was installed before the map so it saw every upload.
+  await check(Number(m?.[1]) > 50 && Number(m?.[2]) > 20, 'the count is the map, not a late start', m?.[0] ?? '');
+  await page.close();
+});

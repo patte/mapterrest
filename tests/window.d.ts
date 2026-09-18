@@ -6,6 +6,8 @@ declare global {
   interface Window {
     map: any;
     visibleRange: (map: any, source: string) => { lo: number; hi: number } | null;
+    /** GPU bytes held across every WebGL context, counted since `#debugPerf=1` installed it. */
+    glUsageAll: () => { textureBytes: number; textures: number; bufferBytes: number; buffers: number };
     choosePivot: (map: any) => any;
     projectPoint: (map: any, p: any) => { x: number; y: number } | null;
     /** The thumbnailer's mini map — existing at all means a preview rendered live. */

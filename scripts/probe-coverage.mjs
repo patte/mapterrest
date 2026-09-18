@@ -63,14 +63,19 @@ page.on('response', (res) => {
 await page.goto(URL_, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.map?.loaded?.(), null, { timeout: 90000 });
 // Exaggeration off, so a reading is the DEM's own metres.
-await page.evaluate(() => window.map.setTerrain({ source: 'mapterhorn-dem', exaggeration: 1 }));
+await page.evaluate(() => {
+  window.map.setTerrain({ source: 'mapterhorn-dem', exaggeration: 1 });
+});
 
 console.log('place                       zoom  hit  miss   MiB   summit m   vs ground');
 for (const place of PLACES) {
   for (const zoom of ZOOMS) {
     hits = misses = bytes = 0;
+    // Braces: a bare jumpTo returns the Map, which Playwright would serialise whole.
     await page.evaluate(
-      ([lng, lat, z]) => window.map.jumpTo({ center: [lng, lat], zoom: z, pitch: 60 }),
+      ([lng, lat, z]) => {
+        window.map.jumpTo({ center: [lng, lat], zoom: z, pitch: 60 });
+      },
       [place.lng, place.lat, zoom],
     );
     // Settle on the tiles, not on a duration: a fixed pause undercounts the traffic

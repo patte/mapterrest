@@ -1,4 +1,5 @@
 import { type MapLibreMap } from 'maplibre-gl';
+import { glUsage, glUsageAll, installedAt } from './glAccounting';
 import { DEM_SOURCE } from './terrain';
 
 /**
@@ -93,6 +94,11 @@ export function enablePerfDebug(map: MapLibreMap): () => void {
     }
     const ground = map.terrain?.getElevationForLngLatZoom(tr.getCameraLngLat(), tr.tileZoom);
     const heap = (performance as { memory?: { usedJSHeapSize: number } }).memory;
+    const mib = (bytes: number): string => `${Math.round(bytes / 2 ** 20)} MiB`;
+    const own = glUsage(map.painter.context.gl as WebGL2RenderingContext);
+    const all = glUsageAll();
+    // Counting patched in after the map existed misses what was already uploaded.
+    const partial = installedAt !== null && installedAt > 2000 ? ' (since enabled)' : '';
 
     const elapsed = now - since;
     readout.textContent = [
@@ -119,6 +125,10 @@ export function enablePerfDebug(map: MapLibreMap): () => void {
         .map(([z, n]) => `z${z}:${n}`)
         .join(' ')}`,
       heap ? `heap ${Math.round(heap.usedJSHeapSize / 1e6)} MB` : '',
+      // What the page holds on the GPU; the mini map's context is the difference.
+      `gpu ${mib(own.textureBytes)} in ${own.textures} textures · ${mib(own.bufferBytes)} in ${own.buffers} buffers` +
+        (all.textures !== own.textures ? ` · all contexts ${mib(all.textureBytes + all.bufferBytes)}` : '') +
+        partial,
     ]
       .filter(Boolean)
       .join('\n');

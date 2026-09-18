@@ -19,6 +19,7 @@ import { setupScreenshot } from './screenshot';
 import { trackExposure, visibleRange, type Range } from './exposure';
 import { choosePivot, projectPoint } from './pivot';
 import { enablePerfDebug } from './perfDebug';
+import { glUsageAll, installGlAccounting } from './glAccounting';
 import { enablePivotDebug } from './pivotDebug';
 import { enableShiftDragCamera } from './shiftDragCamera';
 import { setupGeosearch } from './geosearch';
@@ -79,6 +80,9 @@ const detail = readString<Detail>('detail', DEFAULT_DETAIL, DETAIL_LEVELS);
  */
 const pivotEnabled = readBoolean('pivot', true);
 
+// Before the map, so the overlay's GPU count covers everything the map ever uploaded.
+if (readBoolean('debugPerf', false)) installGlAccounting();
+
 let map: MapLibreMap;
 try {
   map = new MapLibreMap({
@@ -120,7 +124,7 @@ const scene = attachScene(
   detail,
 );
 
-if (import.meta.env.DEV) Object.assign(window, { map, choosePivot, projectPoint, visibleRange });
+if (import.meta.env.DEV) Object.assign(window, { map, choosePivot, projectPoint, visibleRange, glUsageAll });
 
 /* Debug overlays ------------------------------------------------------------ */
 
@@ -131,6 +135,7 @@ const pivotBox = document.getElementById('debug-pivot') as HTMLInputElement;
 let perfDebug: (() => void) | null = null;
 function setPerfDebug(on: boolean): void {
   perfBox.checked = on;
+  if (on) installGlAccounting();
   if (on && !perfDebug) perfDebug = enablePerfDebug(map);
   else if (!on && perfDebug) {
     perfDebug();
