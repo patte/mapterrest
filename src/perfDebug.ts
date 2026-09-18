@@ -11,14 +11,6 @@ import { DEM_SOURCE } from './terrain';
  * the same thing on any machine.
  */
 
-/**
- * MapLibre identifies a terrain tile by one byte of alpha in the coords framebuffer, so
- * past this many rendered tiles the index wraps and `terrain.pointCoordinate` decodes a
- * real coordinate belonging to the wrong tile. Drag-pan reads exactly that to keep the
- * grabbed point under the cursor.
- */
-const COORDS_INDEX_LIMIT = 255;
-
 const WINDOW_MS = 1000;
 
 export function enablePerfDebug(map: MapLibreMap): () => void {
@@ -116,7 +108,9 @@ export function enablePerfDebug(map: MapLibreMap): () => void {
       `${(draws / Math.max(1, renders)).toFixed(0)} draws/render · ${(
         reads / Math.max(1, renders)
       ).toFixed(1)} readPixels/render`,
-      `terrain ${rtt} rtt tiles${rtt > COORDS_INDEX_LIMIT ? '  ← OVER 255, picking is wrong' : ''}`,
+      // Before maplibre-gl 6.6.0 this line also flagged rtt > 255: the coords framebuffer
+      // indexed tiles in one byte, and past it drag-pan picked the wrong tile.
+      `terrain ${rtt} rtt tiles`,
       `dem ${dem?._inViewTiles.getAllIds().length ?? 0} in view · ${
         dem?._outOfViewCache.max ?? 0
       } cache slots · ${Math.round((fetched / elapsed) * 1000)} fetched/s`,

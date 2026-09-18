@@ -24,8 +24,9 @@ wins; otherwise a Mac gets Metal and CI or Linux gets SwiftShader.
   shell has no GPU path) and runs the suite fully parallel. First-ever launch of Chrome
   for Testing is slow (macOS verifies the bundle); a cold run can time out where the warm
   rerun passes.
-- SwiftShader is deterministic, needs no GPU, and reproduces software-GL bugs like the
-  255-tile coords-framebuffer overflow. It renders on ~5 CPU threads per page, so the
+- SwiftShader is deterministic, needs no GPU, and reproduces software-GL bugs (its first
+  catch, the 255-tile coords-framebuffer overflow, is gone since maplibre-gl 6.6.0; see
+  docs/camera.md). It renders on ~5 CPU threads per page, so the
   config pins it to one worker — parallel SwiftShader workers starve each other past the
   90s map-load budget and fail spuriously. The print-density screenshot spec skips
   itself in this mode: a capture re-renders a grown viewport, minutes per capture in

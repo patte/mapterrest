@@ -102,8 +102,8 @@ test('the tuning steppers re-trace the lines', async ({ browser }) => {
   await page.close();
 });
 
-// A z1 contour tile asks for the DEM two levels up, which patches/maplibre-contour-dem-zoom-floor.patch
-// floors at z0; unpatched, the fetch fails and the zoom-out traces nothing.
+// A z1 contour tile asks for the DEM two levels up, which maplibre-contour floors at z0
+// (onthegomap/maplibre-contour#435); without the floor the fetch fails and the zoom-out traces nothing.
 test('the zoom-out traces lines from the z0 DEM', async ({ browser }) => {
   const page = await open(browser, { hash: '#contours=1&map=1/20/0/0/0' });
   await settled(page, 1500);

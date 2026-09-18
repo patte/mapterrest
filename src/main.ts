@@ -1,6 +1,6 @@
 // First import: error tracking must be live before anything else can throw.
 import './errors';
-import { MapLibreMap, NavigationControl, setWorkerUrl } from 'maplibre-gl';
+import { GPUInitializationError, MapLibreMap, NavigationControl, setWorkerUrl } from 'maplibre-gl';
 import { setupAbout } from './about';
 import 'maplibre-gl/dist/maplibre-gl.css';
 // maplibre resolves its worker next to its own import.meta.url, which after
@@ -79,35 +79,36 @@ const detail = readString<Detail>('detail', DEFAULT_DETAIL, DETAIL_LEVELS);
  */
 const pivotEnabled = readBoolean('pivot', true);
 
-const map = new MapLibreMap({
-  container: 'map',
-  style: BASEMAPS[basemapKey].url,
-  // Down the Zermatt valley with the Matterhorn's north face ahead — the sharpest
-  // relief Mapterhorn carries, since Switzerland reaches z17 on swissALTI3D.
-  center: [7.7, 46.005],
-  zoom: 12.6,
-  pitch: 78,
-  bearing: 225,
-  // MapLibre allows up to 180; 90 is the camera lying flat on the horizon.
-  maxPitch: 90,
-  // The pin re-clamps the centre's elevation to the DEM every frame and every terrain
-  // tile, moving the camera by the difference — measured as kilometre teleports mid-wheel
-  // and on release at high pitch. cameraAnchor.ts anchors instead, so it is off with it.
-  centerClampedToGround: !pivotEnabled,
-  // Named so the camera occupies one hash param and leaves room for the controls.
-  hash: MAP_HASH_KEY,
-  // Screenshots re-render at print density (A3 @ 300dpi needs ~5k×3.5k inside the
-  // crop); the default cap is 4096². MapLibre steps back down to what the GPU
-  // actually allocates, so this only lifts the artificial ceiling.
-  maxCanvasSize: [16384, 16384],
-});
-
-// A browser that yields no WebGL2 context (unsupported, acceleration off, blocklisted
-// GPU) gets no renderer and no handlers: MapLibre fires GPUInitializationError and
-// leaves its constructor early. Everything below would crash against that half-built
-// map, so say why and stop — the throw is what ends this module; errors.ts keeps it
-// out of Bugsink.
-if (!map.painter) {
+let map: MapLibreMap;
+try {
+  map = new MapLibreMap({
+    container: 'map',
+    style: BASEMAPS[basemapKey].url,
+    // Down the Zermatt valley with the Matterhorn's north face ahead — the sharpest
+    // relief Mapterhorn carries, since Switzerland reaches z17 on swissALTI3D.
+    center: [7.7, 46.005],
+    zoom: 12.6,
+    pitch: 78,
+    bearing: 225,
+    // MapLibre allows up to 180; 90 is the camera lying flat on the horizon.
+    maxPitch: 90,
+    // The pin re-clamps the centre's elevation to the DEM every frame and every terrain
+    // tile, moving the camera by the difference — measured as kilometre teleports mid-wheel
+    // and on release at high pitch. cameraAnchor.ts anchors instead, so it is off with it.
+    centerClampedToGround: !pivotEnabled,
+    // Named so the camera occupies one hash param and leaves room for the controls.
+    hash: MAP_HASH_KEY,
+    // Screenshots re-render at print density (A3 @ 300dpi needs ~5k×3.5k inside the
+    // crop); the default cap is 4096². MapLibre steps back down to what the GPU
+    // actually allocates, so this only lifts the artificial ceiling.
+    maxCanvasSize: [16384, 16384],
+  });
+} catch (e) {
+  // A browser that yields no WebGL2 context (unsupported, acceleration off, blocklisted
+  // GPU) gets no map at all: MapLibre's constructor throws before a renderer exists.
+  // Say why and stop — the rethrow is what ends this module; errors.ts keeps it out of
+  // Bugsink.
+  if (!(e instanceof GPUInitializationError)) throw e;
   document.body.dataset.theme = isDark(basemapKey, prefersDark()) ? 'dark' : 'light';
   document.getElementById('webgl-gate')!.hidden = false;
   throw new Error('WebGL2 unavailable: the browser did not provide a context');

@@ -18,7 +18,7 @@ test('shift+drag orbits around a pivot on the terrain', async ({ browser }) => {
 
     // On the terrain, not hanging in front of or inside it: the pixel the pivot projects to
     // must raycast back to the pivot's own depth.
-    const under = map.terrain.pointCoordinate(at);
+    const under = tr.screenPointToMercatorCoordinate(at, map.terrain);
     const lat = under && under.toLngLat().lat;
     // Mercator units per metre at that latitude, the same scale MercatorCoordinate uses.
     const perMetre = under && 1 / (6378137 * 2 * Math.PI * Math.cos((lat * Math.PI) / 180));
@@ -29,7 +29,7 @@ test('shift+drag orbits around a pivot on the terrain', async ({ browser }) => {
     // Oracle for projectPoint, which the pivot's screen position is measured with: a point
     // raycast from a pixel has to project back onto that pixel.
     const probe = { x: tr.width * 0.35, y: tr.height * 0.7 };
-    const hit = map.terrain.pointCoordinate(probe);
+    const hit = tr.screenPointToMercatorCoordinate(probe, map.terrain);
     const back = hit && window.projectPoint(map, { x: hit.x, y: hit.y, elevation: hit.z });
 
     return {
@@ -76,16 +76,15 @@ test('shift+drag orbits around a pivot on the terrain', async ({ browser }) => {
     `${grabbed.roundTripPx?.toFixed(1)} px`,
   );
 
-  // terrain.pointCoordinate encodes the tile a pixel came from in one byte, so past 255
-  // rendered terrain tiles it decodes the wrong tile and answers with a real coordinate from
-  // somewhere else — a 1900×1532 window at pitch 85 draws 306 and every sample came back
-  // 200-350 km out. These checks run in a small window, far under 255 tiles, and would
-  // never see it. So assert the pivot does not ask that question at all: break the call,
-  // expect no change.
-  const withoutCoords = await orbit.evaluate((g) => {
+  // The pivot marches its own rays against the DEM the anchor settles on, rather than
+  // asking MapLibre's screen raycast, so the two never disagree by the metres that mesh
+  // and DEM differ by on a slope. Assert it does not ask at all: break the call, expect
+  // no change.
+  const withoutRaycast = await orbit.evaluate((g) => {
     const map = window.map;
-    const real = map.terrain.pointCoordinate;
-    map.terrain.pointCoordinate = () => null;
+    const tr = map._camera.transform;
+    const real = tr.screenPointToMercatorCoordinate;
+    tr.screenPointToMercatorCoordinate = () => null;
     try {
       const pivot = window.choosePivot(map);
       return (
@@ -96,13 +95,13 @@ test('shift+drag orbits around a pivot on the terrain', async ({ browser }) => {
         }
       );
     } finally {
-      map.terrain.pointCoordinate = real;
+      tr.screenPointToMercatorCoordinate = real;
     }
   }, grabbed);
   await check(
-    withoutCoords?.from === 'subject' && withoutCoords.movedM < 1,
-    'the pivot is marched off the DEM, not read from the coords framebuffer',
-    `${withoutCoords?.hits} hits, ${withoutCoords?.movedM.toFixed(2)} m`,
+    withoutRaycast?.from === 'subject' && withoutRaycast.movedM < 1,
+    "the pivot is marched off the DEM, not read from MapLibre's screen raycast",
+    `${withoutRaycast?.hits} hits, ${withoutRaycast?.movedM.toFixed(2)} m`,
   );
 
   // Off centre and away from the mountain: where the drag starts must not move the pivot.

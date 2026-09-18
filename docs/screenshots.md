@@ -35,9 +35,11 @@ real tile detail. The cap is measured, not taste:
 | ~6× (uncapped A2) | a blank white export, or an exception inside MapLibre's render loop, and a session that can wedge |
 
 A toggle lifting the cap was built and abandoned on that evidence. The engine has real
-ceilings up there — among them a terrain coords framebuffer that indexes at most 255
-terrain tiles per frame — and past them the failure is not a graceful glitch. A capture
-that does die restores the map, lifts the veil and says so, rather than hanging.
+ceilings up there, and past them the failure is not a graceful glitch. A capture that
+does die restores the map, lifts the veil and says so, rather than hanging. ~~Among the
+ceilings: a terrain coords framebuffer that indexes at most 255 terrain tiles per
+frame.~~ That one went with maplibre-gl 6.6.0; the ~6× outcome was measured before it
+and has not been re-measured since.
 
 Capture takes seconds now, not milliseconds: the veil covers the shapeshifting map
 while the deeper tiles settle. Repeat captures of the same view are nearly free — the

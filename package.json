@@ -22,11 +22,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@sentry/cli"
-    ],
-    "patchedDependencies": {
-      "maplibre-gl": "patches/maplibre-gl-stale-drape-after-zoom.patch",
-      "maplibre-contour": "patches/maplibre-contour-dem-zoom-floor.patch"
-    }
+    ]
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
@@ -39,7 +35,7 @@
   },
   "dependencies": {
     "@sentry/browser": "^10.70.0",
-    "maplibre-contour": "0.1.0",
-    "maplibre-gl": "6.5.0"
+    "maplibre-contour": "0.1.1",
+    "maplibre-gl": "6.10.0"
   }
 }

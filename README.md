@@ -69,7 +69,6 @@ MapTiler has a generous free tier which we use for local development and for hos
 - [docs/screenshots.md](docs/screenshots.md): Print exports: grown-viewport capture, renderer ceilings, credits, file metadata
 - [docs/geosearch.md](docs/geosearch.md): Geosearch: the morphing pill, landing a camera on terrain, errors and credits
 - [docs/contours.md](docs/contours.md): Contour lines: traced in-browser from the DEM, intervals, detail ceiling, labels
-- [docs/maplibre-patches.md](docs/maplibre-patches.md): Local maplibre-gl and maplibre-contour patches and their upstream issues/PRs
 
 ## Contributing
 
@@ -78,3 +77,18 @@ All contributions are welcome! Please open an issue for questions, feature reque
 ## License
 
 [MIT](LICENSE). If Mapterrest is useful to you, a link back to this project is appreciated.
+
+## Upstreamed Patches
+
+The work on mapterrest unearthed some issues in libraries it depends on. We were able upstream the following work:
+
+[maplibre-gl-gs](https://github.com/maplibre/maplibre-gl-js):
+
+- [fix: re-bake terrain drape textures when the camera settles at a different zoom](https://github.com/maplibre/maplibre-gl-js/pull/8250)
+- [fix: compute pixelsPerMeter in the transform helper so getCameraAltitude() works on globe and vertical-perspective](https://github.com/maplibre/maplibre-gl-js/pull/8331)
+- [fix: markers and popups follow the terrain and the projection after the map settles](https://github.com/maplibre/maplibre-gl-js/pull/8433)
+
+[maplibre-contour](https://github.com/onthegomap/maplibre-contour):
+
+- [ci: stop the test projects inheriting jest and node types so they compile on TypeScript 7](https://github.com/onthegomap/maplibre-contour/pull/436)
+- [fix: prevent DEM requests below zoom level zero](https://github.com/onthegomap/maplibre-contour/pull/435)

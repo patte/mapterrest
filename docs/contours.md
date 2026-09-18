@@ -34,10 +34,10 @@ occur.
 A contour tile at zoom `z` traces the DEM tile at `max(0, min(z − 2, 12))`: `overzoom: 2`
 asks maplibre-contour for a parent tile two levels up (cheaper on neighbours), and the
 source's `maxzoom: 12` caps the DEM outright — deeper levels sharpen lines less than
-they cost, and much of the world carries nothing deeper anyway. The floor at 0 is ours
-(`patches/maplibre-contour-dem-zoom-floor.patch`): unpatched, a z0 or z1 contour tile asks for the DEM
-at a negative zoom, the fetch fails and those zooms trace nothing. Three consequences
-worth knowing:
+they cost, and much of the world carries nothing deeper anyway. The floor at 0 comes from
+[maplibre-contour#435](https://github.com/onthegomap/maplibre-contour/pull/435): without it a
+z0 or z1 contour tile asks for the DEM at a negative zoom, the fetch fails and those zooms
+trace nothing. Three consequences worth knowing:
 
 - z0 and z1 trace the z0 DEM, split into quarters for z1.
 
@@ -110,4 +110,6 @@ noise (`shots/density-spike-po-3.png`).
 
 `pnpm verify contour` covers the tracing and the tray toggle; `scripts/shoot-contours.mjs`
 renders a gallery into `shots/`. Contours drape over the 3D terrain, which made them the
-canary for a maplibre rendering bug — see [maplibre-patches.md](maplibre-patches.md).
+canary for a maplibre rendering bug, drape textures left stale after a zoom animation, fixed
+upstream in [maplibre-gl-js#8250](https://github.com/maplibre/maplibre-gl-js/pull/8250);
+`node scripts/probe-rtt-stale.mjs` is its oracle.

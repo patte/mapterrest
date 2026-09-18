@@ -1,8 +1,8 @@
 // One definition of how a browser is launched, shared by the playwright config and the
 // spike scripts. An explicit GL=metal / GL=swiftshader wins; otherwise a Mac renders on
 // the real GPU and CI or Linux goes through SwiftShader — deterministic, needs no GPU,
-// and reproduces the software-GL bugs the suite guards (e.g. the 255-tile
-// coords-framebuffer overflow).
+// and reproduces the software-GL bugs the suite guards (its first catch, the 255-tile
+// coords-framebuffer overflow, is gone since maplibre-gl 6.6.0).
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

@@ -177,13 +177,15 @@ function rayThrough(v: View, x: number, y: number): Ray {
 /**
  * The ground under a pixel, or null if that pixel is sky.
  *
- * Marched against the DEM rather than read back from MapLibre's coords framebuffer.
- * `terrain.pointCoordinate` is the obvious call and it is quietly wrong on a big frame:
- * the tile a pixel belongs to is encoded in one byte, so past 255 rendered terrain tiles
- * the index wraps and the answer is a real coordinate from the wrong tile. A 1900×1532
- * window at pitch 85 draws 306 of them and every sample came back 200–350 km out, on a
- * mountain 3 km away. Marching also reads the same DEM the camera anchor settles against,
- * so the pivot and the settle no longer disagree by the metres that mesh and DEM do.
+ * Marched against the DEM rather than asked of MapLibre's screen raycast: the march reads
+ * the same DEM, at the same zoom, that the camera anchor settles against, so the pivot and
+ * the settle agree exactly where any other sampling differs by metres on a slope.
+ *
+ * It also predates maplibre-gl 6.6.0's CPU raycast. Until then the alternative was
+ * `terrain.pointCoordinate`, a coords-framebuffer readback that was quietly wrong on a big
+ * frame: the tile a pixel belonged to was encoded in one byte, so past 255 rendered
+ * terrain tiles the index wrapped — a 1900×1532 window at pitch 85 drew 306 and every
+ * sample came back 200–350 km out, on a mountain 3 km away.
  */
 function raycast(map: MapLibreMap, v: View, x: number, y: number): PivotPoint | null {
   const ray = rayThrough(v, x, y);

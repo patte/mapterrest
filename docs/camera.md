@@ -132,10 +132,25 @@ the gesture turns about the centre.
 
 ## The raycast does not ask the GPU
 
-`map.terrain.pointCoordinate(p)` is the obvious way to get the ground under a pixel — it
-reads MapLibre's coords framebuffer, and it is what MapLibre's own pan and zoom anchoring
-calls. It is also **silently wrong on a large window**. Which tile a pixel came from is
-encoded in one byte of that framebuffer:
+The grid marches rays against the DEM, with `rayCrossing` in
+[cameraAnchor.ts](../src/cameraAnchor.ts) — the same geometric march and bisection the
+camera anchor uses to find where the view axis meets the terrain, pointed through an
+arbitrary pixel rather than straight ahead. MapLibre's own screen-to-ground call,
+`transform.screenPointToMercatorCoordinate(p, terrain)`, has been a CPU raycast against
+the DEM too since maplibre-gl 6.6.0
+([#7640](https://github.com/maplibre/maplibre-gl-js/issues/7640)); the grid keeps its own
+for what it answers from: the DEM read at the tile zoom, sampled the way the anchor's
+elevation pin samples it. The pivot and the settle then agree exactly, where any other
+sampling differs by metres on a slope — and metres of elevation is metres of camera.
+`pnpm verify` asserts the independence rather than the accuracy: it stubs MapLibre's
+raycast to return null and checks the pivot does not move.
+
+### Until maplibre-gl 6.6.0: the coords framebuffer overflow
+
+The march was written against an older MapLibre, where `map.terrain.pointCoordinate(p)`
+was the obvious way to get the ground under a pixel — it read a coords framebuffer, and it
+was what MapLibre's own pan and zoom anchoring called. It was also **silently wrong on a
+large window**. Which tile a pixel came from was encoded in one byte of that framebuffer:
 
 ```js
 const uniformValues = terrainCoordsUniformValues(255 - terrain.coordsIndex.length, ...)
@@ -143,35 +158,32 @@ const uniformValues = terrainCoordsUniformValues(255 - terrain.coordsIndex.lengt
 const tileID = this.coordsIndex[255 - rgba[3]];   // 8 bits → 255 tiles, and no guard
 ```
 
-Past 255 rendered terrain tiles the index wraps, pixels decode to the wrong tile, and the
-call returns a *real* coordinate from somewhere else on the planet. A 1900×1532 window at
-pitch 85 draws 306 of them, and every sample of the frame came back 200–350 km out on a
-mountain 3 km away — while the same view in a 1400×900 window (172 tiles) answered
-correctly. MapLibre documents the limit in a source comment and does nothing about it; no
-issue or PR in the repository mentions it. The tile count is ours to inflate, too: the
-LOD params ([lod.md](lod.md)) are what take the default view from 36 tiles to 319.
-`map.terrain.coordsIndex.length` is the count to check against, and anything that reads
-that framebuffer is affected, including MapLibre's own pan and zoom anchoring — so a big
-window over dense terrain is worth suspecting whenever a screen-to-ground answer looks
-absurd.
+Past 255 rendered terrain tiles the index wrapped, pixels decoded to the wrong tile, and
+the call returned a *real* coordinate from somewhere else on the planet. A 1900×1532
+window at pitch 85 drew 306 of them, and every sample of the frame came back 200–350 km
+out on a mountain 3 km away — while the same view in a 1400×900 window (172 tiles)
+answered correctly. The tile count was ours to inflate, too: the LOD params
+([lod.md](lod.md)) are what take the default view from 36 tiles to 319.
+~~MapLibre documents the limit in a source comment and does nothing about it; no issue or
+PR in the repository mentions it. `map.terrain.coordsIndex.length` is the count to check
+against, and anything that reads that framebuffer is affected, including MapLibre's own
+pan and zoom anchoring — so a big window over dense terrain is worth suspecting whenever a
+screen-to-ground answer looks absurd.~~ 6.6.0 replaced the framebuffer with a CPU raycast,
+and the limit went with it.
 
-So the grid marches rays against the DEM instead, with `rayCrossing` in
-[cameraAnchor.ts](../src/cameraAnchor.ts) — the same geometric march and bisection the
-camera anchor uses to find where the view axis meets the terrain, pointed through an
-arbitrary pixel rather than straight ahead. Three things come out of it:
+Measured then, against the readback:
 
-| | `pointCoordinate` | marched against the DEM |
+| | `pointCoordinate` (maplibre-gl ≤ 6.5) | marched against the DEM |
 | --- | --- | --- |
 | 306 tiles, pitch 85 | 200–350 km, garbage | 5.11 km, same as at 18 tiles |
 | 36 rays, 1900×1532 | 2 ms | **1.6 ms** |
 | answers from | the rendered mesh | the DEM the anchor settles against |
 
-The timings are from SwiftShader, where `readPixels` is a memory read; on a real GPU it is
-a pipeline sync and the gap is wider. The third row matters as much as the first: the
-pivot and the settle used to disagree by the metres that mesh and DEM differ by on a
-slope. `pnpm verify` runs at 18 tiles and could never catch the overflow, so it asserts the
-invariant instead — it stubs `pointCoordinate` to return null and checks the pivot does not
-move.
+The timings are from SwiftShader, where `readPixels` is a memory read; on a real GPU it
+was a pipeline sync and the gap wider. The third row is the reason that outlived the
+overflow. ~~`pnpm verify` runs at 18 tiles and could never catch the overflow, so it
+asserts the invariant instead — it stubs `pointCoordinate` to return null and checks the
+pivot does not move.~~ The stub now breaks MapLibre's raycast, as above.
 
 The pivot never depends on where the mouse went down — shift+drag from anywhere and the
 mountain in view is what turns — which is how Google Maps 3D behaves, and Google is where

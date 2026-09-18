@@ -136,12 +136,12 @@ function marchFar(ray: Ray): number {
 
 /**
  * How far along a ray the terrain first comes up to meet it, sampled the way the elevation
- * pin samples — a DEM read at the tile zoom, not the rendered mesh `pointCoordinate`
- * hits. The two disagree by metres on a slope, and metres of elevation is metres of
- * camera. It is also the only raycast that keeps working on a big frame: MapLibre encodes
- * which tile a pixel came from in one byte of the coords framebuffer, so past 255 rendered
- * terrain tiles `pointCoordinate` decodes the wrong tile and answers with a real
- * coordinate from somewhere else entirely.
+ * pin samples — a DEM read at the tile zoom, not MapLibre's own raycast. Any other
+ * sampling disagrees by metres on a slope, and metres of elevation is metres of camera.
+ * (Before maplibre-gl 6.6.0 it was also the only raycast that kept working on a big frame:
+ * `terrain.pointCoordinate` read a coords framebuffer that encoded the tile in one byte, so
+ * past 255 rendered terrain tiles it decoded the wrong tile and answered with a real
+ * coordinate from somewhere else entirely.)
  *
  * Marched rather than solved. Stepping a plane toward the terrain and re-solving diverges
  * wherever the ground is steeper than the ray, which in the Alps is most of it: one pass
