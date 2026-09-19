@@ -22,6 +22,13 @@ const ZOOM_OUT = 4.0;
 /** A variant that cannot settle inside this forfeits its refresh — stale beats hung. */
 const SETTLE_TIMEOUT = 8000;
 
+/**
+ * A tile that has never shown a preview gets this much instead: a partial render beats
+ * an empty tile through the first actions at an uncached view, and the retry below
+ * brings the finished one.
+ */
+const FIRST_SETTLE_TIMEOUT = 1000;
+
 /** The main camera as the walk keys it: lng, lat, zoom, pitch, bearing. */
 export const cameraOf = (map: MapLibreMap): number[] => {
   const center = map.getCenter();
@@ -81,12 +88,12 @@ export function createThumbnailer(
   }
 
   /** Resolves true on 'idle', false when the timeout wins; either way the walk moves on. */
-  const settle = (): Promise<boolean> =>
+  const settle = (timeout: number): Promise<boolean> =>
     new Promise((resolve) => {
       const timer = setTimeout(() => {
         mini!.off('idle', onIdle);
         resolve(false);
-      }, SETTLE_TIMEOUT);
+      }, timeout);
       const onIdle = (): void => {
         // 'idle' can fire in the seam of a style swap, before the incoming style has
         // asked for its tiles — a snapshot there is a navy void with a few labels.
@@ -129,6 +136,8 @@ export function createThumbnailer(
    * basemaps, and a settle that changed nothing renders nothing.
    */
   const rendered = new Map<string, string>();
+  /** Tiles that show anything at all, a partial frame included. */
+  const delivered = new Set<string>();
   if (import.meta.env.DEV) Object.assign(window, { __thumbRendered: rendered });
 
   async function walk(gen: number, variants: ThumbVariant[], retriesLeft: number): Promise<void> {
@@ -145,6 +154,7 @@ export function createThumbnailer(
       if (baked) {
         for (const id of variant.ids) {
           opts.onImage(id, baked);
+          delivered.add(id);
           rendered.set(id, key);
         }
         continue;
@@ -171,16 +181,18 @@ export function createThumbnailer(
           failed++;
           continue;
         }
-        const settled = await settle();
+        const empty = variant.ids.some((id) => !delivered.has(id));
+        const settled = await settle(empty ? FIRST_SETTLE_TIMEOUT : SETTLE_TIMEOUT);
         if (gen !== generation) return;
-        if (!settled) {
-          failed++;
-          continue;
-        }
+        if (!settled) failed++;
+        if (!settled && !empty) continue;
+        // An empty tile takes the frame as it stands, but is not recorded as rendered:
+        // the retry and the next walk still owe it the settled one.
         const url = mini!.getCanvas().toDataURL();
         for (const id of variant.ids) {
           opts.onImage(id, url);
-          rendered.set(id, key);
+          delivered.add(id);
+          if (settled) rendered.set(id, key);
         }
       } catch {
         // A variant can land on a mini map whose last style never finished (a timed-out
