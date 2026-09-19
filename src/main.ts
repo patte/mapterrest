@@ -22,6 +22,7 @@ import { choosePivot, projectPoint } from './pivot';
 import { enablePerfDebug } from './perfDebug';
 import { glUsageAll, installGlAccounting } from './glAccounting';
 import { enablePivotDebug } from './pivotDebug';
+import { enableFlight, FLIGHT_MODES, type FlightMode, type Spin } from './flight';
 import { enableShiftDragCamera } from './shiftDragCamera';
 import { setupGeosearch } from './geosearch';
 import { maptilerSuffix, showNotice } from './notice';
@@ -34,7 +35,7 @@ import {
   MAX_TERRAIN_SCALE,
   type Detail,
 } from './terrain';
-import { has, MAP_HASH_KEY, readBoolean, readNumber, readString, write } from './urlState';
+import { has, MAP_HASH_KEY, readBoolean, readNumber, readString, remove, write } from './urlState';
 
 setWorkerUrl(maplibreWorkerUrl);
 
@@ -182,6 +183,29 @@ if (pivotEnabled) {
   pivotBox.disabled = true;
   pivotBox.title = '#pivot=0 hands the camera to MapLibre — there is no pivot to draw';
 }
+// Both keys are absent in their resting state: no flight, and an orbit that turns clockwise.
+const flight = enableFlight(
+  map,
+  anchor,
+  (mode, spin) => {
+    if (mode) write('flight', mode);
+    else remove('flight');
+    if (spin === -1) write('spin', 'ccw');
+    else remove('spin');
+  },
+  (pivot) => pivotDebug?.hold(pivot),
+);
+const readFlight = (): FlightMode | null => {
+  const mode = readString<FlightMode | 'none'>('flight', 'none', [...FLIGHT_MODES, 'none']);
+  return mode === 'none' ? null : mode;
+};
+const readSpin = (): Spin => (readString('spin', 'cw', ['cw', 'ccw']) === 'ccw' ? -1 : 1);
+// A restored flight waits for the terrain the pivot and the ground clearance read. Its
+// key is read now: setting the spin rewrites the hash, and no flight is running yet.
+const restoredFlight = readFlight();
+flight.setSpin(readSpin());
+map.once('idle', () => flight.set(restoredFlight));
+if (import.meta.env.DEV) Object.assign(window, { flight });
 map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right');
 
 const about = setupAbout();
@@ -220,7 +244,9 @@ map.on('error', (e) => {
 
 /* Basemap & overlay tiles ---------------------------------------------------- */
 
-const tray = createTray(readBoolean('collapsed', false), {
+/** Folded or open, or null for the viewport's own default. */
+const readCollapsed = (): boolean | null => (has('collapsed') ? readBoolean('collapsed', false) : null);
+const tray = createTray(readCollapsed(), {
   onBasemap(key) {
     if (key === null) {
       if (basemapVisible) {
@@ -703,6 +729,11 @@ map.on('movestart', () => {
   thumbs.cancel();
 });
 tray.onOpenChange(() => scheduleThumbs(THUMB_QUICK));
+// The key is present only where the tray differs from how the viewport would start.
+tray.onOpenChange(() => {
+  if (tray.open() === tray.viewportOpen()) remove('collapsed');
+  else write('collapsed', !tray.open());
+});
 document.addEventListener('visibilitychange', () => scheduleThumbs(THUMB_QUICK));
 
 /* Hash edits ---------------------------------------------------------------- */
@@ -741,8 +772,10 @@ function applyHash(): void {
   setTerrainScale(readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE));
   setPerfDebug(readBoolean('debugPerf', false));
   setPivotDebug(readBoolean('debugPivot', false));
-  tray.setForceCollapsed(readBoolean('collapsed', false));
+  tray.setCollapsed(readCollapsed());
   about.setOpen(readBoolean('about', false));
+  flight.setSpin(readSpin());
+  flight.set(readFlight());
 }
 window.addEventListener('hashchange', applyHash);
 

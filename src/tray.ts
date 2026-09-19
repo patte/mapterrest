@@ -34,7 +34,10 @@ export type Tray = {
   onOpenChange(cb: () => void): void;
   /** Folds the tray as the X does — for neighbours that need the corner. */
   close(): void;
-  setForceCollapsed(on: boolean): void;
+  /** How the viewport would start: open on desktop, folded on a phone. */
+  viewportOpen(): boolean;
+  /** Fold or open; null goes back to the viewport's own default. */
+  setCollapsed(on: boolean | null): void;
 };
 
 /** The settings tile's preview: the view itself, the spec every row varies from. */
@@ -44,7 +47,7 @@ const SLASH =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
   '<circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" /></svg>';
 
-export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
+export function createTray(collapsed: boolean | null, cb: TrayCallbacks): Tray {
   const tiles = new Map<string, HTMLButtonElement>();
   const images = new Map<string, HTMLImageElement>();
 
@@ -109,7 +112,9 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
   images.set(CURRENT_TILE, settingsTile.querySelector('img')!);
 
   const media = window.matchMedia('(max-width: 640px)');
-  let force = forceCollapsed;
+  let forced = collapsed;
+  const viewportOpen = (): boolean => !media.matches;
+  const startOpen = (): boolean => (forced === null ? viewportOpen() : !forced);
   const listeners: (() => void)[] = [];
   const notify = (): void => listeners.forEach((l) => l());
 
@@ -122,8 +127,8 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
   closeButton.addEventListener('click', () => setOpen(false));
   // The media and the hash pick the state a viewport starts in; the tile and the X
   // hand it to the user from there.
-  media.addEventListener('change', () => setOpen(!(force || media.matches)));
-  setOpen(!(force || media.matches));
+  media.addEventListener('change', () => setOpen(startOpen()));
+  setOpen(startOpen());
 
   return {
     select(sel: TraySelection): void {
@@ -145,10 +150,11 @@ export function createTray(forceCollapsed: boolean, cb: TrayCallbacks): Tray {
       listeners.push(listener);
     },
     close: () => setOpen(false),
-    setForceCollapsed(on: boolean): void {
-      if (on === force) return;
-      force = on;
-      setOpen(!(force || media.matches));
+    viewportOpen,
+    setCollapsed(on: boolean | null): void {
+      if (on === forced) return;
+      forced = on;
+      setOpen(startOpen());
     },
   };
 }

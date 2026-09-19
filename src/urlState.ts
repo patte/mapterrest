@@ -43,3 +43,9 @@ export function write(key: string, value: string | number | boolean): void {
   next.set(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
   history.replaceState(null, '', serialize(next));
 }
+
+export function remove(key: string): void {
+  const next = params();
+  next.delete(key);
+  history.replaceState(null, '', serialize(next));
+}

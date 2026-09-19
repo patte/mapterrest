@@ -10,6 +10,8 @@ declare global {
     glUsageAll: () => { textureBytes: number; textures: number; bufferBytes: number; buffers: number };
     choosePivot: (map: any) => any;
     projectPoint: (map: any, p: any) => { x: number; y: number } | null;
+    /** The forward/orbit toggles beside the magnifier. */
+    flight: { mode: 'forward' | 'orbit' | null; flying: boolean; spin: 1 | -1; toggle(mode: 'forward' | 'orbit'): void; stop(): void };
     /** The thumbnailer's mini map — existing at all means a preview rendered live. */
     __mini?: any;
     /** Tile id → what the walk keyed its render on, `[spec, camera]` as JSON. */

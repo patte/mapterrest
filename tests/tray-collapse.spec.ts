@@ -160,3 +160,28 @@ test('#collapsed=1 forces the fold on desktop', async ({ browser }) => {
   await check(await page.locator('#card').isVisible(), 'the settings tile still opens the tray');
   await page.close();
 });
+
+test('the fold lives in the hash', async ({ browser }) => {
+  const page = await open(browser);
+  const hash = () => page.evaluate(() => location.hash);
+  await check(!(await hash()).includes('collapsed'), 'open on desktop is the default: no key');
+  await page.click('#tray-close');
+  await check((await hash()).includes('collapsed=1'), 'the X writes collapsed=1');
+  await page.click('#tray-tile');
+  await check(!(await hash()).includes('collapsed'), 'opening again takes the key out');
+  await page.evaluate(() => {
+    location.hash += '&collapsed=1';
+  });
+  await page.waitForFunction(() => !document.querySelector('#card')!.checkVisibility(), null, { timeout: 5000 });
+  await check(!(await page.locator('#card').isVisible()), 'an edited hash folds it');
+  await page.close();
+
+  // A phone starts folded; opening the tray there is the departure worth recording.
+  const phone = await open(browser, { viewport: { width: 390, height: 844 } });
+  await phone.click('#tray-tile');
+  await check((await phone.evaluate(() => location.hash)).includes('collapsed=0'), 'opening on a phone writes collapsed=0');
+  await phone.close();
+  const phoneOpen = await open(browser, { viewport: { width: 390, height: 844 }, hash: '#collapsed=0' });
+  await check(await phoneOpen.locator('#card').isVisible(), '#collapsed=0 opens a phone tray');
+  await phoneOpen.close();
+});

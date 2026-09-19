@@ -570,6 +570,54 @@
         width: 15px;
         height: 15px;
       }
+      /* Flight: two toggles in a pill of the magnifier's shape, a gap to its right.
+         The opened search widens over that spot, so they fold away while it is open;
+         with no search (no MapTiler key) they take the corner themselves. */
+      #flight {
+        position: absolute;
+        top: calc(var(--edge) + env(safe-area-inset-top) + var(--perf-h));
+        left: calc(var(--edge) + env(safe-area-inset-left) + 35px + 12px);
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        border-radius: 999px;
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+        color: var(--panel-fg);
+      }
+      body:has(#geosearch[hidden]) #flight {
+        left: calc(var(--edge) + env(safe-area-inset-left));
+      }
+      body:has(#geosearch.open) #flight {
+        visibility: hidden;
+      }
+      /* The magnifier's own box, so the two pills stand equally tall. */
+      #flight button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 999px;
+        background: none;
+        color: var(--panel-muted);
+        cursor: pointer;
+      }
+      #flight button:hover {
+        color: var(--panel-fg);
+      }
+      #flight button[aria-pressed='true'] {
+        color: var(--accent);
+      }
+      #flight svg {
+        width: 15px;
+        height: 15px;
+      }
+      /* The arrow shows which way the next orbit turns. */
+      #flight-orbit[data-spin='ccw'] svg {
+        transform: scaleX(-1);
+      }
       /* #debugPerf readout: beside the magnifier, in front of it, and out of the way of
          the pointer — a HUD that took it would eat the drags being measured, so only
          the copy button does. An open search runs its input under the numbers; then
@@ -1045,6 +1093,7 @@
       body.shot #tray,
       body.shot #tray-tile,
       body.shot #geosearch,
+      body.shot #flight,
       body.shot #perf-debug,
       body.shot .maplibregl-ctrl-top-left,
       body.shot .maplibregl-ctrl-top-right {
@@ -1130,6 +1179,7 @@
         body:has(dialog[open]) #tray,
         body:has(dialog[open]) #tray-tile,
         body:has(dialog[open]) #geosearch,
+        body:has(dialog[open]) #flight,
         body:has(dialog[open]) .maplibregl-ctrl-top-left,
         body:has(dialog[open]) .maplibregl-ctrl-top-right,
         body:has(dialog[open]) .maplibregl-ctrl-bottom-left,
@@ -1355,6 +1405,20 @@
         </button>
       </div>
       <ul id="geosearch-results" role="listbox" aria-label="search results" hidden></ul>
+    </div>
+
+    <div id="flight">
+      <button id="flight-forward" type="button" aria-label="fly forward" title="fly forward" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 20V4M5 11l7-7 7 7" />
+        </svg>
+      </button>
+      <button id="flight-orbit" type="button" aria-label="orbit the view" title="orbit the view" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          <path d="M23 4v6h-6" />
+        </svg>
+      </button>
     </div>
 
     <div id="notice" hidden>
