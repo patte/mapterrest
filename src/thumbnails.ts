@@ -69,7 +69,8 @@ export function createThumbnailer(
       style: BASEMAPS[spec.basemap].url,
       interactive: false,
       attributionControl: false,
-      maxPitch: 90,
+      // The previews render the main camera's pitch, so they must allow what it allows.
+      maxPitch: main.getMaxPitch(),
       // Tile crossfades would either delay the snapshot or land half-blended in it.
       fadeDuration: 0,
       // Keeps the frame readable after 'idle'; the snapshot below reads it directly.
