@@ -96,7 +96,8 @@ try {
     pitch: 78,
     bearing: 225,
     // MapLibre allows up to 180; 90 is the camera lying flat on the horizon.
-    maxPitch: 90,
+    // Capped, crashes near 90, not yet investigated
+    maxPitch: 88,
     // The pin re-clamps the centre's elevation to the DEM every frame and every terrain
     // tile, moving the camera by the difference — measured as kilometre teleports mid-wheel
     // and on release at high pitch. cameraAnchor.ts anchors instead, so it is off with it.
