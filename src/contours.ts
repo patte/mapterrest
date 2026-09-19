@@ -112,14 +112,39 @@ export function contourSource(density: number, falloff: number): VectorSourceSpe
   };
 }
 
-export function contourLineLayer(basemap: Basemap): LayerSpecification {
+export type ContourColours = Basemap['contour'];
+
+/**
+ * A chosen colour paints the lines and the label text alike; the halo stays the
+ * basemap's, since it exists to ground the text on that style, whatever the text's
+ * colour.
+ */
+export function contourColours(basemap: Basemap, custom: string | null): ContourColours {
+  if (custom === null) return basemap.contour;
+  return { line: custom, label: custom, halo: basemap.contour.halo };
+}
+
+/** Six hex digits, no `#`: the form the hash carries and the colour input can hold. */
+export const isContourColour = (value: string): boolean => /^[0-9a-f]{6}$/i.test(value);
+
+/**
+ * A palette colour as the `#rrggbb` a colour input can show; alpha is dropped, so
+ * the satellite palette's translucent white shows as white.
+ */
+export function swatchHex(colour: string): string {
+  const rgb = colour.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (rgb) return `#${rgb.slice(1, 4).map((c) => Number(c).toString(16).padStart(2, '0')).join('')}`;
+  return colour;
+}
+
+export function contourLineLayer(colours: ContourColours): LayerSpecification {
   return {
     id: CONTOUR_LINE_LAYER,
     type: 'line',
     source: CONTOUR_SOURCE,
     'source-layer': 'contours',
     paint: {
-      'line-color': basemap.contour.line,
+      'line-color': colours.line,
       // Over terrain the lines are baked into a 2048 px drape texture per terrain tile
       // and stretched up to 2× between integer zooms; a 0.5 px minor is one texel and
       // smears into a grey band there, 0.75 still reads as a line (1 px crowds z14).
@@ -128,7 +153,7 @@ export function contourLineLayer(basemap: Basemap): LayerSpecification {
   };
 }
 
-export function contourTextLayer(basemap: Basemap, font: string[]): LayerSpecification {
+export function contourTextLayer(colours: ContourColours, font: string[]): LayerSpecification {
   return {
     id: CONTOUR_TEXT_LAYER,
     type: 'symbol',
@@ -143,8 +168,8 @@ export function contourTextLayer(basemap: Basemap, font: string[]): LayerSpecifi
       'text-font': font,
     },
     paint: {
-      'text-color': basemap.contour.label,
-      'text-halo-color': basemap.contour.halo,
+      'text-color': colours.label,
+      'text-halo-color': colours.halo,
       'text-halo-width': 1.5,
     },
   };

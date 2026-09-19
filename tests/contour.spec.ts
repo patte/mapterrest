@@ -57,6 +57,53 @@ test('contours trace the DEM and ride above the relief', async ({ browser }) => 
   await page.close();
 });
 
+// The colour is a paint property on both layers, kept as bare hex in the hash, absent
+// at the basemap's own; the swatch shows the basemap's own colour until one is chosen, and the reset returns
+// there — including the reset button's own state — whatever basemap is up by then.
+test('a chosen colour paints lines and labels and rides the hash', async ({ browser }) => {
+  const lineColour = () =>
+    page.evaluate(() => window.map.getPaintProperty('terrain-contour-lines', 'line-color'));
+  const labelColour = () =>
+    page.evaluate(() => window.map.getPaintProperty('terrain-contour-labels', 'text-color'));
+
+  const page = await open(browser, { hash: '#contours=1&contourColor=ff0000' });
+  await settled(page);
+  await check((await lineColour()) === '#ff0000', 'the hash colour paints the lines', String(await lineColour()));
+  await check((await labelColour()) === '#ff0000', 'and the labels', String(await labelColour()));
+  await check(
+    (await page.inputValue('#contour-colour-input')) === '#ff0000',
+    'the swatch shows the chosen colour',
+  );
+  await check(await page.isEnabled('#contour-colour-reset'), 'the reset is live while a colour is chosen');
+
+  // The picker's input repaints at once; the hash trails it.
+  await page.evaluate(() => {
+    const input = document.getElementById('contour-colour-input') as HTMLInputElement;
+    input.value = '#00ff00';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await check((await lineColour()) === '#00ff00', 'the picker repaints the lines live');
+  await page.waitForFunction(() => location.hash.includes('contourColor=00ff00'), null, { timeout: 2000 });
+  await check(
+    await page.evaluate(() => location.hash.includes('contourColor=00ff00')),
+    'the colour lands in the hash',
+  );
+
+  // Switching basemaps keeps the choice; resetting on the new one takes its colour.
+  await page.click('#basemap-thumbs .tile[data-key="carto-dark"]');
+  await settled(page);
+  await check((await lineColour()) === '#00ff00', 'the colour survives a basemap switch');
+  await page.click('#contour-colour-reset');
+  await check((await lineColour()) === '#c9985a', 'reset takes the new basemap\'s own colour', String(await lineColour()));
+  await check((await labelColour()) === '#e0b878', 'labels go back to their own shade too', String(await labelColour()));
+  await check(
+    await page.evaluate(() => !location.hash.includes('contourColor')),
+    'reset drops the key from the hash',
+  );
+  await check(await page.isDisabled('#contour-colour-reset'), 'the reset greys at the default');
+  await page.close();
+});
+
 // The steppers reshape the interval table: "lines" (density) scales every rung, so a
 // step up must land more distinct elevations in the same view; both write the hash
 // and default to absent.

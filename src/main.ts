@@ -10,7 +10,7 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import { BASEMAPS, BASEMAP_KEYS, defaultBasemap, isDark, isMapTiler, type BasemapKey } from './basemaps';
 import { defaultExposed, RAMP_KEYS, type RampKey } from './shading';
 import { attachScene, type SceneSpec } from './scene';
-import { DENSITY_RANGE, FALLOFF_RANGE } from './contours';
+import { DENSITY_RANGE, FALLOFF_RANGE, isContourColour, swatchHex } from './contours';
 import { bakedPlaceholder, bakedThumb } from './bakedThumbs';
 import { cameraOf, createThumbnailer, type ThumbVariant } from './thumbnails';
 import { createTray, CURRENT_TILE, tileId } from './tray';
@@ -35,7 +35,7 @@ import {
   MAX_TERRAIN_SCALE,
   type Detail,
 } from './terrain';
-import { has, MAP_HASH_KEY, readBoolean, readNumber, readString, remove, write } from './urlState';
+import { has, MAP_HASH_KEY, read, readBoolean, readNumber, readString, remove, write } from './urlState';
 
 setWorkerUrl(maplibreWorkerUrl);
 
@@ -70,6 +70,12 @@ let contours = readBoolean('contours', false);
 let contourLabels = readBoolean('contourLabels', true);
 let contourDensity = readNumber('contourDensity', 0, ...DENSITY_RANGE);
 let contourFalloff = readNumber('contourFalloff', 0, ...FALLOFF_RANGE);
+/** Six hex digits; null paints the basemap's own contour colour. */
+const readContourColor = (): string | null => {
+  const value = read('contourColor');
+  return value && isContourColour(value) ? value.toLowerCase() : null;
+};
+let contourColor = readContourColor();
 /** Only until the box is toggled by hand — until then exposure follows each ramp's default. */
 let autoExposureChosen = has('autoExposure');
 let autoExposure = readBoolean('autoExposure', rampKey !== null && defaultExposed(rampKey));
@@ -128,7 +134,7 @@ try {
 
 const scene = attachScene(
   map,
-  { basemap: basemapKey, basemapVisible, ramp: rampKey, hillshade, contours, contourLabels, contourDensity, contourFalloff, exposure: null, terrainScale },
+  { basemap: basemapKey, basemapVisible, ramp: rampKey, hillshade, contours, contourLabels, contourDensity, contourFalloff, contourColor, exposure: null, terrainScale },
   detail,
 );
 
@@ -306,6 +312,7 @@ function setBasemap(key: BasemapKey): void {
   scene.set({ basemap: key });
   syncTray();
   applyLogos();
+  applyContourSettings();
 }
 
 function setBasemapVisible(on: boolean): void {
@@ -422,6 +429,12 @@ function applyContourSettings(): void {
   falloffUp.disabled = contourFalloff >= FALLOFF_RANGE[1];
   for (const dot of densityDots) dot.checked = Number(dot.value) === contourDensity;
   for (const dot of falloffDots) dot.checked = Number(dot.value) === contourFalloff;
+  // The swatch shows the colour in force, the basemap's while none is chosen, so it
+  // follows a basemap switch; the reset greys once there is nothing to reset.
+  const own = BASEMAPS[basemapKey].contour.line;
+  colourSwatch.style.setProperty('--contour-colour', contourColor ? `#${contourColor}` : own);
+  colourInput.value = contourColor ? `#${contourColor}` : swatchHex(own);
+  colourReset.disabled = contourColor === null;
 }
 
 function setContourLabels(on: boolean): void {
@@ -435,6 +448,36 @@ labelsBox.checked = contourLabels;
 labelsBox.addEventListener('change', () => {
   setContourLabels(labelsBox.checked);
   write('contourLabels', contourLabels);
+});
+
+/* Contour colour ------------------------------------------------------------- */
+
+const colourSwatch = document.getElementById('contour-colour') as HTMLSpanElement;
+const colourInput = document.getElementById('contour-colour-input') as HTMLInputElement;
+const colourReset = document.getElementById('contour-colour-reset') as HTMLButtonElement;
+
+function setContourColor(color: string | null): void {
+  if (color === contourColor) return;
+  contourColor = color;
+  applyContourSettings();
+  scene.set({ contourColor: color });
+}
+
+// The map follows the picker live; the hash trails by the same 300 ms as the terrain
+// slider — a drag through the picker fires hundreds of inputs, and Safari refuses more
+// than 100 replaceStates per 30 s.
+let colourWriteTimer: number | undefined;
+colourInput.addEventListener('input', () => {
+  setContourColor(colourInput.value.slice(1).toLowerCase());
+  window.clearTimeout(colourWriteTimer);
+  colourWriteTimer = window.setTimeout(() => {
+    if (contourColor) write('contourColor', contourColor);
+  }, 300);
+});
+colourReset.addEventListener('click', () => {
+  window.clearTimeout(colourWriteTimer);
+  setContourColor(null);
+  remove('contourColor');
 });
 
 /* Contour tuning ------------------------------------------------------------- */
@@ -768,6 +811,7 @@ function applyHash(): void {
     readNumber('contourDensity', 0, ...DENSITY_RANGE),
     readNumber('contourFalloff', 0, ...FALLOFF_RANGE),
   );
+  setContourColor(readContourColor());
   setAutoExposure(readBoolean('autoExposure', rampKey !== null && defaultExposed(rampKey)));
   setTerrainScale(readNumber('terrainScale', DEFAULT_TERRAIN_SCALE, 0, MAX_TERRAIN_SCALE));
   setPerfDebug(readBoolean('debugPerf', false));

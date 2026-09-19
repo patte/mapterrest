@@ -305,6 +305,67 @@
         font-size: 12px;
         color: var(--panel-muted);
       }
+      /* The colour swatch and its reset sit at the row's right edge, in the ⊕ column of
+         the rows below. The swatch is painted with the colour in force (the basemap's
+         own line colour may carry alpha, which a colour input cannot show); the native
+         input lies invisible over it so a tap opens the platform picker rather than a
+         popover of our own. The reset greys at the default instead of leaving, so the
+         row never shifts. */
+      #contour-colour {
+        position: relative;
+        display: block;
+        flex: none;
+        width: 18px;
+        height: 18px;
+        margin-left: auto;
+        border: 1.5px solid var(--panel-muted);
+        border-radius: 50%;
+        background-color: var(--contour-colour);
+        cursor: pointer;
+      }
+      #contour-colour:hover {
+        border-color: var(--panel-fg);
+      }
+      #contour-colour input {
+        position: absolute;
+        inset: -4px;
+        width: 26px;
+        height: 26px;
+        margin: 0;
+        padding: 0;
+        border: none;
+        opacity: 0;
+        cursor: pointer;
+      }
+      #contour-colour-reset,
+      .detents button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: none;
+        color: var(--panel-muted);
+        cursor: pointer;
+      }
+      #contour-colour-reset:hover:not(:disabled),
+      .detents button:hover:not(:disabled) {
+        background: var(--control-bg);
+        color: var(--panel-fg);
+      }
+      #contour-colour-reset:disabled,
+      .detents button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      #contour-colour-reset svg,
+      .detents button svg {
+        width: 20px;
+        height: 20px;
+      }
       /* One setting per row: the name, then ⊖, the detent dots as one tight group, ⊕,
          with the well's spare width split around the group so ⊕ sits on the right
          edge; the fixed-width name keeps the two rows' controls in columns. The dots
@@ -319,31 +380,6 @@
       }
       .detents .name {
         width: 54px;
-      }
-      .detents button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 26px;
-        height: 26px;
-        padding: 0;
-        border: none;
-        border-radius: 50%;
-        background: none;
-        color: var(--panel-muted);
-        cursor: pointer;
-      }
-      .detents button:hover:not(:disabled) {
-        background: var(--control-bg);
-        color: var(--panel-fg);
-      }
-      .detents button:disabled {
-        opacity: 0.45;
-        cursor: default;
-      }
-      .detents button svg {
-        width: 20px;
-        height: 20px;
       }
       /* The dots grow to the right, so the row reads as a scale from less to more. */
       .detents input[type='radio'] {
@@ -393,11 +429,13 @@
         .detents .name {
           width: 44px;
         }
+        #contour-colour-reset,
         .detents button,
         .detents input[type='radio'] {
           width: 28px;
           height: 28px;
         }
+        #contour-colour-reset svg,
         .detents button svg {
           width: 22px;
           height: 22px;
@@ -1504,9 +1542,15 @@
               <div id="contour-settings-clip">
                 <div id="contour-settings-body" role="group" aria-labelledby="contour-settings-title">
                   <p id="contour-settings-title">contours</p>
-                  <div class="row">
+                  <div class="row" id="contour-labels-row">
                     <input id="contour-labels" type="checkbox" />
                     <label for="contour-labels">elevation labels</label>
+                    <span id="contour-colour" title="contour colour">
+                      <input id="contour-colour-input" type="color" aria-label="contour colour" />
+                    </span>
+                    <button id="contour-colour-reset" type="button" aria-label="reset contour colour to the basemap's">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /><path d="M5.75 5.75l4.5 4.5M10.25 5.75l-4.5 4.5" stroke-linecap="round" /></svg>
+                    </button>
                   </div>
                   <div class="row detents" role="radiogroup" aria-labelledby="contour-density-label">
                     <span class="name" id="contour-density-label" title="more or fewer contour lines everywhere">lines</span>

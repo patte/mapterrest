@@ -68,8 +68,11 @@ elevation labels under contours, auto-exposure under a ramp — sits in a row of
 under the line, disabled rather than hidden while its tile is off, so the tray never
 shifts. Relief draws over colour: a hillshade over the heat ramp is the classic
 terrain look, and contours sit over both. While contours are on, an "elevation labels"
-checkbox appears. Everything survives in the hash: `hillshade=0` (default on),
-`ramp=heatmap` (default none), `contours=1`, `contourLabels=0` (labels default on).
+checkbox appears, with a colour swatch beside it: the basemap's own line colour until
+one is picked, which then paints lines and labels alike (the halo stays the basemap's);
+the ⊗ returns to the basemap's. Everything survives in the hash: `hillshade=0` (default on),
+`ramp=heatmap` (default none), `contours=1`, `contourLabels=0` (labels default on),
+`contourColor=ff0000` (bare hex, absent at the basemap's own).
 Links from before the split — `shading=heatmap`, `shadingVisible=0` — still render
 what they showed.
 

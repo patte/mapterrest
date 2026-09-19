@@ -21,6 +21,8 @@ const serialize = (p: URLSearchParams): string =>
 
 export const has = (key: string): boolean => params().has(key);
 
+export const read = (key: string): string | null => params().get(key);
+
 export function readString<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
   const value = params().get(key);
   return allowed.includes(value as T) ? (value as T) : fallback;

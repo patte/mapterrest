@@ -4,6 +4,7 @@ import {
   CONTOUR_LINE_LAYER,
   CONTOUR_SOURCE,
   CONTOUR_TEXT_LAYER,
+  contourColours,
   contourLineLayer,
   contourSource,
   contourTextLayer,
@@ -41,6 +42,8 @@ export type SceneSpec = {
   /** Stepper detents on the interval table (contours.ts); 0/0 is the table as written. */
   contourDensity: number;
   contourFalloff: number;
+  /** `rrggbb` painting the lines and labels; null takes the basemap's own colour. */
+  contourColor: string | null;
   /** Range the ramps are pinned to; null spans the ramp's own metres. */
   exposure: Range | null;
   /** Vertical multiplier on the DEM; 0 renders the terrain flat. */
@@ -114,6 +117,9 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
     );
   }
 
+  const contourColoursOf = () =>
+    contourColours(BASEMAPS[spec.basemap], spec.contourColor === null ? null : `#${spec.contourColor}`);
+
   /** The tuning the attached source was built with — a change means a re-trace. */
   let contourTuning = '';
 
@@ -130,13 +136,21 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
       map.addSource(CONTOUR_SOURCE, contourSource(spec.contourDensity, spec.contourFalloff));
       contourTuning = tuning;
     }
-    const basemap = BASEMAPS[spec.basemap];
+    const colours = contourColoursOf();
     const anchor = firstSymbolId();
-    map.addLayer(contourLineLayer(basemap), anchor);
+    map.addLayer(contourLineLayer(colours), anchor);
     if (spec.contourLabels) {
       const font = styleTextFont(map);
-      if (font) map.addLayer(contourTextLayer(basemap, font), anchor);
+      if (font) map.addLayer(contourTextLayer(colours, font), anchor);
     }
+  }
+
+  /** A colour change is a paint update on the layers in place — a picker drag fires
+   * many, and a layer rebuild per step would flicker. */
+  function repaintContours(): void {
+    const colours = contourColoursOf();
+    if (map.getLayer(CONTOUR_LINE_LAYER)) map.setPaintProperty(CONTOUR_LINE_LAYER, 'line-color', colours.line);
+    if (map.getLayer(CONTOUR_TEXT_LAYER)) map.setPaintProperty(CONTOUR_TEXT_LAYER, 'text-color', colours.label);
   }
 
   /**
@@ -255,6 +269,8 @@ export function attachScene(map: MapLibreMap, initial: SceneSpec, detail: Detail
             spec.contourFalloff !== prev.contourFalloff))
       ) {
         applyContours();
+      } else if (spec.contours && spec.contourColor !== prev.contourColor) {
+        repaintContours();
       }
     },
     spec: () => ({ ...spec }),
