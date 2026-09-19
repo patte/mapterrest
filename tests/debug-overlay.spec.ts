@@ -40,8 +40,8 @@ test('#debugPerf=1 counts what the page holds on the GPU', async ({ browser }) =
   await settled(page, 1200);
   const line = await page.evaluate(
     () =>
-      [...document.querySelectorAll('#map div')]
-        .map((el) => el.textContent ?? '')
+      (document.querySelector('#perf-debug')?.textContent ?? '')
+        .split('\n')
         .find((t) => t.includes('gpu ')) ?? '',
   );
   const m = /gpu (\d+) MiB in (\d+) textures/.exec(line);

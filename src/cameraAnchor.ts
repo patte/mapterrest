@@ -338,8 +338,18 @@ export function enableCameraAnchor(map: MapLibreMap): CameraAnchor {
     map.off('sourcedata', trackLoad);
   };
 
+  // A resize moves nothing but the viewport, yet MapLibre wraps it in movestart/moveend.
+  // Its 'resize' fires between the two, so a flag set there marks the moveend to skip:
+  // settling then, before the DEM is in, would end tracking on a camera still inside
+  // the mountain.
+  let resized = false;
+  const onResize = (): void => {
+    resized = true;
+  };
   const onMoveEnd = (): void => {
-    if (busy || suspended > 0) return;
+    const skip = resized;
+    resized = false;
+    if (skip || busy || suspended > 0) return;
     stopTracking();
     run(() => settle(map));
   };
@@ -357,6 +367,7 @@ export function enableCameraAnchor(map: MapLibreMap): CameraAnchor {
 
   map.on('sourcedata', trackLoad);
   map.once('idle', onIdle);
+  map.on('resize', onResize);
   map.on('moveend', onMoveEnd);
   map.on('terrain', onTerrain);
 
@@ -373,6 +384,7 @@ export function enableCameraAnchor(map: MapLibreMap): CameraAnchor {
     },
     disable: () => {
       stopTracking();
+      map.off('resize', onResize);
       map.off('moveend', onMoveEnd);
       map.off('terrain', onTerrain);
       map.off('idle', onIdle);

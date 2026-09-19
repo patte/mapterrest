@@ -41,9 +41,18 @@
         height: 100%;
         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
       }
+      /* The #debugPerf readout's claim on the top-left corner. perfDebug.ts measures the
+         box into --perf-box-h; --perf-h is what the map and the chrome move down by,
+         non-zero only where the box is a banner (narrow screens, below); --top-chrome
+         is what the tray leaves free above itself: the search pill or the box beside it,
+         whichever is taller. */
+      :root {
+        --perf-h: 0px;
+        --top-chrome: max(35px, var(--perf-box-h, 0px));
+      }
       #map {
         position: absolute;
-        inset: 0;
+        inset: var(--perf-h) 0 0 0;
       }
 
       /* The tray: terrain scale and extras on top, then relief, colour, basemap — the
@@ -72,11 +81,12 @@
         /* The tray's box reaches past the card — only the visible pieces catch the
            pointer, so drags that start beside them still reach the map. */
         pointer-events: none;
-        /* Never taller than the room under the geosearch pill (27px tall, plus the
-           tray's own 8px gap): on a short screen the card gives up height and scrolls
-           inside rather than climbing into the top-left corner. */
+        /* Never taller than the room under the top-left chrome (the geosearch pill: 27px
+           tall, plus the tray's own 8px gap): on a short screen the card gives up height
+           and scrolls inside rather than climbing into the top-left corner. */
         max-height: calc(
-          100dvh - 2 * var(--edge) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 35px
+          100dvh - 2 * var(--edge) - env(safe-area-inset-top) - env(safe-area-inset-bottom) -
+            var(--top-chrome)
         );
       }
       #card,
@@ -496,7 +506,7 @@
          entirely until JS confirms a MapTiler key. */
       #geosearch {
         position: absolute;
-        top: calc(var(--edge) + env(safe-area-inset-top));
+        top: calc(var(--edge) + env(safe-area-inset-top) + var(--perf-h));
         left: calc(var(--edge) + env(safe-area-inset-left));
         z-index: 3;
         display: flex;
@@ -559,6 +569,54 @@
       #geosearch-open svg {
         width: 15px;
         height: 15px;
+      }
+      /* #debugPerf readout: beside the magnifier, in front of it, and out of the way of
+         the pointer — a HUD that took it would eat the drags being measured, so only
+         the copy button does. An open search runs its input under the numbers; then
+         the input wins. */
+      #perf-debug {
+        position: absolute;
+        top: calc(var(--edge) + env(safe-area-inset-top));
+        left: calc(var(--edge) + env(safe-area-inset-left) + 35px + 8px);
+        z-index: 4;
+        pointer-events: none;
+        white-space: pre;
+        font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: rgba(12, 16, 22, 0.82);
+        color: #e6edf3;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      }
+      body:has(#geosearch.open) #perf-debug {
+        z-index: 2;
+      }
+      #perf-debug button {
+        pointer-events: auto;
+        margin-top: 6px;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        background: rgba(255, 255, 255, 0.12);
+        border: 0;
+        border-radius: 4px;
+        padding: 2px 8px;
+      }
+      /* A phone has no free corner: the readout becomes a banner above the map, the
+         map and the top-left chrome move down by --perf-h, and lines longer than the
+         screen scroll sideways. */
+      @media (max-width: 640px) {
+        :root {
+          --perf-h: var(--perf-box-h, 0px);
+          --top-chrome: calc(35px + var(--perf-h));
+        }
+        #perf-debug {
+          inset: 0 0 auto 0;
+          padding-top: calc(8px + env(safe-area-inset-top));
+          border-radius: 0;
+          pointer-events: auto;
+          overflow-x: auto;
+        }
       }
       /* Kept out of the tab order and the accessibility tree while clipped away; on
          open, visible at once so focus can land mid-slide, the fade a beat behind the
@@ -987,6 +1045,7 @@
       body.shot #tray,
       body.shot #tray-tile,
       body.shot #geosearch,
+      body.shot #perf-debug,
       body.shot .maplibregl-ctrl-top-left,
       body.shot .maplibregl-ctrl-top-right {
         visibility: hidden;

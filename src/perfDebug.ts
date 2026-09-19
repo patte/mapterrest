@@ -15,28 +15,25 @@ import { DEM_SOURCE } from './terrain';
 const WINDOW_MS = 1000;
 
 export function enablePerfDebug(map: MapLibreMap): () => void {
+  // Laid out by index.html: beside the search pill, or a banner above the map on a
+  // narrow screen, where the map and the chrome move down by the box's height.
   const box = document.createElement('div');
-  // Top left: the corner the tile tray does not own.
-  box.style.cssText =
-    'position:absolute;top:8px;left:8px;z-index:3;pointer-events:none;white-space:pre;' +
-    'font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;padding:8px 10px;' +
-    'border-radius:6px;background:rgba(12,16,22,0.82);color:#e6edf3;' +
-    'text-shadow:0 1px 2px rgba(0,0,0,0.6)';
+  box.id = 'perf-debug';
   const readout = document.createElement('div');
-  // The numbers are worth nothing if they cannot leave the screen, and a HUD that took
-  // the pointer would eat the drags being measured — so only the button takes it.
+  // The numbers are worth nothing if they cannot leave the screen.
   const copy = document.createElement('button');
   copy.textContent = 'copy';
-  copy.style.cssText =
-    'pointer-events:auto;margin-top:6px;font:inherit;color:inherit;cursor:pointer;' +
-    'background:rgba(255,255,255,0.12);border:0;border-radius:4px;padding:2px 8px';
   copy.addEventListener('click', async () => {
     await navigator.clipboard.writeText(`${window.location.href}\n${readout.textContent}`);
     copy.textContent = 'copied';
     setTimeout(() => (copy.textContent = 'copy'), 1200);
   });
   box.append(readout, copy);
-  map.getCanvasContainer().appendChild(box);
+  document.body.appendChild(box);
+  const height = new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--perf-box-h', `${box.offsetHeight}px`);
+  });
+  height.observe(box);
 
   // Overloaded GL entry points, counted through a signature TypeScript will accept.
   const gl = map.painter.context.gl as unknown as Record<string, (...args: never[]) => unknown>;
@@ -146,6 +143,8 @@ export function enablePerfDebug(map: MapLibreMap): () => void {
   return () => {
     cancelAnimationFrame(raf);
     tiles.disconnect();
+    height.disconnect();
+    document.documentElement.style.removeProperty('--perf-box-h');
     map.off('render', onRender);
     gl.drawElements = drawElements;
     gl.readPixels = readPixels;
